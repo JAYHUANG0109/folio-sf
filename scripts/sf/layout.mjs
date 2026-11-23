@@ -57,7 +57,7 @@ export const hills = [
     [42, -40, 3.5, 6],     // Telegraph Hill
     [-24, -22, 2.5, 12],   // Pacific Heights
     [-52, 66, 4.5, 6],     // the turkey hill
-    [-31, 10, 3.0, 6.5],   // Alamo Square: the park on its hill, across the street from the Painted Ladies
+    [-28, 10, 3.0, 5],     // Alamo Square: the park on its hill, across the street from the Painted Ladies
     [-44, 40, 4.0, 8],     // Mount Sutro
     [3, 52, 3.4, 8],       // Dolores Heights: the park slopes down from here toward downtown
     [3, -84, 3.0, 8],      // Alcatraz
@@ -78,14 +78,19 @@ export const pads = [
     [24, -13, 9, 14, 0.3],    // Chinatown: flat street level under the shops and the gate
     [36, -54, 4, 7, 0],       // Pier 39 shore
     [-40, -32, 11, 16, 0],    // Palace of Fine Arts (1.5x)
-    [-58, 16, 13, 17.5, 0],   // tennis (1.85x)
+    [-58, 16, 17, 22, 0],     // tennis (1.85x): wide flat ground so no hill creeps onto the courts
     [-52, 66, 9.5, 15, 4.2],  // Thanksgiving turkey (1.5x) on top of its own hill (the old Twin Peaks hill moved here)
     [-79, -84, 15, 22, 3.2],  // secret: Napa castle (west of the bridge), at bridge deck level: flat, smooth drive
     [-34, -92, 5, 8, 0.8],    // secret: Muir Woods
     [-75, 52, 3, 6, 0],       // 小可's house (off the hill)
     [-29, 52, 4, 7, 0],       // Dookie's house (off the hill)
-    [-60, 43.5, 5, 7, 0],     // JAY ♥ JESSICA blocks: flat ground north of the hill
-    [-44, 43.5, 5, 7, 0],
+    // JAY ♥ JESSICA blocks: a long flat strip north of the turkey hill
+    [-66, 46, 4.5, 7, 0],
+    [-60, 46, 4.5, 7, 0],
+    [-54, 46, 4.5, 7, 0],
+    [-48, 46, 4.5, 7, 0],
+    [-42, 46, 4.5, 7, 0],
+    [-36, 46, 4.5, 7, 0],
     [3, -84, 8.5, 12, 2.4],   // Alcatraz summit (flat for the cellhouse), cliffs all around
     [-17, -52, 2, 5, 0],      // cable car turnaround
     [-17, -40.7, 2.2, 5, null], // flat landing at the top of Lombard (Hyde St): the car doesn't roll away on spawn

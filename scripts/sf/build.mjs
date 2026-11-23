@@ -581,7 +581,7 @@ const footprints = [] // [x, z, w, d, isDowntown] for the map
             const side = i % 2 ? 1 : - 1
             const off = street.width * (street.highway ? 0.45 : 0.4) + 1.1
             const x = p.x - d.z * off * side, z = p.z + d.x * off * side
-            if(nearRoad(x, z, 0.5) || inSite(x, z, 1) || !onLand(x, z) || Math.abs(x) > 92 || Math.abs(z) > 92)
+            if(nearRoad(x, z, 0.5) || inSite(x, z, 1) || !onLand(x, z) || Math.abs(x) > 92 || Math.abs(z) > 92 || (x > - 70 && x < - 32 && z > 41.5 && z < 51))
                 continue
             const y = ground(x, z)
             posts.cylinder(0.07, 0.1, 2.6, C.dark, [ x, y, z ], 6)
@@ -1001,7 +1001,7 @@ const footprints = [] // [x, z, w, d, isDowntown] for the map
     sign.box([ 3.2, 0.2, 0.22 ], C.snow, [ 0, 2.25, 0 ])
     sign.box([ 2.4, 0.2, 0.22 ], C.snow, [ 0, 1.95, 0 ])
     // JAY ♥ JESSICA in big knockable blocks, north of the dish between the two dog houses
-    sceneryNodes.push(...nameBlocks(ground, [ { text: 'JAY', color: C.sky }, { text: '♥', color: C.red }, { text: 'JESSICA', color: C.pink } ], x, z - 22.5))
+    sceneryNodes.push(...nameBlocks(ground, [ { text: 'JAY', color: C.sky }, { text: '♥', color: C.red }, { text: 'JESSICA', color: C.pink } ], x, z - 20))
 }
 
 // Dog houses: 小可's pink cottage and Dookie's Swiss chalet
@@ -1176,6 +1176,8 @@ console.log('respawns ok')
     // nothing may stand on a street: drop any tree, bush or prop whose trunk ends up on one
     for(const key of [ 'redwoods', 'oakTrees', 'birchTrees', 'cherryTrees', 'bushes', 'benches', 'lanterns', 'poleLights' ])
     {
+        // keep the JAY ♥ JESSICA blocks clear
+        placements[key] = placements[key].filter(p => !(p[0] > - 70 && p[0] < - 32 && p[2] > 41.5 && p[2] < 51))
         const before = placements[key].length
         placements[key] = placements[key].filter(p => !nearRoad(p[0] ?? p.position?.[0] ?? p.x, p[2] ?? p.position?.[2] ?? p.z, key === 'lanterns' ? - 10 : 0.6))
         if(placements[key].length !== before)

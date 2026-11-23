@@ -2372,6 +2372,38 @@ builders.tennis = (ctx) =>
         racket.cbox([ 0.5, 0.5, 0.02 ], C.snow, [ 0, 1.05, 0 ])
         nodes.push({ ...meshNode('racket', racket, ctx.at(cx + 6.5 + k * 0.6, cz, 0.05)), rotation: [ 0, 0, 0.3 ] })
     }
+    // courtside: pennant bunting over the gap between the courts, a scoreboard, benches with an umbrella, potted plants
+    {
+        const d = new Model()
+        for(const z of [ cz - 0.1 ])
+        {
+            for(let k = 0; k <= 18; k++)
+            {
+                const t = k / 18, x = cx - 7 + t * 14
+                const y = 3.2 - Math.sin(t * Math.PI) * 0.6
+                d.cone(0.16, 0.38, [ C.red, C.gold, C.sky, C.snow, C.leaf ][k % 5], [ x - cx, y - 0.38, z - cz ], 3, [ Math.PI, 0, 0 ])
+            }
+            for(const x of [ - 7, 7 ])
+                d.cylinder(0.05, 0.05, 3.3, C.snow, [ x, 0, z - cz ], 5)
+        }
+        // scoreboard
+        d.box([ 2.4, 1.2, 0.15 ], C.dark, [ - 9.2, 1.4, 0 ])
+        d.cylinder(0.06, 0.06, 1.4, C.dark, [ - 9.9, 0, 0 ], 4)
+        d.cylinder(0.06, 0.06, 1.4, C.dark, [ - 8.5, 0, 0 ], 4)
+        pixelText(d, 'JAY 6  DJ 6', C.gold, [ - 9.2, 1.75, 0.09 ], 0.075, { depth: 0.03 })
+        // umbrellas and planters along the middle walkway
+        for(const x of [ - 4, 4 ])
+        {
+            d.cylinder(0.04, 0.04, 2.1, C.snow, [ x, 0, 0.9 ], 4)
+            d.cone(1.0, 0.45, x < 0 ? C.leaf : C.red, [ x, 1.95, 0.9 ], 8)
+            d.box([ 0.55, 0.45, 0.55 ], C.stone, [ x, 0, - 0.9 ])
+            d.sphere(0.38, C.moss, [ x, 0.75, - 0.9 ], 1)
+            d.sphere(0.1, C.pink, [ x + 0.15, 1.05, - 0.8 ], 0)
+            d.sphere(0.1, C.gold, [ x - 0.12, 1.02, - 1.0 ], 0)
+        }
+        nodes.push(meshNode('tennisDecor', d, ctx.at(cx, cz)))
+    }
+
     return nodes
 }
 
