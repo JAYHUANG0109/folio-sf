@@ -17,7 +17,8 @@ const firebaseConfig = {
     appId: '1:147113451519:web:fe48db7a0c62db7b1111ca',
 }
 
-export const PROGRESS_KEYS = [ 'achievements', 'achievementsReward', 'achievementsTimeStart', 'achievementsTimeEnd', 'distanceDriven', 'timePlayed', 'sf-trip-tasks-v1', 'sf-trip-secrets-v1' ]
+// progress and personal choices (music, weather/time/season, paint): saved to the account, reset to defaults for guests
+export const PROGRESS_KEYS = [ 'achievements', 'achievementsReward', 'achievementsTimeStart', 'achievementsTimeEnd', 'distanceDriven', 'timePlayed', 'sf-trip-tasks-v1', 'sf-trip-secrets-v1', 'sf-trip-environment-v1', 'sf-trip-music-v1', 'sf-trip-music-v1-volume' ]
 
 class AccountService
 {
@@ -72,6 +73,8 @@ class AccountService
             for(const key of PROGRESS_KEYS)
                 localStorage.removeItem(key)
         }
+
+        document.documentElement.classList.toggle('is-guest', !this.user)
 
         // keep listening (sign in / out in another tab, token refresh)
         if(this.auth)

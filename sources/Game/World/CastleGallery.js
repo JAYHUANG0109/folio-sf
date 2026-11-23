@@ -27,6 +27,7 @@ export class CastleGallery
         this.upper = null
         this.inside = false
         this.near = false
+        this.setTheatre()
         this.load()
         this.game.ticker.events.on('tick', () => this.update(), 12)
     }
@@ -45,7 +46,7 @@ export class CastleGallery
         const { x: cx, z: cz } = this.center
         const k = this.k
         const zN = cz - 3.83 * k, zS = cz + 3.83 * k, xBack = cx - 3.03 * k
-        const y = this.floor + 2.5
+        const y = this.floor + 3.1
         // wall slots: [x, z, rotationY]
         const slots = [
             [ cx - 2.0 * k, zN, 0 ], [ cx - 0.2 * k, zN, 0 ], [ cx + 1.6 * k, zN, 0 ],
@@ -55,6 +56,19 @@ export class CastleGallery
         ]
         // a carousel: frame i shows photo (offset + i); every few seconds the offset moves on, in a wave around the hall.
         // Frames are never more than photos, so the same photo is never on two walls at once.
+        this.theatre.items = [
+            ...(manifest.photos || []).map(p => ({ type: 'photo', full: p.full || p.src, thumb: p.src })),
+            ...(manifest.videos || []).map(v => ({ type: 'video', full: v.full || v.src, thumb: v.thumb || '' })),
+        ]
+        // mix the videos in among the photos
+        if(manifest.videos?.length && manifest.photos?.length)
+        {
+            const photos = this.theatre.items.filter(i => i.type === 'photo'), videos = this.theatre.items.filter(i => i.type === 'video')
+            const step = Math.max(1, Math.floor(photos.length / videos.length))
+            const mixed = []
+            photos.forEach((p, i) => { mixed.push(p); if((i + 1) % step === 0 && videos.length) mixed.push(videos.shift()) })
+            this.theatre.items = [ ...mixed, ...videos ]
+        }
         this.photos = manifest.photos?.length ? manifest.photos : placeholders
         const used = slots.slice(0, Math.min(slots.length, this.photos.length))
         this.frames = used.map(([ x, z, ry ], i) => this.addPolaroid(this.photos[i], x, y, z, ry, (i % 2 ? - 1 : 1) * 0.04))
@@ -67,11 +81,12 @@ export class CastleGallery
 
     frame(width, height, x, y, z, ry, tilt, hex)
     {
-        const back = new THREE.Mesh(new THREE.BoxGeometry(width + 0.25, height + 0.25, 0.08), new THREE.MeshBasicNodeMaterial({ color: hex }))
+        const back = new THREE.Mesh(new THREE.BoxGeometry(width + (width > 1.5 ? 0.25 : 0), height + (width > 1.5 ? 0.25 : 0), 0.08), new THREE.MeshBasicNodeMaterial({ color: hex }))
         back.position.set(x, y, z)
         back.rotation.set(0, ry, tilt)
         back.translateZ(0.06)
         this.group.add(back)
+        return back
     }
 
     picture(map, width, height, x, y, z, ry, tilt)
@@ -89,20 +104,27 @@ export class CastleGallery
     addPolaroid(initial, x, y, z, ry, tilt)
     {
         let photo = initial
+        let back = null, mesh = null
         const canvas = document.createElement('canvas')
         canvas.width = 512
         canvas.height = 512
         const ctx = canvas.getContext('2d')
         const map = new THREE.CanvasTexture(canvas)
         map.colorSpace = THREE.SRGBColorSpace
+        const size = 3.4                                   // longest side of a frame, world units
         const draw = (image) =>
         {
             if(image)
             {
-                // cover-fit: the photo fills the whole frame
-                const s = Math.max(512 / image.width, 512 / image.height)
-                const w = image.width * s, h = image.height * s
-                ctx.drawImage(image, (512 - w) / 2, (512 - h) / 2, w, h)
+                // the frame takes the photo's own shape: nothing cut off, nothing stretched
+                const aspect = image.width / image.height
+                canvas.width = aspect >= 1 ? 768 : Math.round(768 * aspect)
+                canvas.height = aspect >= 1 ? Math.round(768 / aspect) : 768
+                ctx.drawImage(image, 0, 0, canvas.width, canvas.height)
+                const w = aspect >= 1 ? size : size * aspect, h = aspect >= 1 ? size / aspect : size
+                mesh.scale.set(w, h, 1)
+                back.scale.set(w + 0.22, h + 0.22, 1)
+                map.dispose()
             }
             else
             {
@@ -131,8 +153,10 @@ export class CastleGallery
             }
         }
         show(photo)
-        this.frame(2.4, 2.4, x, y, z, ry, tilt, '#6b4423')
-        this.picture(map, 2.4, 2.4, x, y, z, ry, tilt)
+        back = this.frame(1, 1, x, y, z, ry, tilt, '#c9a227')
+        mesh = this.picture(map, 1, 1, x, y, z, ry, tilt)
+        mesh.scale.set(size * 0.75, size * 0.75, 1)
+        back.scale.set(size * 0.75 + 0.22, size * 0.75 + 0.22, 1)
         return { show }
     }
 
@@ -185,6 +209,132 @@ export class CastleGallery
         }
     }
 
+    setTheatre()
+    {
+        this.theatre = { open: false, cooldown: false }
+        const el = document.createElement('div')
+        el.className = 'castle-theatre'
+        el.innerHTML = `
+            <div class="ct-curtain ct-left"></div><div class="ct-curtain ct-right"></div>
+            <div class="ct-inner">
+                <div class="ct-title">Castello ♥ 我們的回憶</div>
+                <div class="ct-stage">
+                    <div class="ct-main"><img class="ct-photo" alt=""><video class="ct-video" muted playsinline loop></video></div>
+                    <button class="ct-nav ct-prev" aria-label="上一張">‹</button>
+                    <button class="ct-nav ct-next" aria-label="下一張">›</button>
+                </div>
+                <div class="ct-strip"></div>
+                <div class="ct-controls">
+                    <button class="ct-play">❚❚ 暫停輪播</button>
+                    <button class="ct-sound">🔇 影片聲音</button>
+                    <button class="ct-exit">離開城堡 →</button>
+                </div>
+            </div>`
+        document.body.append(el)
+        this.theatre.el = el
+        const items = () => this.theatre.items
+        const photo = el.querySelector('.ct-photo'), video = el.querySelector('.ct-video'), strip = el.querySelector('.ct-strip')
+        this.theatre.show = (i) =>
+        {
+            const list = items()
+            if(!list.length)
+                return
+            this.theatre.index = (i + list.length) % list.length
+            const item = list[this.theatre.index]
+            el.classList.toggle('is-video', item.type === 'video')
+            if(item.type === 'video')
+            {
+                photo.removeAttribute('src')
+                video.src = item.full
+                video.play().catch(() => {})
+            }
+            else
+            {
+                video.pause()
+                video.removeAttribute('src')
+                photo.src = item.full
+            }
+            strip.querySelectorAll('button').forEach((b, k) => b.classList.toggle('is-active', k === this.theatre.index))
+            strip.children[this.theatre.index]?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
+            clearTimeout(this.theatre.timer)
+            // photos advance every 5s; videos when they finish
+            if(this.theatre.playing && item.type !== 'video')
+                this.theatre.timer = setTimeout(() => this.theatre.show(this.theatre.index + 1), 5000)
+        }
+        video.loop = false
+        video.addEventListener('ended', () => { if(this.theatre.playing) this.theatre.show(this.theatre.index + 1); else video.play() })
+        el.querySelector('.ct-prev').addEventListener('click', () => this.theatre.show(this.theatre.index - 1))
+        el.querySelector('.ct-next').addEventListener('click', () => this.theatre.show(this.theatre.index + 1))
+        el.querySelector('.ct-play').addEventListener('click', (e) =>
+        {
+            this.theatre.playing = !this.theatre.playing
+            e.currentTarget.textContent = this.theatre.playing ? '❚❚ 暫停輪播' : '▶ 自動輪播'
+            this.theatre.show(this.theatre.index)
+        })
+        el.querySelector('.ct-sound').addEventListener('click', (e) =>
+        {
+            video.muted = !video.muted
+            e.currentTarget.textContent = video.muted ? '🔇 影片聲音' : '🔊 影片聲音'
+            if(this.game.music) this.game.music.duck?.(!video.muted)
+        })
+        el.querySelector('.ct-exit').addEventListener('click', () => this.closeTheatre())
+        addEventListener('keydown', (e) =>
+        {
+            if(!this.theatre.open) return
+            if(e.key === 'Escape') this.closeTheatre()
+            if(e.key === 'ArrowRight') this.theatre.show(this.theatre.index + 1)
+            if(e.key === 'ArrowLeft') this.theatre.show(this.theatre.index - 1)
+            e.stopPropagation()
+        }, true)
+        this.theatre.buildStrip = () =>
+        {
+            strip.innerHTML = ''
+            items().forEach((item, k) =>
+            {
+                const b = document.createElement('button')
+                b.innerHTML = item.type === 'video' ? `<img src="${item.thumb}" alt=""><span>▶</span>` : `<img src="${item.thumb}" alt="" loading="lazy">`
+                b.addEventListener('click', () => this.theatre.show(k))
+                strip.append(b)
+            })
+        }
+    }
+
+    openTheatre()
+    {
+        const list = this.theatre.items
+        if(!list?.length)
+            return
+        this.theatre.open = true
+        this.theatre.playing = true
+        this.savedFilters = [ ...this.game.inputs.filters ]
+        this.game.inputs.filters.clear()
+        this.game.inputs.filters.add('modal')
+        this.game.physicalVehicle.chassis?.physical?.body?.setLinvel({ x: 0, y: 0, z: 0 }, true)
+        this.theatre.el.classList.add('is-open')
+        document.documentElement.classList.add('has-modal-open')
+        if(!this.theatre.built) { this.theatre.buildStrip(); this.theatre.built = true }
+        this.theatre.show(this.theatre.index || 0)
+    }
+
+    closeTheatre()
+    {
+        if(!this.theatre.open)
+            return
+        this.theatre.open = false
+        this.theatre.cooldown = true
+        clearTimeout(this.theatre.timer)
+        const video = this.theatre.el.querySelector('.ct-video')
+        video.pause()
+        this.theatre.el.classList.remove('is-open')
+        document.documentElement.classList.remove('has-modal-open')
+        this.game.inputs.filters.clear()
+        for(const f of this.savedFilters?.length ? this.savedFilters : [ 'wandering' ])
+            this.game.inputs.filters.add(f)
+        // back out through the gate, facing the vineyard driveway
+        const x = this.center.x + 3.2 * this.k + 3.5
+        this.game.physicalVehicle.moveTo({ x, y: this.floor + 1.2, z: this.center.z }, 0)
+    }
+
     update()
     {
         const p = this.game.player.position
@@ -221,25 +371,13 @@ export class CastleGallery
         }
         if(!this.upper)
             this.upper = this.game.scene.getObjectByName('castleUpper') || null
-        const inside = Math.abs(dx) < this.half.x + 1.2 && Math.abs(dz) < this.half.z && p.y < this.floor + 4
-        if(inside !== this.inside && this.upper)
-        {
-            this.inside = inside
-            this.upper.visible = !inside
-            // look down into the hall (the towers would hide it from the usual angle), and back out again
-            const view = this.game.view
-            if(inside)
-            {
-                this.savedView = { phi: view.spherical.phi, zoom: view.zoom.baseRatio }
-                gsap.to(view.spherical, { phi: 0.32, duration: 1.2, ease: 'power2.inOut', onUpdate: () => { view.optimalArea.needsUpdate = true } })
-                gsap.to(view.zoom, { baseRatio: 0.4, duration: 1.2, ease: 'power2.inOut' })
-            }
-            else if(this.savedView)
-            {
-                gsap.to(view.spherical, { phi: this.savedView.phi, duration: 1.2, ease: 'power2.inOut', onUpdate: () => { view.optimalArea.needsUpdate = true } })
-                gsap.to(view.zoom, { baseRatio: this.savedView.zoom, duration: 1.2, ease: 'power2.inOut' })
-            }
-        }
+        // theatre mode: once the whole car is through the gate (its tail past the door), the hall fills the screen
+        const doorX = this.center.x + 3.2 * this.k
+        const fullyIn = p.x < doorX - 2.6 && Math.abs(dz) < this.half.z && Math.abs(dx) < this.half.x && p.y < this.floor + 4
+        if(fullyIn && !this.theatre.open && !this.theatre.cooldown)
+            this.openTheatre()
+        if(!fullyIn && this.theatre.cooldown && p.x > doorX + 1)
+            this.theatre.cooldown = false
     }
 }
 

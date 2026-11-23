@@ -538,6 +538,22 @@ export class PhysicsVehicle
 
         this.xRotation = new THREE.Euler().setFromQuaternion(this.quaternion, 'XYZ').x
         this.yRotation = new THREE.Euler().setFromQuaternion(this.quaternion, 'YXZ').y
+        // safety net: if the physics ever produce an invalid position, put the car back at the nearest stop
+        if(!Number.isFinite(this.position.x) || !Number.isFinite(this.position.y) || !Number.isFinite(this.position.z))
+        {
+            if(!this.recovering)
+            {
+                this.recovering = true
+                console.warn('Vehicle: invalid position, respawning')
+                const closest = this.game.respawns.getClosest(this.lastGoodPosition || { x: 0, z: 0 })
+                this.game.player.respawn(closest?.name || null, () => { this.recovering = false })
+            }
+        }
+        else
+        {
+            this.lastGoodPosition = this.lastGoodPosition || new THREE.Vector3()
+            this.lastGoodPosition.copy(this.position)
+        }
         this.zRotation = new THREE.Euler().setFromQuaternion(this.quaternion, 'ZYX').z
 
         if(Math.abs(this.game.player.accelerating) > 0.5)

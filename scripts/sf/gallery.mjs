@@ -17,20 +17,27 @@ const caption = (file) => path.basename(file, path.extname(file)).replace(/^\d+[
 const slug = (file, i, ext) => `${String(i + 1).padStart(2, '0')}${ext}`
 const fresh = (src, out) => fs.existsSync(out) && fs.statSync(out).mtimeMs >= fs.statSync(src).mtimeMs
 
+// two versions of everything: a small one for the frames on the castle walls, and a sharp one (1440p) for theatre mode
 const photos = []
 for(const [ i, file ] of list(imgDir, [ '.jpg', '.jpeg', '.png', '.webp', '.heic', '.heif' ]).entries())
 {
-    const src = path.join(imgDir, file), out = path.join(webDir, 'p' + slug(file, i, '.jpg'))
+    const src = path.join(imgDir, file)
+    const small = path.join(webDir, 'p' + slug(file, i, '.jpg')), full = path.join(webDir, 'hd-p' + slug(file, i, '.jpg'))
     try
     {
-        if(!fresh(src, out))
+        let input = src
+        if([ '.heic', '.heif' ].includes(path.extname(file).toLowerCase()))
         {
-            if([ '.heic', '.heif' ].includes(path.extname(file).toLowerCase()))
-                execFileSync('sips', [ '-s', 'format', 'jpeg', '-Z', '1024', src, '--out', out ], { stdio: 'ignore' }) // macOS converts iPhone HEIC
-            else
-                await sharp(src).rotate().resize(1024, 1024, { fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 82 }).toFile(out)
+            input = path.join(webDir, `tmp-${i}.jpg`)
+            if(!fresh(src, full))
+                execFileSync('sips', [ '-s', 'format', 'jpeg', src, '--out', input ], { stdio: 'ignore' }) // macOS converts iPhone HEIC
         }
-        photos.push({ src: `gallery/web/${path.basename(out)}`, caption: caption(file) })
+        if(!fresh(src, small))
+            await sharp(input).rotate().resize(1024, 1024, { fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 82 }).toFile(small)
+        if(!fresh(src, full))
+            await sharp(input).rotate().resize(2560, 2560, { fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 90, mozjpeg: true }).toFile(full)
+        if(input !== src) fs.rmSync(input, { force: true })
+        photos.push({ src: `gallery/web/${path.basename(small)}`, full: `gallery/web/${path.basename(full)}` })
     }
     catch(error) { console.warn('gallery: skipped', file, error.message) }
 }
@@ -38,12 +45,17 @@ for(const [ i, file ] of list(imgDir, [ '.jpg', '.jpeg', '.png', '.webp', '.heic
 const videos = []
 for(const [ i, file ] of list(vidDir, [ '.mp4', '.mov', '.m4v', '.webm' ]).entries())
 {
-    const src = path.join(vidDir, file), out = path.join(webDir, 'v' + slug(file, i, '.mp4'))
+    const src = path.join(vidDir, file)
+    const small = path.join(webDir, 'v' + slug(file, i, '.mp4')), full = path.join(webDir, 'hd-v' + slug(file, i, '.mp4')), thumb = path.join(webDir, 't' + slug(file, i, '.jpg'))
     try
     {
-        if(!fresh(src, out))
-            execFileSync('ffmpeg', [ '-y', '-i', src, '-vf', 'scale=-2:720', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '28', '-an', '-movflags', '+faststart', out ], { stdio: 'ignore' })
-        videos.push({ src: `gallery/web/${path.basename(out)}`, caption: caption(file) })
+        if(!fresh(src, small))
+            execFileSync('ffmpeg', [ '-y', '-i', src, '-vf', 'scale=-2:720', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '28', '-an', '-movflags', '+faststart', small ], { stdio: 'ignore' })
+        if(!fresh(src, full)) // 1440p (never upscaled), with sound, for theatre mode
+            execFileSync('ffmpeg', [ '-y', '-i', src, '-vf', "scale='if(gt(ih,iw),-2,min(2560,iw))':'if(gt(ih,iw),min(2560,ih),-2)'", '-c:v', 'libx264', '-preset', 'medium', '-crf', '21', '-c:a', 'aac', '-b:a', '128k', '-movflags', '+faststart', full ], { stdio: 'ignore' })
+        if(!fresh(src, thumb))
+            execFileSync('ffmpeg', [ '-y', '-ss', '0.5', '-i', src, '-frames:v', '1', '-vf', 'scale=320:-2', thumb ], { stdio: 'ignore' })
+        videos.push({ src: `gallery/web/${path.basename(small)}`, full: `gallery/web/${path.basename(full)}`, thumb: `gallery/web/${path.basename(thumb)}` })
     }
     catch(error) { console.warn('gallery: skipped', file, error.message) }
 }

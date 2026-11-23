@@ -32,6 +32,8 @@ export class Map
 
         this.setTrigger()
         this.setInputs()
+        for(const src of [ 'ui/map/map-day.webp', 'ui/map/map-night.webp' ])
+            new Image().src = src
 
         this.modal.events.on('open', () =>
         {
@@ -215,6 +217,9 @@ export class Map
         this.texture.element = this.element.querySelector('.js-texture')
         this.texture.previousUrl = null
 
+        // warm both maps up front so opening the map is instant
+        for(const src of [ 'ui/map/map-day.webp', 'ui/map/map-night.webp' ])
+            new Image().src = src
         this.texture.element.addEventListener('load', () =>
         {
             this.texture.element.classList.add('is-visible')
@@ -230,6 +235,9 @@ export class Map
                 this.texture.previousUrl = url
                 this.texture.element.src = url
             }
+            // already loaded (cached) images may not fire 'load' again
+            if(this.texture.element.complete && this.texture.element.naturalWidth > 0)
+                this.texture.element.classList.add('is-visible')
         }
     }
 

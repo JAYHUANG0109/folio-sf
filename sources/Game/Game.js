@@ -1,3 +1,6 @@
+import { account } from './Account.js'
+import { EnvironmentPanel } from './EnvironmentPanel.js'
+import { Environment } from './Environment.js'
 import { AccountPanel } from './AccountPanel.js'
 import { VirtualPad } from './Inputs/VirtualPad.js'
 import * as THREE from 'three/webgpu'
@@ -123,7 +126,7 @@ export class Game
                     const button = document.createElement('button')
                     button.className = 'music-genre'
                     button.innerHTML = `<span class="music-genre-icon">${genre.icon}</span><span class="music-genre-text"><span class="music-genre-name">${genre.name}</span><span class="music-genre-en">${genre.en}</span></span><span class="music-genre-bars"><i></i><i></i><i></i></span>`
-                    button.addEventListener('click', () => this.music.setGenre(genre.id))
+                    button.addEventListener('click', () => { if(account.user) this.music.setGenre(genre.id) })
                     list.append(button)
                     return { genre, button }
                 })
@@ -140,7 +143,8 @@ export class Game
                 if(volume)
                 {
                     volume.value = Math.round(this.music.volume * 100)
-                    volume.addEventListener('input', () => this.music.setVolume(volume.value / 100))
+                    volume.disabled = !account.user
+                    volume.addEventListener('input', () => { if(account.user) this.music.setVolume(volume.value / 100) })
                     // keep arrow keys etc. from driving the car while using the slider
                     volume.addEventListener('keydown', (event) => event.stopPropagation())
                 }
@@ -162,6 +166,7 @@ export class Game
         this.objects = new Objects()
         this.explosions = new Explosions()
         this.world = new World()
+        this.environment = new Environment()
 
         // Load and init RAPIER
         const rapierPromise = import('@dimforge/rapier3d')
@@ -214,6 +219,7 @@ export class Game
         this.player = new Player()
         this.virtualPad = new VirtualPad()
         this.accountPanel = new AccountPanel()
+        this.environmentPanel = new EnvironmentPanel()
         this.closingManager = new ClosingManager()
         this.interactivePoints = new InteractivePoints()
         this.konamiCode = new KonamiCode()

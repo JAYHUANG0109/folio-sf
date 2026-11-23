@@ -132,7 +132,7 @@ export class WaterSurface
             { label: 'iceRatio', min: 0, max: 1, step: 0.001 },
             () =>
             {
-                return remapClamp(this.game.weather.temperature.value, 0, -5, 0, 1)
+                return 0 // SF: the bay never freezes (a rising ice slab crushed cars and props at the shore)
             }
         )
 

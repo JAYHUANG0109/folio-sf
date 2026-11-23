@@ -96,6 +96,8 @@ export class Leaves
         // Color buffer
         const colorA = uniform(color(0xc0392b)) // maple red// 0x999257
         const colorB = uniform(color(0xffa62b)) // autumn gold// 0xcc8214
+        this.colorA = colorA
+        this.colorB = colorB
         const colorNode = Fn(() =>
         {
             const mixStrength = hash(instanceIndex.add(99))

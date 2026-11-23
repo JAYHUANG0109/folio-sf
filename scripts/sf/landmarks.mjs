@@ -78,45 +78,79 @@ export function palmTree(height = 6, lean = 0.12)
 
 function victorian(width, height, depth, wall, trim, roof, seed, accent = C.red)
 {
-    // Queen Anne row house (front faces -x): raised on a garage storey, a two storey angled bay window,
-    // a steep front gable with gingerbread trim and a finial, white trim bands, a stoop with stairs
-    const r = rng(seed)
+    // Queen Anne row house (front faces -x, width along z). Clean, symmetric, every window framed in trim:
+    // garage / ground storey, two storey three sided bay on the left, porch + door + stoop on the right,
+    // bracketed cornice, a steep front gable with fish-scale shingles, an attic window and a finial
     const m = new Model()
-    const front = - depth / 2
-    m.box([ depth, height, width ], wall)
-    m.box([ depth + 0.06, 0.6, width + 0.06 ], trim, [ 0, 0, 0 ])                     // ground floor / garage band
-    m.cbox([ 0.06, 0.45, width * 0.35 ], C.dark, [ front - 0.03, 0.3, - width * 0.2 ])  // garage door
-    // the bay window: three faces, two storeys
-    const bayW = width * 0.5, bayD = 0.55, bayY = 0.6, bayH = height * 0.62
-    m.box([ bayD, bayH, bayW * 0.6 ], wall, [ front - bayD / 2, bayY, - width * 0.15 ])
-    for(const sgn of [ - 1, 1 ])
-        m.box([ 0.05, bayH, bayD * 1.1 ], wall, [ front - bayD / 2, bayY, - width * 0.15 + sgn * bayW * 0.38 ], [ 0, sgn * 0.6, 0 ])
-    for(const fy of [ 0.32, 0.68 ])
+    const F = - depth / 2                     // front face x
+    const ground = 0.9                        // raised ground storey
+    const H = height
+    // body
+    m.box([ depth, H, width ], wall)
+    m.box([ depth + 0.04, ground, width + 0.04 ], trim, [ 0, 0, 0 ])
+    m.box([ depth + 0.08, 0.12, width + 0.08 ], accent, [ 0, ground, 0 ])
+    // garage door under the bay, with panel lines
+    const bayZ = - width * 0.22, bayW = width * 0.5
+    m.cbox([ 0.04, ground * 0.8, bayW * 0.85 ], C.wood, [ F - 0.02, ground * 0.4, bayZ ])
+    for(let k = 1; k < 4; k++)
+        m.cbox([ 0.05, 0.03, bayW * 0.85 ], C.dark, [ F - 0.03, ground * 0.8 * k / 4, bayZ ])
+    // framed window: trim surround, dark glass, sill, a little pediment
+    const window = (x, y, z, w, h, ry = 0) =>
     {
-        m.cbox([ 0.06, height * 0.2, bayW * 0.4 ], C.black, [ front - bayD - 0.03, bayY + bayH * fy, - width * 0.15 ])
-        m.box([ bayD + 0.15, 0.08, bayW * 0.7 ], trim, [ front - bayD / 2, bayY + bayH * fy + height * 0.12, - width * 0.15 ])
+        m.cbox([ 0.05, h + 0.16, w + 0.16 ], trim, [ x, y, z ], [ 0, ry, 0 ])
+        m.cbox([ 0.06, h, w ], C.dark, [ x - 0.01, y, z ], [ 0, ry, 0 ])
+        m.cbox([ 0.07, 0.03, w * 0.04 + 0.02 ], trim, [ x - 0.02, y, z ], [ 0, ry, 0 ])          // mullion
+        m.cbox([ 0.14, 0.06, w + 0.26 ], trim, [ x - 0.04, y - h / 2 - 0.1, z ], [ 0, ry, 0 ])   // sill
+        m.cbox([ 0.12, 0.1, w + 0.3 ], accent, [ x - 0.03, y + h / 2 + 0.13, z ], [ 0, ry, 0 ])  // head
     }
-    m.box([ bayD + 0.2, 0.15, bayW * 0.75 ], trim, [ front - bayD / 2, bayY + bayH, - width * 0.15 ])
-    // windows beside the bay, and the front door at the top of the stoop
-    for(const fy of [ 0.45, 0.75 ])
-        m.cbox([ 0.06, height * 0.18, width * 0.16 ], C.black, [ front - 0.03, height * fy, width * 0.28 ])
-    m.box([ 0.08, 1.1, 0.55 ], accent, [ front - 0.04, 0.75, width * 0.3 ])
-    for(let k = 0; k < 4; k++)
-        m.box([ 0.35 + k * 0.25, 0.18, 0.7 ], C.stone, [ front - 0.2 - k * 0.12, 0.6 - k * 0.18, width * 0.3 ])
-    // trim bands and a bracketed cornice
-    m.box([ depth + 0.12, 0.14, width + 0.12 ], trim, [ 0, height * 0.55, 0 ])
-    m.box([ depth + 0.18, 0.2, width + 0.18 ], trim, [ 0, height - 0.2, 0 ])
-    for(let k = 0; k < 5; k++)
-        m.cbox([ 0.12, 0.25, 0.1 ], accent, [ front - 0.08, height - 0.32, - width / 2 + 0.2 + k * (width - 0.4) / 4 ])
-    // steep front gable with gingerbread, an attic window and a finial
-    const gh = 1.6 + r() * 0.6
-    m.gable(depth + 0.2, width + 0.2, gh, roof, [ 0, height, 0 ], [ 0, Math.PI / 2, 0 ])
-    m.cbox([ 0.05, gh * 0.75, width * 0.62 ], trim, [ front - 0.11, height + gh * 0.3, 0 ])
-    m.cbox([ 0.06, gh * 0.35, width * 0.18 ], C.black, [ front - 0.14, height + gh * 0.32, 0 ])
+    // the bay: front face + two angled sides, two storeys of tall windows
+    const bayD = 0.55, bayTop = H - 0.25
+    m.box([ bayD, bayTop - ground, bayW * 0.62 ], wall, [ F - bayD / 2, ground, bayZ ])
     for(const sgn of [ - 1, 1 ])
-        m.cbox([ 0.06, 0.1, (width + 0.2) * 0.58 ], trim, [ front - 0.13, height + gh * 0.5 - 0.05, sgn * (width + 0.2) * 0.24 ], [ - sgn * Math.atan2(gh, (width + 0.2) / 2), 0, 0 ])
-    m.cylinder(0.04, 0.07, 0.55, trim, [ front - 0.05, height + gh, 0 ], 5)
-    m.sphere(0.07, C.gold, [ front - 0.05, height + gh + 0.58, 0 ], 0)
+        m.box([ 0.08, bayTop - ground, bayD * 1.25 ], wall, [ F - bayD / 2 + 0.02, ground, bayZ + sgn * bayW * 0.39 ], [ 0, sgn * 0.75, 0 ])
+    const storey = (bayTop - ground) / 2
+    for(const k of [ 0, 1 ])
+    {
+        const y = ground + storey * (k + 0.5)
+        window(F - bayD - 0.03, y, bayZ, bayW * 0.42, storey * 0.62)
+        m.box([ bayD + 0.12, 0.1, bayW * 0.7 ], trim, [ F - bayD / 2, ground + storey * (k + 1) - 0.05, bayZ ])   // band
+    }
+    m.box([ bayD + 0.22, 0.16, bayW * 0.78 ], accent, [ F - bayD / 2, bayTop, bayZ ])
+    // porch on the right: two slim columns, a little roof, door, stairs with railings
+    const doorZ = width * 0.27
+    m.cbox([ 0.06, 1.15, 0.62 ], accent, [ F - 0.03, ground + 0.58, doorZ ])
+    m.cbox([ 0.07, 0.3, 0.5 ], trim, [ F - 0.04, ground + 1.32, doorZ ])                     // transom
+    for(const dz of [ - 0.42, 0.42 ])
+        m.cylinder(0.05, 0.05, 1.5, trim, [ F - 0.55, ground, doorZ + dz ], 6)
+    m.box([ 0.75, 0.1, 1.05 ], trim, [ F - 0.32, ground + 1.5, doorZ ])
+    m.box([ 0.75, 0.08, 1.05 ], wall, [ F - 0.32, ground - 0.02, doorZ ])
+    for(let k = 0; k < 5; k++)
+        m.box([ 0.24, ground - k * ground / 5, 0.9 ], C.stone, [ F - 0.7 - k * 0.24, 0, doorZ ])
+    for(const dz of [ - 0.48, 0.48 ])
+        m.beam([ F - 1.9, 0.75, doorZ + dz ], [ F - 0.6, ground + 0.62, doorZ + dz ], 0.05, trim)
+    // upper window above the porch
+    window(F - 0.03, ground + storey * 1.5, doorZ, width * 0.24, storey * 0.6)
+    // bracketed cornice under the gable
+    m.box([ depth + 0.3, 0.22, width + 0.24 ], trim, [ 0, H - 0.22, 0 ])
+    for(let k = 0; k < 7; k++)
+        m.cbox([ 0.16, 0.26, 0.09 ], accent, [ F - 0.12, H - 0.36, - width / 2 + 0.18 + k * (width - 0.36) / 6 ])
+    // steep front gable: roof, a filled front triangle with fish-scale bands, attic window, finial
+    const gh = 1.9
+    m.gable(depth + 0.3, width + 0.24, gh, roof, [ 0.05, H, 0 ], [ 0, Math.PI / 2, 0 ])
+    const tri = new THREE.Shape()
+    tri.moveTo(- width / 2, 0); tri.lineTo(width / 2, 0); tri.lineTo(0, gh * 0.98); tri.closePath()
+    m.add(new THREE.ShapeGeometry(tri), wall, [ F - 0.16, H, 0 ], [ 0, - Math.PI / 2, 0 ])
+    for(let row = 0; row < 3; row++)
+    {
+        const y = H + 0.22 + row * 0.3, half = (width / 2) * (1 - (y - H) / gh) - 0.12
+        for(let z = - half + 0.12; z <= half - 0.12; z += 0.2)
+            m.cylinder(0.09, 0.09, 0.04, row % 2 ? trim : accent, [ F - 0.18, y, z ], 6, [ 0, 0, Math.PI / 2 ])
+    }
+    window(F - 0.18, H + gh * 0.55, 0, width * 0.2, gh * 0.24)
+    for(const sgn of [ - 1, 1 ])                                                                  // bargeboards
+        m.cbox([ 0.07, 0.12, Math.hypot(width / 2 + 0.12, gh) ], trim, [ F - 0.2, H + gh / 2, sgn * (width / 4 + 0.06) ], [ - sgn * Math.atan2(gh, width / 2 + 0.12), 0, 0 ])
+    m.cylinder(0.035, 0.06, 0.5, trim, [ F - 0.1, H + gh, 0 ], 6)
+    m.sphere(0.075, C.gold, [ F - 0.1, H + gh + 0.55, 0 ], 1)
     return m
 }
 
@@ -536,9 +570,114 @@ builders.unionSquare = (ctx) =>
         nodes.push({ ...fixedNode('unionHeart', heart, ctx.at(x, z), [ { position: [ 0, 1.3, 0 ], size: [ 1.8, 2.6, 0.9 ] } ]), rotation: [ 0, ry, 0 ] })
     }
 
-    // palms only on the outer corners, the middle stays open for driving
-    for(const [ x, z ] of [ [ cx + 8.5, cz + 7.5 ], [ cx - 8, cz + 4.5 ] ])
+    // palms on the corners, the middle stays open for driving
+    for(const [ x, z ] of [ [ cx + 8.2, cz + 8.8 ], [ cx - 6.3, cz + 7.6 ], [ cx + 4.2, cz - 6.6 ], [ cx - 5.6, cz - 4.6 ] ])
         nodes.push(dynamicNode('palm', palmTree(5.5), ctx.at(x, z), [ { shape: 'tube', position: [ 0, 2, 0 ], radius: 0.3, height: 4 } ], 0.5))
+
+    // granite paving: light and dark stripes like the real square (painted on, no bumps)
+    {
+        const paving = new Model()
+        for(let i = 0; i < 9; i++)
+        {
+            const z = - 6.2 + i * 1.9
+            paving.box([ 17.4, 0.02, 0.95 ], i % 2 ? C.slate : C.stone, [ 0, 0, z ])
+        }
+        nodes.push(meshNode('unionPaving', paving, ctx.at(cx - 0.3, cz - 2, 0.012)))
+    }
+
+    // the Dewey Monument: a slim granite column with the bronze Victory on top (on the east side, clear of the rink)
+    {
+        const m = new Model()
+        m.box([ 1.8, 0.4, 1.8 ], C.stone)
+        m.box([ 1.3, 1.6, 1.3 ], C.snow, [ 0, 0.4, 0 ])
+        m.cylinder(0.32, 0.38, 9, C.snow, [ 0, 2, 0 ], 12)
+        m.cylinder(0.55, 0.36, 0.7, C.cream, [ 0, 11, 0 ], 10)               // capital
+        m.box([ 0.9, 0.25, 0.9 ], C.cream, [ 0, 11.7, 0 ])
+        m.sphere(0.35, C.cream, [ 0, 12.1, 0 ], 1)                            // globe under the statue
+        m.cylinder(0.12, 0.18, 1.1, C.sage, [ 0, 12.4, 0 ], 6)                 // Victory, verdigris bronze
+        m.sphere(0.12, C.sage, [ 0, 13.6, 0 ], 1)
+        m.beam([ 0, 13.2, 0 ], [ 0.7, 14.1, 0 ], 0.06, C.sage)                 // trident raised high
+        m.beam([ 0, 13.1, 0 ], [ - 0.6, 12.7, 0.1 ], 0.06, C.sage)             // wreath arm
+        m.add(new THREE.TorusGeometry(0.16, 0.04, 4, 10), C.sage, [ - 0.7, 12.65, 0.1 ])
+        nodes.push(fixedNode('deweyMonument', m, ctx.at(cx + 5.2, cz - 2.5), [ { shape: 'tube', position: [ 0, 1, 0 ], radius: 0.8, height: 2 }, { shape: 'tube', position: [ 0, 6.5, 0 ], radius: 0.4, height: 9 } ]))
+    }
+
+    // café tables with green umbrellas (knockable) and globe street lamps
+    {
+        const r = rng(1850)
+        for(const [ x, z ] of [ [ 3.5, - 5 ], [ 7, - 4.6 ], [ 3, 0.8 ], [ 6.8, 1.6 ], [ - 6.5, - 5.2 ], [ - 3, - 5.4 ] ])
+        {
+            const t = new Model()
+            t.cylinder(0.05, 0.05, 1.7, C.dark, [ 0, 0, 0 ], 5)
+            t.cone(0.75, 0.35, C.moss, [ 0, 1.6, 0 ], 8)
+            t.cylinder(0.32, 0.32, 0.05, C.dark, [ 0, 0.7, 0 ], 10)
+            for(let k = 0; k < 3; k++)
+            {
+                const a = k / 3 * Math.PI * 2 + r()
+                t.box([ 0.24, 0.42, 0.24 ], C.dark, [ Math.cos(a) * 0.55, 0, Math.sin(a) * 0.55 ])
+            }
+            nodes.push(dynamicNode('cafeTable', t, ctx.at(cx + x, cz + z), [ { shape: 'tube', position: [ 0, 0.45, 0 ], radius: 0.45, height: 0.9 } ], 0.15))
+        }
+        for(const [ x, z ] of [ [ 1, - 6 ], [ 8.4, 0 ], [ 8.4, 6 ], [ - 8.6, - 1.5 ], [ - 2.2, 8.6 ], [ 4.2, 8.6 ] ])
+        {
+            const l = new Model()
+            l.cylinder(0.12, 0.18, 2.6, C.wood, [ 0, 0, 0 ], 8)
+            l.cylinder(0.22, 0.14, 0.3, C.wood, [ 0, 2.6, 0 ], 8)
+            l.sphere(0.38, C.snow, [ 0, 3.25, 0 ], 1)
+            nodes.push(dynamicNode('globeLamp', l, ctx.at(cx + x, cz + z), [ { shape: 'tube', position: [ 0, 1.5, 0 ], radius: 0.2, height: 3 } ], 0.25))
+        }
+    }
+
+    // the glass café pavilion on the north east corner, and low terraced steps along the south edge
+    {
+        const m = new Model()
+        m.box([ 3.2, 2.2, 2.2 ], C.sky)
+        m.box([ 3.6, 0.15, 2.6 ], C.dark, [ 0, 2.2, 0 ])
+        for(const x of [ - 1.55, 0, 1.55 ])
+            m.box([ 0.08, 2.2, 0.08 ], C.dark, [ x, 0, 1.1 ])
+        nodes.push(fixedNode('cafePavilion', m, ctx.at(cx + 6.8, cz - 6.3), [ { position: [ 0, 1.1, 0 ], size: [ 3.2, 2.2, 2.2 ] } ]))
+        const steps = new Model()
+        for(let k = 0; k < 3; k++)
+            steps.box([ 4.5, 0.08 + k * 0.08, 0.5 ], C.stone, [ 0, 0, k * 0.5 ])
+        for(const x of [ - 6, 6 ])
+            nodes.push(meshNode('unionSteps', steps, ctx.at(cx + x, cz + 9.4)))
+    }
+
+    // hedges and leafy trees along the north and south edges (low, the car rolls past them)
+    {
+        const g = new Model()
+        const r = rng(1902)
+        for(const z of [ - 6.9, 9.9 ])
+            for(let x = - 8.5; x <= 8.5; x += 1.4)
+            {
+                if(z > 0 && Math.abs(x) < 3.5)
+                    continue                                                   // the south entrance stays open
+                const [ wx, wy, wz ] = ctx.at(cx + x, cz + z)
+                g.sphere(0.45, C.moss, [ wx / ctx.S, wy / ctx.S, wz / ctx.S ], 1, [ 1.4, 0.7, 0.9 ])
+                if(Math.round(x * 10) % 4 === 0)
+                {
+                    g.cylinder(0.08, 0.1, 1.2, C.wood, [ wx / ctx.S, wy / ctx.S, wz / ctx.S ], 5)
+                    g.sphere(0.9 + r() * 0.3, r() < 0.5 ? C.leaf : C.sage, [ wx / ctx.S, wy / ctx.S + 1.9, wz / ctx.S ], 1, [ 1, 0.9, 1 ])
+                }
+            }
+        nodes.push(meshNode('unionGreen', g, [ 0, 0, 0 ]))
+    }
+
+    // Saks Fifth Avenue on the north side, facing the square (rounded white corner, rows of square windows)
+    {
+        const m = new Model()
+        const w = 6, d = 2.6, h = 4.4
+        m.box([ w, h, d ], C.snow)
+        m.cylinder(d / 2, d / 2, h, C.snow, [ w / 2, 0, 0 ], 14)
+        m.cylinder(d / 2, d / 2, h, C.snow, [ - w / 2, 0, 0 ], 14)
+        for(let i = 0; i < 6; i++)
+            for(let j = 0; j < 3; j++)
+                m.cbox([ 0.55, 0.6, 0.05 ], C.dark, [ - 2.5 + i, 1.1 + j * 1.15, d / 2 + 0.01 ])
+        m.box([ w + d + 0.1, 0.25, d + 0.1 ], C.stone, [ 0, h, 0 ])
+        pixelText(m, 'SAKS FIFTH AVENUE', C.dark, [ 0, h - 0.55, d / 2 + 0.03 ], 0.075, { depth: 0.03 })
+        m.box([ w, 0.5, 0.35 ], C.dark, [ 0, 0.45, d / 2 + 0.15 ])        // display windows
+        nodes.push(fixedNode('saks', m, ctx.at(cx + 1, cz - 9.3), [ { position: [ 0, h / 2, 0 ], size: [ w + d, h, d ] } ]))
+    }
 
     return nodes
 }
@@ -1798,6 +1937,7 @@ builders.levis = (ctx) =>
             s.box([ 0.25, 6.6, 0.3 ], C.snow, [ - length / 2 + k * 3, 0, 6.2 ])                     // the white steel columns
         nodes.push({ ...fixedNode(name, s, ctx.at(px, pz), [ { position: [ 0, 3, 3 ], size: [ length, 6, 6.2 ] } ]), rotation: [ 0, rotationY, 0 ] })
     }
+    addStand('standNorth', cx, cz - 7.5, 22, Math.PI)
     addStand('standSouth', cx, cz + 7.5, 22, 0)
     addStand('standWest', cx - 15.5, cz, 9, - Math.PI / 2, true)
     addStand('standEast', cx + 15.5, cz, 9, Math.PI / 2)
@@ -1829,7 +1969,7 @@ builders.levis = (ctx) =>
         pixelText(tower, "LEVI'S STADIUM", C.red, [ 0, 7.45, 1.98 ], 0.2, { depth: 0.08 })
         tower.box([ 20, 1.4, 0.2 ], C.snow, [ 0, 7.25, - 1.85 ])
         pixelText(tower, "LEVI'S STADIUM", C.red, [ 0, 7.45, - 1.98 ], 0.2, { depth: 0.08, back: true })
-        nodes.push(fixedNode('suiteTower', tower, ctx.at(cx, cz - 15), [ { position: [ 0, 4.7, 0 ], size: [ 24, 9.4, 3.6 ] } ]))
+        nodes.push(fixedNode('suiteTower', tower, ctx.at(cx, cz - 16.2), [ { position: [ 0, 4.7, 0 ], size: [ 24, 9.4, 3.6 ] } ]))
     }
 
     // giant video boards above both end zones, playing the 49ers
@@ -1872,8 +2012,8 @@ builders.paintedLadies = (ctx) =>
     for(let i = 0; i < 7; i++)
     {
         const z = 6.5 + i * 2.9
-        const house = victorian(2.85, 3.6, 4, colors[i], trims[i], roofs[i], i + 12, accents[i])
-        nodes.push(fixedNode('lady', house, ctx.at(- 15, z), [ { position: [ 0, 1.8, 0 ], size: [ 4, 3.6, 2.85 ] } ]))
+        const house = victorian(2.85, 4.4, 4, colors[i], trims[i], roofs[i], i + 12, accents[i])
+        nodes.push(fixedNode('lady', house, ctx.at(- 15, z), [ { position: [ 0, 2.2, 0 ], size: [ 4, 4.4, 2.85 ] } ]))
     }
     // clipped round trees along the sidewalk in front of them
     for(let i = 0; i < 4; i++)

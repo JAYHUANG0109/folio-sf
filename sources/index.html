@@ -141,6 +141,15 @@
                         </div>
                     </button>
 
+                    <!-- Environment -->
+                    <button class="js-navigation-item item" data-name="environment">
+                        <div class="button-inner">
+                            <div class="icon-container">
+                                <img src="ui/weather.svg" loading="lazy">
+                            </div>
+                        </div>
+                    </button>
+
                     <!-- Account -->
                     <button class="js-navigation-item item" data-name="account">
                         <div class="button-inner">
@@ -186,6 +195,11 @@
                         <!-- Music -->
                         <div class="js-preview preview music-preview">
                             <img class="background" src="ui/previews/music.webp" loading="lazy" draggable="false">
+                        </div>
+
+                        <!-- Environment -->
+                        <div class="js-preview preview environment-preview">
+                            <img class="background" src="ui/previews/options.webp" loading="lazy" draggable="false">
                         </div>
 
                         <!-- Account -->
@@ -292,6 +306,7 @@
                         <div class="js-content content music-content">
                             <div class="content-inner">
                                 <div class="title">音樂</div>
+                                <button class="js-guest-lock guest-lock" type="button"><span>🔒</span><span>登入後就能選曲風和調音量</span><span class="guest-lock-cta">登入 →</span></button>
                                 <div class="js-music-now music-now"></div>
                                 <div class="music-section-label">曲風</div>
                                 <div class="js-music-genres music-genres"></div>
@@ -300,6 +315,16 @@
                                     <input class="js-music-volume" type="range" min="0" max="100" step="1" value="70">
                                 </label>
                                 <p class="music-hint">音樂是即時演奏的，每次聽都不太一樣。</p>
+                            </div>
+                        </div>
+
+                        <!-- Environment -->
+                        <div class="js-content content environment-content">
+                            <div class="content-inner">
+                                <div class="title">天氣與時間</div>
+                                <p class="environment-hint">選「自動」會跟著時間輪替；選其他的就會固定下來。</p>
+                                <button class="js-guest-lock guest-lock" type="button"><span>🔒</span><span>登入後就能自訂天氣、時間和季節</span><span class="guest-lock-cta">登入 →</span></button>
+                                <div class="js-environment"></div>
                             </div>
                         </div>
 
@@ -517,6 +542,7 @@
                                 </div>
                                 <div class="rewards-container">
                                     <div class="title">車子塗裝</div>
+                                    <button class="js-guest-lock guest-lock" type="button"><span>🔒</span><span>登入後就能換車子的顏色</span><span class="guest-lock-cta">登入 →</span></button>
                                     <div class="js-rewards-rows"></div>
                                 </div>
                                 <div class="js-items items"></div>
@@ -556,7 +582,7 @@
                 </button>
 
                 <div class="js-map-container map-container">
-                    <img class="js-texture texture" loading="lazy">
+                    <img class="js-texture texture">
                     <div class="js-player player"></div>
                 </div>
             </div>

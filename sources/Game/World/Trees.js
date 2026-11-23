@@ -84,6 +84,8 @@ export class Trees
         const leavesColorANode = uniform(color(this.colorA))
         const leavesColorBNode = uniform(color(this.colorB))
         this.leaves = new Foliage(references, leavesColorANode, leavesColorBNode, true)
+        this.leavesColorA = leavesColorANode
+        this.leavesColorB = leavesColorBNode
 
         // Debug
         if(this.game.debug.active)

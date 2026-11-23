@@ -147,8 +147,10 @@ export class Cycles
         this.progressDelta = this.newAbsoluteProgress - this.absoluteProgress // Delta
         this.absoluteProgress = this.newAbsoluteProgress
 
-        // New progress
-        const newProgress = this.absoluteProgress % 1
+        // New progress (a locked time of day counts as the real time for events: night lights, night map...)
+        let newProgress = this.absoluteProgress % 1
+        if(this.override && this.override.strength > 0.5 && this.override.progress !== null)
+            newProgress = this.override.progress
 
         // Test punctual events
         this.punctualEvents.forEach((punctualEvent) =>

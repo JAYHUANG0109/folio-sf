@@ -1,4 +1,5 @@
 import { paints } from '../data/paints.js'
+import { account } from './Account.js'
 import { stops } from '../data/stops.js'
 import * as THREE from 'three/webgpu'
 import achievementsData from '../data/achievements.js'
@@ -263,6 +264,11 @@ export class Achievements
         {
             const item = this.rewards.items.get(itemName)
 
+            if(item && !account.user && item !== this.rewards.default)
+            {
+                this.game.notifications.show('<span>登入後就能換車子的顏色。點這裡登入</span>', '', 4, () => this.game.menu.open('account'), 'paint-login')
+                return false
+            }
             if(item && !item.locked && item !== this.rewards.current)
             {
                 if(this.rewards.current)

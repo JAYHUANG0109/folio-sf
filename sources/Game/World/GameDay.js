@@ -200,29 +200,32 @@ export class GameDay
         if(this.sound || !Howler.ctx || !Howler.masterGain)
             return this.sound
         const ctx = Howler.ctx
-        // crowd: looping filtered noise (a stadium roar), with a gain we swell for cheers
-        const length = ctx.sampleRate * 3
+        // crowd: bright, airy noise (many voices far away), no low end so it never rumbles
+        const length = ctx.sampleRate * 4
         const buffer = ctx.createBuffer(2, length, ctx.sampleRate)
         for(let c = 0; c < 2; c++)
         {
             const data = buffer.getChannelData(c)
-            let last = 0
+            let swell = 0.5
             for(let i = 0; i < length; i++)
             {
-                last = last * 0.97 + (Math.random() * 2 - 1) * 0.03
-                data[i] = last * 6 + (Math.random() * 2 - 1) * 0.05
+                if(i % 2400 === 0) swell = 0.6 + Math.random() * 0.4          // voices coming and going
+                data[i] = (Math.random() * 2 - 1) * swell * 0.5
             }
         }
         const source = ctx.createBufferSource()
         source.buffer = buffer
         source.loop = true
+        const high = ctx.createBiquadFilter()
+        high.type = 'highpass'
+        high.frequency.value = 450
         const band = ctx.createBiquadFilter()
         band.type = 'bandpass'
-        band.frequency.value = 900
-        band.Q.value = 0.6
+        band.frequency.value = 1300
+        band.Q.value = 0.9
         const gain = ctx.createGain()
         gain.gain.value = 0
-        source.connect(band).connect(gain).connect(Howler.masterGain)
+        source.connect(high).connect(band).connect(gain).connect(Howler.masterGain)
         source.start()
         this.sound = { ctx, gain, band, cheer: 0 }
         return this.sound
@@ -236,23 +239,30 @@ export class GameDay
 
     boom()
     {
+        // a firework: a short bright pop, then a sparkly crackle (no deep boom)
         const sound = this.sound
-        if(!sound || !this.active)
+        if(!sound || !this.active || this.volume <= 0)
             return
         const ctx = sound.ctx
-        const length = Math.floor(ctx.sampleRate * 0.9)
+        const length = Math.floor(ctx.sampleRate * 1.2)
         const buffer = ctx.createBuffer(1, length, ctx.sampleRate)
         const data = buffer.getChannelData(0)
+        const pop = ctx.sampleRate * 0.06
         for(let i = 0; i < length; i++)
-            data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, 3)
+        {
+            if(i < pop)
+                data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / pop, 2)
+            else if(Math.random() < 0.004 * (1 - i / length))
+                data[i] = (Math.random() * 2 - 1) * 0.6                     // crackle
+        }
         const src = ctx.createBufferSource()
         src.buffer = buffer
-        const low = ctx.createBiquadFilter()
-        low.type = 'lowpass'
-        low.frequency.value = 300
+        const band = ctx.createBiquadFilter()
+        band.type = 'highpass'
+        band.frequency.value = 700
         const g = ctx.createGain()
-        g.gain.value = this.volume * 0.9
-        src.connect(low).connect(g).connect(Howler.masterGain)
+        g.gain.value = this.volume * 0.35
+        src.connect(band).connect(g).connect(Howler.masterGain)
         src.start()
     }
 
@@ -263,7 +273,7 @@ export class GameDay
         const distance = Math.hypot(player.x - this.center.x, player.z - this.center.z)
         const wasActive = this.active
         this.active = distance < 90
-        this.volume = Math.max(0, Math.min(1, (70 - distance) / 50))
+        this.volume = Math.max(0, Math.min(1, (48 - distance) / 30))   // only near the stadium
 
         for(const team of this.teams)
             team.b.visible = team.h.visible = this.active
@@ -285,9 +295,9 @@ export class GameDay
         if(sound)
         {
             sound.cheer = Math.max(0, sound.cheer - delta * 0.35)
-            const roar = 0.18 + Math.sin(this.time * 0.7) * 0.04 + sound.cheer * 0.35
-            sound.gain.gain.value = roar * this.volume * 0.6
-            sound.band.frequency.value = 800 + sound.cheer * 500
+            const roar = 0.16 + Math.sin(this.time * 0.7) * 0.03 + sound.cheer * 0.3
+            sound.gain.gain.value = roar * this.volume * 0.45
+            sound.band.frequency.value = 1300 + sound.cheer * 600
         }
     }
 }

@@ -10,6 +10,8 @@ export class AccountPanel
         this.element = document.querySelector('.js-account')
         if(!this.element)
             return
+        for(const lock of document.querySelectorAll('.js-guest-lock'))
+            lock.addEventListener('click', () => this.game.menu.open('account'))
         this.mode = 'signin'
         this.message = ''
         account.on(() => this.render())

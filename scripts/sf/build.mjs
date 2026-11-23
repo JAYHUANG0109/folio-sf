@@ -892,12 +892,12 @@ const footprints = [] // [x, z, w, d, isDowntown] for the map
     // gravy boat and cranberry bowl next to the platter
     const sides = new Model()
     sides.cylinder(0.9, 0.6, 0.7, C.snow, [ 0, 0, 0 ], 14)
-    sides.cylinder(0.8, 0.8, 0.05, C.wood, [ 0, 0.65, 0 ], 14)
+    sides.cylinder(0.82, 0.82, 0.05, C.wood, [ 0, 0.68, 0 ], 14)           // gravy, a hair above the rim (equal heights flicker)
     sides.cone(0.3, 0.6, C.snow, [ 0.95, 0.45, 0 ], 6, [ 0, 0, - Math.PI / 2 ])
     sides.cylinder(0.75, 0.55, 0.6, C.gold, [ 0, 0, 2.2 ], 14)
-    sides.cylinder(0.68, 0.68, 0.05, C.red, [ 0, 0.55, 2.2 ], 14)
+    sides.cylinder(0.7, 0.7, 0.05, C.red, [ 0, 0.58, 2.2 ], 14)            // cranberry sauce, above the rim
     for(let k = 0; k < 8; k++)
-        sides.sphere(0.13, C.red, [ (r() - 0.5) * 0.9, 0.6, 2.2 + (r() - 0.5) * 0.9 ], 0)
+        sides.sphere(0.13, C.red, [ (r() - 0.5) * 0.9, 0.66, 2.2 + (r() - 0.5) * 0.9 ], 0)
 
     // pumpkin pie with a fluted crust, a missing slice and whipped cream
     const pie = new Model()

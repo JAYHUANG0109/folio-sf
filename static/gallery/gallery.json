@@ -2,125 +2,128 @@
     "photos": [
         {
             "src": "gallery/web/p01.jpg",
-            "caption": "IMG 0338"
+            "full": "gallery/web/hd-p01.jpg"
         },
         {
             "src": "gallery/web/p02.jpg",
-            "caption": "IMG 0510"
+            "full": "gallery/web/hd-p02.jpg"
         },
         {
             "src": "gallery/web/p03.jpg",
-            "caption": "IMG 0534"
+            "full": "gallery/web/hd-p03.jpg"
         },
         {
             "src": "gallery/web/p04.jpg",
-            "caption": "IMG 0638"
+            "full": "gallery/web/hd-p04.jpg"
         },
         {
             "src": "gallery/web/p05.jpg",
-            "caption": "IMG 2410"
+            "full": "gallery/web/hd-p05.jpg"
         },
         {
             "src": "gallery/web/p06.jpg",
-            "caption": "IMG 2927"
+            "full": "gallery/web/hd-p06.jpg"
         },
         {
             "src": "gallery/web/p07.jpg",
-            "caption": "IMG 3336"
+            "full": "gallery/web/hd-p07.jpg"
         },
         {
             "src": "gallery/web/p08.jpg",
-            "caption": "IMG 3445"
+            "full": "gallery/web/hd-p08.jpg"
         },
         {
             "src": "gallery/web/p09.jpg",
-            "caption": "IMG 3452"
+            "full": "gallery/web/hd-p09.jpg"
         },
         {
             "src": "gallery/web/p10.jpg",
-            "caption": "IMG 3513"
+            "full": "gallery/web/hd-p10.jpg"
         },
         {
             "src": "gallery/web/p11.jpg",
-            "caption": "IMG 3608"
+            "full": "gallery/web/hd-p11.jpg"
         },
         {
             "src": "gallery/web/p12.jpg",
-            "caption": "IMG 4194"
+            "full": "gallery/web/hd-p12.jpg"
         },
         {
             "src": "gallery/web/p13.jpg",
-            "caption": "IMG 4445"
+            "full": "gallery/web/hd-p13.jpg"
         },
         {
             "src": "gallery/web/p14.jpg",
-            "caption": "IMG 5001"
+            "full": "gallery/web/hd-p14.jpg"
         },
         {
             "src": "gallery/web/p15.jpg",
-            "caption": "IMG 5171"
+            "full": "gallery/web/hd-p15.jpg"
         },
         {
             "src": "gallery/web/p16.jpg",
-            "caption": "IMG 5316"
+            "full": "gallery/web/hd-p16.jpg"
         },
         {
             "src": "gallery/web/p17.jpg",
-            "caption": "IMG 5422"
+            "full": "gallery/web/hd-p17.jpg"
         },
         {
             "src": "gallery/web/p18.jpg",
-            "caption": "IMG 5846"
+            "full": "gallery/web/hd-p18.jpg"
         },
         {
             "src": "gallery/web/p19.jpg",
-            "caption": "IMG 6512"
+            "full": "gallery/web/hd-p19.jpg"
         },
         {
             "src": "gallery/web/p20.jpg",
-            "caption": "IMG 6590"
+            "full": "gallery/web/hd-p20.jpg"
         },
         {
             "src": "gallery/web/p21.jpg",
-            "caption": "IMG 6964"
+            "full": "gallery/web/hd-p21.jpg"
         },
         {
             "src": "gallery/web/p22.jpg",
-            "caption": "IMG 7030"
+            "full": "gallery/web/hd-p22.jpg"
         },
         {
             "src": "gallery/web/p23.jpg",
-            "caption": "IMG 7551"
+            "full": "gallery/web/hd-p23.jpg"
         },
         {
             "src": "gallery/web/p24.jpg",
-            "caption": "IMG 7891"
+            "full": "gallery/web/hd-p24.jpg"
         },
         {
             "src": "gallery/web/p25.jpg",
-            "caption": "IMG 7920"
+            "full": "gallery/web/hd-p25.jpg"
         },
         {
             "src": "gallery/web/p26.jpg",
-            "caption": "IMG 8361"
+            "full": "gallery/web/hd-p26.jpg"
         },
         {
             "src": "gallery/web/p27.jpg",
-            "caption": "IMG 9345"
+            "full": "gallery/web/hd-p27.jpg"
         }
     ],
     "videos": [
         {
             "src": "gallery/web/v01.mp4",
-            "caption": "IMG 5745"
+            "full": "gallery/web/hd-v01.mp4",
+            "thumb": "gallery/web/t01.jpg"
         },
         {
             "src": "gallery/web/v02.mp4",
-            "caption": "IMG 6728"
+            "full": "gallery/web/hd-v02.mp4",
+            "thumb": "gallery/web/t02.jpg"
         },
         {
             "src": "gallery/web/v03.mp4",
-            "caption": "Q83J5VST20260808172654XhOKL"
+            "full": "gallery/web/hd-v03.mp4",
+            "thumb": "gallery/web/t03.jpg"
         }
     ]
 }
