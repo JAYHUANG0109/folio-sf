@@ -401,7 +401,7 @@ export class View
         this.spherical.theta = Math.PI * 0.25
 
         this.spherical.radius = {}
-        this.spherical.radius.edges = { min: 10, max: 55 }
+        this.spherical.radius.edges = { min: 10, max: 95 } // zoom out far enough to see a whole stadium
         this.spherical.radius.current = lerp(this.spherical.radius.edges.min, this.spherical.radius.edges.max, 1 - this.zoom.smoothedRatio)
         this.spherical.radius.nonIdealRatioOffset = 9
 
@@ -456,7 +456,7 @@ export class View
 
     setCameras()
     {
-        this.camera = new THREE.PerspectiveCamera(25, this.game.viewport.ratio, 0.1, 200)
+        this.camera = new THREE.PerspectiveCamera(25, this.game.viewport.ratio, 0.1, 320)
         this.camera.position.setFromSphericalCoords(this.spherical.radius.current, this.spherical.phi, this.spherical.theta)
 
         this.defaultCamera = this.camera.clone()
@@ -843,6 +843,13 @@ export class View
             this.freeMode.update(this.game.ticker.delta)
             this.camera.position.copy(this.freeCamera.position)
             this.camera.quaternion.copy(this.freeCamera.quaternion)
+        }
+
+        // a scripted camera (castle hall tour) takes over the final camera
+        if(this.cameraOverride)
+        {
+            this.camera.position.copy(this.cameraOverride.position)
+            this.camera.quaternion.copy(this.cameraOverride.quaternion)
         }
 
         // Cameras matrices

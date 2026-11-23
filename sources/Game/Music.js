@@ -47,7 +47,7 @@ export class Music
 
         let saved = null
         try { saved = localStorage.getItem(STORAGE_KEY) } catch(error) {}
-        this.genre = genres.some(g => g.id === saved) ? saved : 'jazz'
+        this.genre = genres.some(g => g.id === saved) ? saved : 'lofi'
         this.volume = 0.7
         try { const v = parseFloat(localStorage.getItem(STORAGE_KEY + '-volume')); if(!isNaN(v)) this.volume = v } catch(error) {}
         this.started = false

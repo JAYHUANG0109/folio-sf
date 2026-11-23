@@ -209,111 +209,277 @@ export class CastleGallery
         }
     }
 
+    /* ---------------- The great hall: a first person walk through the castle (3D) ---------------- */
+
+    canvasTexture(w, h, draw, repeat = [ 1, 1 ])
+    {
+        const canvas = document.createElement('canvas')
+        canvas.width = w
+        canvas.height = h
+        draw(canvas.getContext('2d'), w, h)
+        const map = new THREE.CanvasTexture(canvas)
+        map.colorSpace = THREE.SRGBColorSpace
+        map.wrapS = map.wrapT = THREE.RepeatWrapping
+        map.repeat.set(...repeat)
+        map.anisotropy = 8
+        return map
+    }
+
+    flat(map, hex = null)
+    {
+        const m = new THREE.MeshBasicNodeMaterial({ side: THREE.DoubleSide })
+        if(map) m.colorNode = texture(map)
+        else m.color = new THREE.Color(hex)
+        m.fog = false
+        return m
+    }
+
+    buildHall()
+    {
+        const hall = new THREE.Group()
+        const W = 14, H = 9, Lh = 80                  // hall width (z), height, length (x)
+        this.hallSize = { W, H, L: Lh }
+        this.hallOrigin = new THREE.Vector3(this.center.x, - 160, this.center.z)
+        hall.position.copy(this.hallOrigin)
+        const add = (geometry, material, x, y, z, rx = 0, ry = 0) => { const m = new THREE.Mesh(geometry, material); m.position.set(x, y, z); m.rotation.set(rx, ry, 0); m.frustumCulled = false; hall.add(m); return m }
+
+        // warm sandstone blocks with mortar lines and a soft vertical light falloff
+        const stone = this.canvasTexture(512, 512, (c, w, h) =>
+        {
+            const g = c.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#6e4f3a'); g.addColorStop(1, '#a5815d')
+            c.fillStyle = g; c.fillRect(0, 0, w, h)
+            for(let row = 0; row < 8; row++)
+                for(let col = 0; col < 4; col++)
+                {
+                    const x = col * 128 + (row % 2) * 64, y = row * 64
+                    c.fillStyle = `rgba(${120 + Math.random() * 40},${90 + Math.random() * 30},${60 + Math.random() * 20},0.35)`
+                    c.fillRect(x + 3, y + 3, 122, 58)
+                }
+            c.strokeStyle = 'rgba(40,25,15,0.55)'; c.lineWidth = 4
+            for(let row = 0; row <= 8; row++) { c.beginPath(); c.moveTo(0, row * 64); c.lineTo(w, row * 64); c.stroke() }
+            for(let row = 0; row < 8; row++) for(let col = 0; col <= 4; col++) { const x = col * 128 + (row % 2) * 64; c.beginPath(); c.moveTo(x, row * 64); c.lineTo(x, row * 64 + 64); c.stroke() }
+        }, [ Lh / 8, 1.4 ])
+        const floor = this.canvasTexture(256, 256, (c, w, h) =>
+        {
+            for(let i = 0; i < 2; i++) for(let j = 0; j < 2; j++) { c.fillStyle = (i + j) % 2 ? '#e8dcc6' : '#3b2c25'; c.fillRect(i * 128, j * 128, 128, 128) }
+            c.strokeStyle = 'rgba(0,0,0,0.25)'; c.strokeRect(0, 0, w, h)
+        }, [ Lh / 3, W / 3 ])
+        const ceiling = this.canvasTexture(256, 256, (c, w, h) =>
+        {
+            c.fillStyle = '#3a2418'; c.fillRect(0, 0, w, h)
+            c.fillStyle = '#5a3824'; for(let i = 0; i < 4; i++) c.fillRect(i * 64 + 6, 0, 40, h)
+        }, [ Lh / 4, 1 ])
+        const carpet = this.canvasTexture(64, 256, (c, w, h) =>
+        {
+            c.fillStyle = '#9c1027'; c.fillRect(0, 0, w, h)
+            c.fillStyle = '#d4a63a'; c.fillRect(2, 0, 4, h); c.fillRect(w - 6, 0, 4, h)
+        }, [ 1, Lh / 4 ])
+
+        const plane = (w, h) => new THREE.PlaneGeometry(w, h)
+        add(plane(Lh, W), this.flat(floor), 0, 0, 0, - Math.PI / 2)
+        add(plane(Lh, W), this.flat(ceiling), 0, H, 0, Math.PI / 2)
+        add(plane(Lh, H), this.flat(stone), 0, H / 2, - W / 2)
+        add(plane(Lh, H), this.flat(stone), 0, H / 2, W / 2, 0, Math.PI)
+        add(plane(W, H), this.flat(stone), - Lh / 2, H / 2, 0, 0, Math.PI / 2)
+        add(plane(W, H), this.flat(stone), Lh / 2, H / 2, 0, 0, - Math.PI / 2)
+        add(plane(Lh - 6, 3.2), this.flat(carpet), 1, 0.02, 0, - Math.PI / 2)
+
+        // columns, arches between them, chandeliers, banners
+        const gold = this.flat(null, '#d4a63a'), column = this.flat(null, '#cdb38f'), glow = this.flat(null, '#ffe39a'), banner = this.flat(null, '#7d0f22')
+        for(let x = - Lh / 2 + 5; x <= Lh / 2 - 5; x += 10)
+        {
+            for(const z of [ - W / 2 + 0.6, W / 2 - 0.6 ])
+            {
+                add(new THREE.CylinderGeometry(0.45, 0.55, H, 14), column, x, H / 2, z)
+                add(new THREE.BoxGeometry(1.4, 0.5, 1.4), gold, x, H - 0.25, z)
+                add(new THREE.BoxGeometry(1.4, 0.4, 1.4), column, x, 0.2, z)
+            }
+            // chandelier: a gold ring of glowing candles
+            add(new THREE.CylinderGeometry(0.03, 0.03, 1.6, 4), gold, x, H - 0.8, 0)
+            add(new THREE.TorusGeometry(1.1, 0.07, 6, 24), gold, x, H - 1.6, 0, Math.PI / 2)
+            for(let k = 0; k < 8; k++)
+            {
+                const a = k / 8 * Math.PI * 2
+                add(new THREE.SphereGeometry(0.12, 8, 6), glow, x + Math.cos(a) * 1.1, H - 1.45, Math.sin(a) * 1.1)
+            }
+        }
+        for(let x = - Lh / 2 + 10; x <= Lh / 2 - 10; x += 10)
+            for(const z of [ - W / 2 + 0.05, W / 2 - 0.05 ])
+                add(new THREE.PlaneGeometry(1.6, 3.2), banner, x, H - 2.1, z, 0, z < 0 ? 0 : Math.PI)
+        // the entrance: open doors at the +x end, glowing outside
+        add(new THREE.PlaneGeometry(4.5, 5.5), this.flat(null, '#ffd8a0'), Lh / 2 - 0.02, 2.75, 0, 0, - Math.PI / 2)
+
+        this.game.scene.add(hall)
+        hall.visible = false
+        this.hall = hall
+        this.hallAdd = add
+    }
+
+    /** Frames along both long walls (each fitted to its photo), the big video screen on the far wall */
+    placeHallMedia()
+    {
+        const { W, H, L } = this.hallSize
+        const items = this.theatre.items
+        const photos = items.filter(i => i.type === 'photo')
+        const perSide = Math.ceil(photos.length / 2)
+        const spacing = Math.min(5, (L - 16) / Math.max(1, perSide))
+        this.stops = [ { type: 'entrance', pos: new THREE.Vector3(L / 2 - 3, 1.7, 0), look: new THREE.Vector3(- L / 2, 2.6, 0) } ]
+        const frameMat = this.flat(null, '#c9a227')
+        photos.forEach((item, i) =>
+        {
+            const side = i % 2 ? 1 : - 1
+            const x = L / 2 - 9 - Math.floor(i / 2) * spacing
+            const z = side * (W / 2 - 0.08)
+            const ry = side < 0 ? 0 : Math.PI
+            const pic = new THREE.MeshBasicNodeMaterial({ side: THREE.DoubleSide })
+            pic.fog = false
+            const blank = new THREE.Texture()
+            pic.colorNode = texture(blank)
+            const frame = this.hallAdd(new THREE.BoxGeometry(1, 1, 0.12), frameMat, x, 3.6, z - side * 0.06, 0, ry)
+            const mesh = this.hallAdd(new THREE.PlaneGeometry(1, 1), pic, x, 3.6, z - side * 0.14, 0, ry)
+            const maxW = spacing - 0.8, maxH = 4.2
+            const fit = (img) =>
+            {
+                const a = img.width / img.height
+                let w = maxW, h = w / a
+                if(h > maxH) { h = maxH; w = h * a }
+                mesh.scale.set(w, h, 1)
+                frame.scale.set(w + 0.35, h + 0.35, 1)
+            }
+            const setImage = (src) =>
+            {
+                const img = new Image()
+                img.onload = () =>
+                {
+                    const t = new THREE.Texture(img)
+                    t.colorSpace = THREE.SRGBColorSpace
+                    t.anisotropy = 8
+                    t.needsUpdate = true
+                    pic.colorNode = texture(t)
+                    pic.needsUpdate = true
+                    fit(img)
+                }
+                img.src = src
+            }
+            setImage(item.thumb)
+            this.stops.push({ type: 'photo', item, hd: false, upgrade: () => setImage(item.full), pos: new THREE.Vector3(x, 3.1, side * - 0.4), look: new THREE.Vector3(x, 3.5, z) })
+        })
+        // the video wall at the far end
+        const videos = items.filter(i => i.type === 'video')
+        if(videos.length)
+        {
+            const video = document.createElement('video')
+            video.muted = true
+            video.playsInline = true
+            video.crossOrigin = 'anonymous'
+            video.preload = 'auto'
+            let index = 0
+            const play = () => { video.src = videos[index].full; video.play().catch(() => {}) }
+            video.addEventListener('ended', () => { index = (index + 1) % videos.length; play() })
+            video.addEventListener('loadedmetadata', () =>
+            {
+                const a = video.videoWidth / video.videoHeight
+                let h = H - 2.4, w = h * a
+                if(w > W - 2) { w = W - 2; h = w / a }
+                screen.scale.set(w, h, 1)
+                screenFrame.scale.set(w + 0.5, h + 0.5, 1)
+            })
+            const map = new THREE.VideoTexture(video)
+            map.colorSpace = THREE.SRGBColorSpace
+            const mat = new THREE.MeshBasicNodeMaterial()
+            mat.colorNode = texture(map)
+            mat.fog = false
+            const screenFrame = this.hallAdd(new THREE.BoxGeometry(1, 1, 0.15), frameMat, - L / 2 + 0.1, H / 2 + 0.2, 0, 0, Math.PI / 2)
+            const screen = this.hallAdd(new THREE.PlaneGeometry(1, 1), mat, - L / 2 + 0.2, H / 2 + 0.2, 0, 0, Math.PI / 2)
+            screen.scale.set(8, 4.5, 1)
+            this.hallVideo = { video, play }
+            this.stops.push({ type: 'video', pos: new THREE.Vector3(- L / 2 + 11, 2.4, 0), look: new THREE.Vector3(- L / 2, H / 2 + 0.2, 0) })
+        }
+    }
+
     setTheatre()
     {
-        this.theatre = { open: false, cooldown: false }
+        this.theatre = { open: false, cooldown: false, items: [] }
         const el = document.createElement('div')
         el.className = 'castle-theatre'
         el.innerHTML = `
-            <div class="ct-curtain ct-left"></div><div class="ct-curtain ct-right"></div>
-            <div class="ct-inner">
-                <div class="ct-title">Castello ♥ 我們的回憶</div>
-                <div class="ct-stage">
-                    <div class="ct-main"><img class="ct-photo" alt=""><video class="ct-video" muted playsinline loop></video></div>
-                    <button class="ct-nav ct-prev" aria-label="上一張">‹</button>
-                    <button class="ct-nav ct-next" aria-label="下一張">›</button>
-                </div>
-                <div class="ct-strip"></div>
-                <div class="ct-controls">
-                    <button class="ct-play">❚❚ 暫停輪播</button>
-                    <button class="ct-sound">🔇 影片聲音</button>
-                    <button class="ct-exit">離開城堡 →</button>
-                </div>
+            <div class="ct-vignette"></div>
+            <div class="ct-title">Castello ♥ 我們的回憶</div>
+            <div class="ct-count"></div>
+            <button class="ct-nav ct-prev" aria-label="上一個">‹</button>
+            <button class="ct-nav ct-next" aria-label="下一個">›</button>
+            <div class="ct-controls">
+                <button class="ct-play">❚❚ 暫停導覽</button>
+                <button class="ct-sound">🔇 影片聲音</button>
+                <button class="ct-exit">離開城堡 →</button>
             </div>`
         document.body.append(el)
         this.theatre.el = el
-        const items = () => this.theatre.items
-        const photo = el.querySelector('.ct-photo'), video = el.querySelector('.ct-video'), strip = el.querySelector('.ct-strip')
-        this.theatre.show = (i) =>
-        {
-            const list = items()
-            if(!list.length)
-                return
-            this.theatre.index = (i + list.length) % list.length
-            const item = list[this.theatre.index]
-            el.classList.toggle('is-video', item.type === 'video')
-            if(item.type === 'video')
-            {
-                photo.removeAttribute('src')
-                video.src = item.full
-                video.play().catch(() => {})
-            }
-            else
-            {
-                video.pause()
-                video.removeAttribute('src')
-                photo.src = item.full
-            }
-            strip.querySelectorAll('button').forEach((b, k) => b.classList.toggle('is-active', k === this.theatre.index))
-            strip.children[this.theatre.index]?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
-            clearTimeout(this.theatre.timer)
-            // photos advance every 5s; videos when they finish
-            if(this.theatre.playing && item.type !== 'video')
-                this.theatre.timer = setTimeout(() => this.theatre.show(this.theatre.index + 1), 5000)
-        }
-        video.loop = false
-        video.addEventListener('ended', () => { if(this.theatre.playing) this.theatre.show(this.theatre.index + 1); else video.play() })
-        el.querySelector('.ct-prev').addEventListener('click', () => this.theatre.show(this.theatre.index - 1))
-        el.querySelector('.ct-next').addEventListener('click', () => this.theatre.show(this.theatre.index + 1))
+        this.camPos = new THREE.Vector3()
+        this.camLook = new THREE.Vector3()
+        this.override = { position: new THREE.Vector3(), quaternion: new THREE.Quaternion() }
+        this.lookHelper = new THREE.PerspectiveCamera() // cameras look down -z (an Object3D would look away from the target)
+        el.querySelector('.ct-prev').addEventListener('click', () => this.goTo(this.theatre.index - 1, true))
+        el.querySelector('.ct-next').addEventListener('click', () => this.goTo(this.theatre.index + 1, true))
         el.querySelector('.ct-play').addEventListener('click', (e) =>
         {
             this.theatre.playing = !this.theatre.playing
-            e.currentTarget.textContent = this.theatre.playing ? '❚❚ 暫停輪播' : '▶ 自動輪播'
-            this.theatre.show(this.theatre.index)
+            e.currentTarget.textContent = this.theatre.playing ? '❚❚ 暫停導覽' : '▶ 自動導覽'
+            this.theatre.wait = 0
         })
         el.querySelector('.ct-sound').addEventListener('click', (e) =>
         {
-            video.muted = !video.muted
-            e.currentTarget.textContent = video.muted ? '🔇 影片聲音' : '🔊 影片聲音'
-            if(this.game.music) this.game.music.duck?.(!video.muted)
+            if(!this.hallVideo) return
+            this.hallVideo.video.muted = !this.hallVideo.video.muted
+            e.currentTarget.textContent = this.hallVideo.video.muted ? '🔇 影片聲音' : '🔊 影片聲音'
         })
         el.querySelector('.ct-exit').addEventListener('click', () => this.closeTheatre())
         addEventListener('keydown', (e) =>
         {
             if(!this.theatre.open) return
             if(e.key === 'Escape') this.closeTheatre()
-            if(e.key === 'ArrowRight') this.theatre.show(this.theatre.index + 1)
-            if(e.key === 'ArrowLeft') this.theatre.show(this.theatre.index - 1)
+            else if(e.key === 'ArrowRight' || e.key === 'ArrowUp') this.goTo(this.theatre.index + 1, true)
+            else if(e.key === 'ArrowLeft' || e.key === 'ArrowDown') this.goTo(this.theatre.index - 1, true)
             e.stopPropagation()
         }, true)
-        this.theatre.buildStrip = () =>
-        {
-            strip.innerHTML = ''
-            items().forEach((item, k) =>
-            {
-                const b = document.createElement('button')
-                b.innerHTML = item.type === 'video' ? `<img src="${item.thumb}" alt=""><span>▶</span>` : `<img src="${item.thumb}" alt="" loading="lazy">`
-                b.addEventListener('click', () => this.theatre.show(k))
-                strip.append(b)
-            })
-        }
+    }
+
+    goTo(i, manual = false)
+    {
+        const n = this.stops.length
+        this.theatre.index = (i + n) % n
+        this.theatre.wait = 0
+        if(manual) this.theatre.playing = false, this.theatre.el.querySelector('.ct-play').textContent = '▶ 自動導覽'
+        const stop = this.stops[this.theatre.index]
+        if(stop.type === 'photo' && !stop.hd) { stop.hd = true; stop.upgrade() }   // sharp version when you look at it
+        this.theatre.el.querySelector('.ct-count').textContent = stop.type === 'photo' ? `${this.theatre.index} / ${this.stops.length - (this.hallVideo ? 2 : 1)}` : stop.type === 'video' ? '影片' : ''
     }
 
     openTheatre()
     {
-        const list = this.theatre.items
-        if(!list?.length)
+        if(!this.theatre.items.length)
             return
+        if(!this.hall) { this.buildHall(); this.placeHallMedia() }
         this.theatre.open = true
         this.theatre.playing = true
+        this.hall.visible = true
         this.savedFilters = [ ...this.game.inputs.filters ]
         this.game.inputs.filters.clear()
         this.game.inputs.filters.add('modal')
-        this.game.physicalVehicle.chassis?.physical?.body?.setLinvel({ x: 0, y: 0, z: 0 }, true)
         this.theatre.el.classList.add('is-open')
-        document.documentElement.classList.add('has-modal-open')
-        if(!this.theatre.built) { this.theatre.buildStrip(); this.theatre.built = true }
-        this.theatre.show(this.theatre.index || 0)
+        document.documentElement.classList.add('has-modal-open', 'is-in-castle')
+        this.hallVideo?.play()
+        // start just outside the hall doors, then walk in
+        const o = this.hallOrigin
+        this.camPos.set(o.x + this.hallSize.L / 2 + 4, o.y + 2, o.z)
+        this.camLook.set(o.x, o.y + 2.6, o.z)
+        this.game.view.cameraOverride = this.override
+        // a person's field of view (the game camera is a narrow, far away lens)
+        const camera = this.game.view.camera
+        this.savedFov = camera.fov
+        camera.fov = 58
+        camera.updateProjectionMatrix()
+        this.goTo(0)
     }
 
     closeTheatre()
@@ -322,21 +488,49 @@ export class CastleGallery
             return
         this.theatre.open = false
         this.theatre.cooldown = true
-        clearTimeout(this.theatre.timer)
-        const video = this.theatre.el.querySelector('.ct-video')
-        video.pause()
+        this.hall.visible = false
+        this.hallVideo?.video.pause()
+        this.game.view.cameraOverride = null
+        const camera = this.game.view.camera
+        camera.fov = this.savedFov || 25
+        camera.updateProjectionMatrix()
         this.theatre.el.classList.remove('is-open')
-        document.documentElement.classList.remove('has-modal-open')
+        document.documentElement.classList.remove('has-modal-open', 'is-in-castle')
         this.game.inputs.filters.clear()
         for(const f of this.savedFilters?.length ? this.savedFilters : [ 'wandering' ])
             this.game.inputs.filters.add(f)
-        // back out through the gate, facing the vineyard driveway
         const x = this.center.x + 3.2 * this.k + 3.5
         this.game.physicalVehicle.moveTo({ x, y: this.floor + 1.2, z: this.center.z }, 0)
     }
 
+    updateTheatre()
+    {
+        const dt = Math.min(0.05, this.game.ticker.delta)
+        const stop = this.stops[this.theatre.index]
+        const o = this.hallOrigin
+        const tPos = stop.pos.clone().add(o), tLook = stop.look.clone().add(o)
+        const k = 1 - Math.exp(- dt * 1.6)
+        this.camPos.lerp(tPos, k)
+        this.camLook.lerp(tLook, k * 1.3)
+        // a gentle breathing sway, like walking
+        const t = this.game.ticker.elapsed ?? performance.now() / 1000
+        this.override.position.copy(this.camPos).add(new THREE.Vector3(0, Math.sin(t * 1.3) * 0.04, 0))
+        this.lookHelper.position.copy(this.override.position)
+        this.lookHelper.lookAt(this.camLook)
+        this.override.quaternion.copy(this.lookHelper.quaternion)
+        if(this.theatre.playing)
+        {
+            this.theatre.wait += dt
+            const hold = stop.type === 'video' ? 14 : stop.type === 'entrance' ? 3 : 5
+            if(this.theatre.wait > hold)
+                this.goTo(this.theatre.index + 1)
+        }
+    }
+
     update()
     {
+        if(this.theatre?.open)
+            this.updateTheatre()
         const p = this.game.player.position
         const dx = p.x - this.center.x, dz = p.z - this.center.z
         const near = Math.hypot(dx, dz) < 45

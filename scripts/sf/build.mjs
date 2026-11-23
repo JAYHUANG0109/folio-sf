@@ -234,11 +234,29 @@ for(const stop of [ ...Layout.stops, ...secrets ])
             const [ w, , d ] = Array.isArray(c.scale) ? c.scale : [ c.scale, c.scale, c.scale ]
             if(w < 0.5 && d < 0.5)
                 continue
-            siteFootprints.push([ cx + nx + rx, cz + nz + rz, w / 2, d / 2, angle ])
+            siteFootprints.push([ cx + nx + rx, cz + nz + rz, w / 2, d / 2, angle, stop.id ])
         }
     }
 }
 console.log('site footprints', siteFootprints.length)
+// no two sites may touch: report every overlap between parts of different stops (with a 1.5 unit gap)
+{
+    const box = ([ x, z, hx, hz, a ]) => { const c = Math.abs(Math.cos(a)), s = Math.abs(Math.sin(a)); return [ x - (hx * c + hz * s), z - (hx * s + hz * c), x + (hx * c + hz * s), z + (hx * s + hz * c) ] }
+    const clashes = new Map()
+    for(let i = 0; i < siteFootprints.length; i++)
+        for(let j = i + 1; j < siteFootprints.length; j++)
+        {
+            const A = siteFootprints[i], B = siteFootprints[j]
+            if(A[5] === B[5]) continue
+            const a = box(A), b = box(B), g = 1.5
+            if(a[0] < b[2] + g && b[0] < a[2] + g && a[1] < b[3] + g && b[1] < a[3] + g)
+            {
+                const key = [ A[5], B[5] ].sort().join(' <-> ')
+                clashes.set(key, (clashes.get(key) || 0) + 1)
+            }
+        }
+    for(const [ k, n ] of clashes) console.log('SITE CLASH:', k, n)
+}
 // knockable trees and lamps inside the sites must not stand on a street either
 for(const area of areaNodes)
     for(const node of area.children)
@@ -268,7 +286,7 @@ const exclusions = [
     { rect: [ - 20, - 56, - 14, - 10 ] },                           // cable car line (Hyde St)
     { rect: [ - 15, - 48, 29, - 24 ] },                             // Lombard crooked block
     { rect: [ - 8, 66, 34, 92 ] },                                  // stadium
-    { rect: [ 48, 54, 80, 82 ] },                                   // SFO
+    { rect: [ 42, 48, 90, 92 ] },                                   // SFO
     { rect: [ - 60, - 48, - 20, - 14 ] },                           // Palace
     { rect: [ - 78, 52, - 28, 86 ] },                               // turkey + dog houses
     { rect: [ - 73, - 8, - 43, 33 ] },                               // tennis (1.85x)

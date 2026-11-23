@@ -22,7 +22,7 @@ export const land = {
     city: [
         [-82, -46], [-74, -50], [-66, -53], [-62, -55], [-57, -51], [-44, -49], [-30, -51], [-16, -52],
         [-6, -55], [8, -54], [22, -54], [40, -52], [50, -46], [56, -36], [60, -26], [65, -21],
-        [65, -14], [60, -8], [62, 6], [66, 20], [66, 36], [68, 50], [75, 58], [76, 76], [66, 86],
+        [65, -14], [60, -8], [62, 6], [66, 20], [66, 36], [68, 50], [80, 54], [88, 64], [88, 82], [76, 90],
         [40, 90], [0, 90], [-40, 90], [-70, 88], [-84, 80], [-86, 40], [-86, 0], [-86, -30],
     ],
     marin: [
@@ -72,7 +72,7 @@ export const pads = [
     [-62, -46, 3, 6, 3.2],    // bridge south deck level
     [-62, -82, 4, 8, 3.2],    // bridge north deck level (Vista Point, the fork to Napa and Muir Woods)
     [-52, -86, 2, 10, 2.1],   // gentle step down the coast road toward Muir Woods
-    [62, 68, 9, 15, 0],       // SFO
+    [65, 69, 15, 21, 0],      // SFO (bigger airport)
     [12, 79, 12, 18, 0],      // Levi's
     [59, -18, 6, 10, 0],      // Ferry Building
     [34, 13, 6, 10, 0],       // Union Square
@@ -154,7 +154,7 @@ export const streets = [
 export const plazas = [
     { rect: [20, 3, 47, 28] },       // Union Square
     { ellipse: [59, -18, 7, 6] },    // Ferry Building
-    { rect: [52, 60, 72, 76] },      // SFO apron
+    { rect: [48, 56, 82, 86] },      // SFO forecourt and apron
     { ellipse: [-62, -86.5, 4, 5] }, // Vista Point, straight ahead off the bridge
     { rect: [18, -29, 30, 1] },      // Chinatown: Grant Ave as a wide pedestrian street
     { ellipse: [-40, -38, 6, 4] },   // Palace

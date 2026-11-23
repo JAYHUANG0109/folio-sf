@@ -1,3 +1,4 @@
+import { Ferry } from './Ferry.js'
 import { CastleGallery } from './CastleGallery.js'
 import { GameDay } from './GameDay.js'
 import * as THREE from 'three/webgpu'
@@ -82,6 +83,7 @@ export class World
             this.dogs = new Dogs()
             this.gameDay = new GameDay()
             this.castleGallery = new CastleGallery()
+            this.ferry = new Ferry()
             this.finale = new Finale()
         }
         else if(step === 2)

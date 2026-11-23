@@ -283,59 +283,204 @@ function letters(ctx, text, color, startX, z, rotationY = 0, cell = 0.4, gap = 0
 export const builders = {}
 
 /** 1. SFO */
+/** EVA Air Boeing 787-10 Dreamliner (model space: nose at -z, span along x, y up) */
+export function evaPlane()
+{
+    const m = new Model()
+    const L = 13, R = 0.85, y0 = 1.75                    // fuselage length, radius, centerline height
+    const white = C.snow, green = C.moss, dark = C.dark, orange = C.orange
+    const along = (g) => g.rotateX(Math.PI / 2)            // cylinders along z
+    // fuselage: white body, the dark green belly with an orange pinstripe
+    m.add(along(new THREE.CylinderGeometry(R, R, L, 20)), white, [ 0, y0, 0 ])
+    m.add(along(new THREE.CylinderGeometry(R * 1.005, R * 1.005, L, 20, 1, true, Math.PI * 0.62, Math.PI * 0.76)).rotateZ(Math.PI), green, [ 0, y0, 0 ])
+    for(const side of [ - 1, 1 ])
+        m.cbox([ 0.04, 0.07, L ], orange, [ side * R * 0.83, y0 - R * 0.52, 0 ], [ 0, 0, side * 0.55 ])
+    // nose and tail cone
+    m.sphere(R, white, [ 0, y0, - L / 2 ], 2, [ 1, 1, 1.5 ])
+    m.add(along(new THREE.CylinderGeometry(0.2, R, 3.2, 20)).rotateX(Math.PI), white, [ 0, y0 + 0.25, L / 2 + 1.5 ], [ - 0.12, 0, 0 ])
+    m.add(along(new THREE.CylinderGeometry(0.25, R * 1.005, 3.2, 20, 1, true, Math.PI * 0.62, Math.PI * 0.76)).rotateX(Math.PI).rotateZ(Math.PI), green, [ 0, y0 + 0.25, L / 2 + 1.5 ], [ - 0.12, 0, 0 ])
+    // cockpit windows, cabin window rows, doors
+    for(const side of [ - 1, 1 ])
+    {
+        m.cbox([ 0.05, 0.16, 0.42 ], dark, [ side * 0.42, y0 + 0.42, - L / 2 - 0.82 ], [ 0, side * 0.5, 0 ])
+        for(let z = - L / 2 + 0.6; z < L / 2 - 0.3; z += 0.32)
+            m.cbox([ 0.03, 0.1, 0.12 ], dark, [ side * (R + 0.005), y0 + 0.28, z ])
+        for(const z of [ - L / 2 + 0.25, - 1.6, 1.8, L / 2 - 0.4 ])
+            m.cbox([ 0.03, 0.42, 0.24 ], C.stone, [ side * (R + 0.01), y0 + 0.05, z ])
+        // EVA AIR in green along the front of the fuselage
+        const t = new Model()
+        pixelText(t, 'EVA AIR', green, [ 0, 0, 0 ], 0.13, { depth: 0.03 })
+        m.merge(t, [ side * (R + 0.02), y0 + 0.36, - L / 2 + 3.4 ], [ 0, side * Math.PI / 2, 0 ])
+    }
+    // wings: swept, slight dihedral, raked tips; flap fairings underneath
+    const wing = new THREE.Shape()
+    wing.moveTo(0, 0); wing.lineTo(7.2, 2.9); wing.lineTo(7.4, 3.5); wing.lineTo(6.8, 3.5); wing.lineTo(0, 2.6); wing.closePath()
+    for(const side of [ - 1, 1 ])
+    {
+        const g = new THREE.ExtrudeGeometry(wing, { depth: 0.12, bevelEnabled: false }).rotateX(Math.PI / 2)
+        if(side < 0) g.scale(- 1, 1, 1)
+        m.add(g, white, [ side * 0.4, y0 - 0.45, - 1.6 ], [ 0, 0, side * 0.07 ])
+        for(const d of [ 2, 3.6, 5.1 ])
+            m.cbox([ 0.15, 0.18, 1.1 ], C.stone, [ side * (0.4 + d), y0 - 0.55 + d * 0.07, - 1.6 + d * 0.4 + 1.7 ])
+        // GE engine nacelle with a dark intake and a chevron exhaust
+        const ex = side * 2.7
+        m.add(along(new THREE.CylinderGeometry(0.52, 0.46, 2.2, 18)), white, [ ex, y0 - 1.05, - 1.2 ])
+        m.add(along(new THREE.CylinderGeometry(0.42, 0.42, 0.05, 18)), dark, [ ex, y0 - 1.05, - 2.3 ])
+        m.add(along(new THREE.CylinderGeometry(0.3, 0.22, 0.6, 12)), C.stone, [ ex, y0 - 1.05, 0.15 ])
+        m.cbox([ 0.12, 0.5, 1.2 ], white, [ ex, y0 - 0.65, - 0.9 ])                           // pylon
+        // horizontal stabilizer
+        const stab = new THREE.Shape()
+        stab.moveTo(0, 0); stab.lineTo(2.6, 1.3); stab.lineTo(2.6, 1.8); stab.lineTo(0, 1.4); stab.closePath()
+        const sg = new THREE.ExtrudeGeometry(stab, { depth: 0.08, bevelEnabled: false }).rotateX(Math.PI / 2)
+        if(side < 0) sg.scale(- 1, 1, 1)
+        m.add(sg, white, [ side * 0.2, y0 + 0.2, L / 2 + 0.8 ], [ 0, 0, side * 0.1 ])
+    }
+    // the green tail with the EVA globe logo
+    const fin = new THREE.Shape()
+    fin.moveTo(0, 0); fin.lineTo(3.2, 0); fin.lineTo(3.4, 3.6); fin.lineTo(2.2, 3.6); fin.closePath()
+    m.add(new THREE.ExtrudeGeometry(fin, { depth: 0.14, bevelEnabled: false }).translate(0, 0, - 0.07).rotateY(- Math.PI / 2), green, [ 0, y0 + 0.55, L / 2 - 1.2 ])
+    for(const side of [ - 1, 1 ])
+    {
+        const lx = side * 0.09, ly = y0 + 2.6, lz = L / 2 + 1.25
+        m.cylinder(0.7, 0.7, 0.02, white, [ lx, ly, lz ], 24, [ 0, 0, Math.PI / 2 ])
+        m.add(new THREE.TorusGeometry(0.66, 0.05, 4, 28).rotateY(Math.PI / 2), orange, [ lx * 1.1, ly, lz ])
+        for(const a of [ 0, Math.PI / 2 ])
+            m.add(new THREE.TorusGeometry(0.66, 0.025, 3, 24, Math.PI).rotateY(Math.PI / 2).rotateX(a), orange, [ lx * 1.12, ly, lz ])
+        for(const r of [ 0, Math.PI / 2, Math.PI / 4, - Math.PI / 4 ])
+            m.cbox([ 0.03, 0.9 * (r % (Math.PI / 2) ? 0.6 : 1), 0.14 ], green, [ lx * 1.3, ly, lz ], [ r, 0, 0 ])
+    }
+    // landing gear
+    m.cylinder(0.07, 0.07, y0 - R, C.stone, [ 0, 0.3, - L / 2 + 1.2 ], 6)
+    m.cylinder(0.28, 0.28, 0.3, dark, [ 0, 0.28, - L / 2 + 1.2 ], 10, [ 0, 0, Math.PI / 2 ])
+    for(const side of [ - 1, 1 ])
+    {
+        m.cylinder(0.1, 0.1, 1.1, C.stone, [ side * 1.1, 0.5, 0.6 ], 6)
+        for(const dz of [ 0.1, 1.1 ])
+            m.cylinder(0.35, 0.35, 0.55, dark, [ side * 1.1, 0.35, dz ], 12, [ 0, 0, Math.PI / 2 ])
+    }
+    return m
+}
+
 builders.sfo = (ctx) =>
 {
+    // Like SFO's International Terminal: a long glass hall under three white wave roofs on exposed trusses,
+    // SAN FRANCISCO INTERNATIONAL across the facade, the curbside canopy, the AirTrain gliding past on its guideway,
+    // the orange and blue sculpture out front, the new torch-shaped control tower, and an EVA Air 787-10 at the gate
     const nodes = []
-    // Terminal along the east side
-    const terminal = new Model()
-    terminal.box([ 6, 3.2, 16 ], C.stone)
-    terminal.box([ 6.2, 0.9, 16.2 ], C.sky, [ 0, 1.6, 0 ])
-    terminal.box([ 7, 0.3, 17 ], C.snow, [ 0, 3.2, 0 ])
-    terminal.gable(17, 7, 1.2, C.snow, [ 0, 3.5, 0 ], [ 0, Math.PI / 2, 0 ])
-    nodes.push(fixedNode('terminal', terminal, ctx.at(70, 66), [ { position: [ 0, 2.2, 0 ], size: [ 7, 4.4, 17 ] } ]))
+    const tx = 69, tz = 66, depth = 7, length = 20            // terminal center and size (front faces -x, toward the road)
+    const F = - depth / 2
 
-    // Control tower
-    const tower = new Model()
-    tower.cylinder(0.8, 1.1, 9, C.stone, [ 0, 0, 0 ], 8)
-    tower.cylinder(2, 1.2, 0.6, C.snow, [ 0, 9, 0 ], 8)
-    tower.cylinder(1.9, 1.9, 1.5, C.sky, [ 0, 9.6, 0 ], 8)
-    tower.cylinder(2.2, 2, 0.4, C.snow, [ 0, 11.1, 0 ], 8)
-    tower.cylinder(0.08, 0.08, 1.5, C.dark, [ 0, 11.5, 0 ], 4)
-    tower.sphere(0.2, C.red, [ 0, 13.1, 0 ], 0)
-    nodes.push(fixedNode('tower', tower, ctx.at(70, 76), [ { shape: 'tube', position: [ 0, 5, 0 ], radius: 1.2, height: 10 } ]))
+    const t = new Model()
+    t.box([ depth, 4.2, length ], C.stone)
+    // glass facade with mullions and the light blue panels
+    t.box([ 0.1, 3.6, length - 0.4 ], C.sky, [ F - 0.02, 0.3, 0 ])
+    for(let z = - length / 2 + 0.8; z < length / 2; z += 1.2)
+        t.box([ 0.12, 3.6, 0.06 ], C.snow, [ F - 0.06, 0.3, z ])
+    for(const y of [ 1.5, 2.7 ])
+        t.box([ 0.12, 0.06, length - 0.4 ], C.snow, [ F - 0.06, y, 0 ])
+    pixelText(t, 'SAN FRANCISCO INTERNATIONAL', C.dark, [ F - 0.1, 3.05, 0 ], 0.1, { depth: 0.04 })
+    {
+        const label = new Model()
+        pixelText(label, 'SAN FRANCISCO INTERNATIONAL', C.dark, [ 0, 0, 0 ], 0.11, { depth: 0.04 })
+        t.merge(label, [ F - 0.12, 3.0, 0 ], [ 0, - Math.PI / 2, 0 ])
+    }
+    // three wave roofs on white trusses
+    const spans = 3, spanL = length / spans
+    for(let k = 0; k < spans; k++)
+    {
+        const zc = - length / 2 + spanL * (k + 0.5)
+        for(let i = 0; i < 10; i++)
+        {
+            const a0 = (i / 10 - 0.5) * 1.3, a1 = ((i + 1) / 10 - 0.5) * 1.3
+            const r = spanL * 0.85
+            const z0 = zc + Math.sin(a0) * r, z1 = zc + Math.sin(a1) * r
+            const y0r = 4.2 + Math.cos(a0) * 1.4 - 0.4, y1r = 4.2 + Math.cos(a1) * 1.4 - 0.4
+            const mid = [ 0, (y0r + y1r) / 2, (z0 + z1) / 2 ]
+            t.cbox([ depth + 2.4, 0.12, Math.hypot(z1 - z0, y1r - y0r) + 0.05 ], C.snow, mid, [ Math.atan2(y1r - y0r, z1 - z0) * - 1, 0, 0 ])
+        }
+        // the exposed truss under each wave, cantilevered out over the curb
+        for(const x of [ F - 1.1, 0, - F + 1 ])
+        {
+            t.cylinder(0.12, 0.14, 4.6, C.snow, [ x, 0, zc ], 8)
+            for(const sz of [ - 1, 1 ])
+                t.beam([ x, 4.3, zc ], [ x, 5.1, zc + sz * spanL * 0.42 ], 0.08, C.snow)
+        }
+        t.beam([ F - 1.1, 4.6, zc ], [ - F + 1, 4.6, zc ], 0.08, C.snow)
+    }
+    // curbside canopy along the front
+    t.box([ 2.4, 0.15, length ], C.snow, [ F - 1.5, 2.4, 0 ])
+    for(let z = - length / 2 + 1; z < length / 2; z += 3)
+        t.cylinder(0.07, 0.07, 2.4, C.stone, [ F - 2.5, 0, z ], 6)
+    nodes.push(fixedNode('terminal', t, ctx.at(tx, tz), [ { position: [ 0, 2.1, 0 ], size: [ depth, 4.2, length ] } ]))
 
-    // Parked plane (AA, of course)
-    const plane = new Model()
-    plane.add(new THREE.CapsuleGeometry(1, 9, 4, 8), C.stone, [ 0, 1.8, 0 ], [ Math.PI / 2, 0, 0 ])
-    plane.cbox([ 13, 0.25, 2.4 ], C.stone, [ 0, 1.5, 0.5 ])
-    plane.cbox([ 4.5, 0.2, 1.4 ], C.stone, [ 0, 2.2, 5.5 ])
-    plane.cbox([ 0.25, 2.6, 1.8 ], C.red, [ 0, 3.5, 5.6 ], [ - 0.3, 0, 0 ])
-    plane.cbox([ 0.27, 0.6, 1.6 ], C.sky, [ 0, 3.0, 5.4 ], [ - 0.3, 0, 0 ])
-    plane.cbox([ 2.02, 0.25, 9 ], C.red, [ 0, 1.6, 0 ])
-    plane.cbox([ 2.04, 0.18, 9 ], C.sky, [ 0, 1.85, 0 ])
-    for(const x of [ - 3, 3 ])
-        plane.cylinder(0.45, 0.45, 1.6, C.slate, [ x, 0.7, 0 ], 8, [ Math.PI / 2, 0, 0 ])
-    plane.cylinder(0.12, 0.12, 0.8, C.dark, [ 0, 0, - 3.5 ], 6)
-    plane.cylinder(0.12, 0.12, 0.8, C.dark, [ - 1.2, 0, 0.6 ], 6)
-    plane.cylinder(0.12, 0.12, 0.8, C.dark, [ 1.2, 0, 0.6 ], 6)
-    nodes.push({
-        ...fixedNode('plane', plane, ctx.at(60, 74), [
-            { position: [ 0, 1.8, 0 ], size: [ 2, 2, 11 ] },
-            { position: [ 0, 1.5, 0.5 ], size: [ 13, 0.4, 2.4 ] },
-        ]),
-        rotation: [ 0, - 0.5, 0 ],
-    })
+    // the sculpture out front: tall orange and blue blades on a round plinth
+    {
+        const sc = new Model()
+        sc.cylinder(1.1, 1.1, 0.3, C.stone, [ 0, 0, 0 ], 16)
+        sc.cbox([ 0.1, 4.2, 1.1 ], C.sky, [ 0, 2.3, 0 ], [ 0, 0.3, 0.15 ])
+        sc.cbox([ 0.1, 3.4, 1.0 ], C.orange, [ 0.2, 2.0, 0.2 ], [ 0, - 0.5, - 0.2 ])
+        sc.cbox([ 0.1, 2.6, 0.8 ], C.sky, [ - 0.2, 1.6, - 0.3 ], [ 0, 1.1, 0.25 ])
+        nodes.push(fixedNode('sculpture', sc, ctx.at(tx - 6.5, tz - 7.5), [ { shape: 'tube', position: [ 0, 1.5, 0 ], radius: 0.6, height: 3 } ]))
+    }
 
-    // Runway stripes
+    // AirTrain: an elevated guideway along the front, a two car blue and white train on it
+    {
+        const g = new Model()
+        g.box([ 1.1, 0.35, length + 6 ], C.stone, [ 0, 4.6, 0 ])
+        for(let z = - length / 2 - 2; z <= length / 2 + 2; z += 4.5)
+            g.cylinder(0.22, 0.28, 4.6, C.stone, [ 0, 0, z ], 8)
+        for(const z of [ - 4.2, - 1.6 ])
+        {
+            g.box([ 0.95, 1.2, 2.5 ], C.snow, [ 0, 4.95, z ])
+            g.box([ 0.97, 0.35, 2.5 ], C.sky, [ 0, 5.2, z ])
+            g.box([ 0.96, 0.18, 2.5 ], C.sky, [ 0, 4.95, z ])
+        }
+        nodes.push(fixedNode('airTrain', g, ctx.at(tx - 7.2, tz), [ ...[ - 12, - 7.5, - 3, 1.5, 6, 10.5 ].map(z => ({ shape: 'tube', position: [ 0, 2.3, z ], radius: 0.28, height: 4.6 })) ]))
+    }
+
+    // the new control tower: a slim tapering torch with a glass cab and a crown
+    {
+        const c = new Model()
+        c.cylinder(0.9, 1.4, 1, C.stone, [ 0, 0, 0 ], 12)
+        c.cylinder(0.7, 1.1, 11, C.snow, [ 0, 1, 0 ], 12)
+        c.cylinder(1.5, 0.8, 1, C.snow, [ 0, 12, 0 ], 12)
+        c.cylinder(1.5, 1.5, 1.4, C.slate, [ 0, 13, 0 ], 12)
+        c.cylinder(1.6, 1.5, 0.5, C.snow, [ 0, 14.4, 0 ], 12)
+        c.cylinder(0.08, 0.08, 1.5, C.dark, [ 0, 14.9, 0 ], 4)
+        c.sphere(0.2, C.red, [ 0, 16.5, 0 ], 0)
+        nodes.push(fixedNode('tower', c, ctx.at(tx + 2, tz + 13), [ { shape: 'tube', position: [ 0, 6, 0 ], radius: 1.2, height: 12 } ]))
+    }
+
+    // the EVA Air 787-10 at the gate, nose to the terminal, with its jet bridge
+    {
+        const px = 57.5, pz = 79
+        nodes.push({
+            ...fixedNode('evaPlane', evaPlane(), ctx.at(px, pz), [
+                { position: [ 0, 1.75, 0.5 ], size: [ 1.7, 1.7, 15 ] },
+                { shape: 'tube', position: [ 2.7, 0.7, - 1.2 ], radius: 0.5, height: 1.4 },
+                { shape: 'tube', position: [ - 2.7, 0.7, - 1.2 ], radius: 0.5, height: 1.4 },
+            ]),
+            rotation: [ 0, - Math.PI / 2, 0 ],
+        })
+        const b = new Model()
+        b.box([ 4.4, 1.1, 0.9 ], C.stone, [ 0, 1.3, 0 ])
+        b.box([ 4.4, 0.08, 0.95 ], C.snow, [ 0, 2.4, 0 ])
+        b.cylinder(0.12, 0.12, 1.3, C.dark, [ - 0.8, 0, 0 ], 6)
+        b.box([ 0.6, 0.35, 0.6 ], C.dark, [ - 0.8, 0, 0 ])
+        nodes.push(fixedNode('jetBridge', b, ctx.at(px + 6.3 + 2.2, pz - 1.3), [ { position: [ 0, 1.8, 0 ], size: [ 4.4, 1.2, 0.9 ] } ]))
+        // ground stripes on the apron: the lead-in line
+        const lines = new Model()
+        lines.box([ 14, 0.03, 0.15 ], C.gold, [ 0, 0, 0 ])
+        lines.box([ 0.15, 0.03, 4 ], C.gold, [ 6.5, 0, 0 ])
+        nodes.push(meshNode('apronLines', lines, ctx.at(px, pz, 0.01)))
+    }
+
+    // runway stripes and SFO letters
     const runway = new Model()
-    for(let i = 0; i < 6; i++)
+    for(let i = 0; i < 8; i++)
         runway.box([ 0.5, 0.04, 2 ], C.snow, [ 0, 0, i * 4 ])
-    nodes.push(meshNode('runway', runway, ctx.at(55, 58)))
-
-    // SFO letters
+    nodes.push(meshNode('runway', runway, ctx.at(76, 52)))
     nodes.push(...letters(ctx, 'SFO', C.bridge, 58, 62, - 0.3, 0.45))
-
-    // Baggage cart crates are added as explosive crates in placements
     return nodes
 }
 
@@ -628,14 +773,8 @@ builders.unionSquare = (ctx) =>
         }
     }
 
-    // the glass café pavilion on the north east corner, and low terraced steps along the south edge
+    // low terraced steps along the south edge
     {
-        const m = new Model()
-        m.box([ 3.2, 2.2, 2.2 ], C.sky)
-        m.box([ 3.6, 0.15, 2.6 ], C.dark, [ 0, 2.2, 0 ])
-        for(const x of [ - 1.55, 0, 1.55 ])
-            m.box([ 0.08, 2.2, 0.08 ], C.dark, [ x, 0, 1.1 ])
-        nodes.push(fixedNode('cafePavilion', m, ctx.at(cx + 6.8, cz - 6.3), [ { position: [ 0, 1.1, 0 ], size: [ 3.2, 2.2, 2.2 ] } ]))
         const steps = new Model()
         for(let k = 0; k < 3; k++)
             steps.box([ 4.5, 0.08 + k * 0.08, 0.5 ], C.stone, [ 0, 0, k * 0.5 ])
@@ -663,21 +802,6 @@ builders.unionSquare = (ctx) =>
         nodes.push(meshNode('unionGreen', g, [ 0, 0, 0 ]))
     }
 
-    // Saks Fifth Avenue on the north side, facing the square (rounded white corner, rows of square windows)
-    {
-        const m = new Model()
-        const w = 6, d = 2.6, h = 4.4
-        m.box([ w, h, d ], C.snow)
-        m.cylinder(d / 2, d / 2, h, C.snow, [ w / 2, 0, 0 ], 14)
-        m.cylinder(d / 2, d / 2, h, C.snow, [ - w / 2, 0, 0 ], 14)
-        for(let i = 0; i < 6; i++)
-            for(let j = 0; j < 3; j++)
-                m.cbox([ 0.55, 0.6, 0.05 ], C.dark, [ - 2.5 + i, 1.1 + j * 1.15, d / 2 + 0.01 ])
-        m.box([ w + d + 0.1, 0.25, d + 0.1 ], C.stone, [ 0, h, 0 ])
-        pixelText(m, 'SAKS FIFTH AVENUE', C.dark, [ 0, h - 0.55, d / 2 + 0.03 ], 0.075, { depth: 0.03 })
-        m.box([ w, 0.5, 0.35 ], C.dark, [ 0, 0.45, d / 2 + 0.15 ])        // display windows
-        nodes.push(fixedNode('saks', m, ctx.at(cx + 1, cz - 9.3), [ { position: [ 0, h / 2, 0 ], size: [ w + d, h, d ] } ]))
-    }
 
     return nodes
 }
@@ -772,7 +896,7 @@ builders.chinatown = (ctx) =>
     // shop houses along Grant Ave
     const colors = [ C.red, C.sage, C.cream, C.gold, C.peach ]
     // (4 rows: the north end stops short of the Lombard crooked block)
-    for(let i = 0; i < 4; i++)
+    for(let i = 0; i < 3; i++)
     {
         for(const side of [ - 1, 1 ])
         {
@@ -1015,19 +1139,36 @@ builders.alcatraz = (ctx) =>
         for(const x of [ - 1, 0, 1 ])
             for(const z of [ - 0.5, 0.5 ])
                 dock.cylinder(0.07, 0.07, 1, C.wood, [ x, - 1, z ], 5)
-        nodes.push(fixedNode('alcatrazDock', dock, ctx.atWorld([ 17.5, 0.25 - 0.12 * k, - 72.5 ]), [ { position: [ 0, 0.06, 0 ], size: [ 2.4, 0.12, 1.2 ] } ]))
+        nodes.push(fixedNode('alcatrazDock', dock, ctx.atWorld([ 9, 0.25 - 0.12 * k, - 70.2 ]), [ { position: [ 0, 0.06, 0 ], size: [ 2.4, 0.12, 1.2 ] } ]))
 
+        // the Alcatraz Cruises ferry (sails around the bay, see Ferry.js): black hull, white decks, window bands
         const boat = new Model()
-        boat.box([ 3.2, 0.45, 1.2 ], C.snow)
-        boat.box([ 3.22, 0.1, 1.22 ], C.sky, [ 0, 0.22, 0 ])
-        boat.cone(0.6, 0.9, C.snow, [ 1.6, 0.225, 0 ], 4, [ 0, 0, - Math.PI / 2 ])
-        boat.box([ 1.8, 0.45, 0.9 ], C.snow, [ - 0.2, 0.45, 0 ])
-        for(let i = 0; i < 5; i++)
-            for(const side of [ - 1, 1 ])
-                boat.cbox([ 0.22, 0.18, 0.04 ], C.black, [ - 0.95 + i * 0.38, 0.68, side * 0.46 ])
-        boat.box([ 0.8, 0.35, 0.7 ], C.snow, [ 0.1, 0.9, 0 ])
-        boat.cylinder(0.08, 0.1, 0.4, C.dark, [ - 0.5, 0.9, 0 ], 6)
-        nodes.push(fixedNode('ferry', boat, ctx.atWorld([ 22, - 0.55, - 69.8 ]), [ { position: [ 0, 0.45, 0 ], size: [ 3.2, 0.9, 1.2 ] } ]))
+        boat.box([ 1.3, 0.45, 3.6 ], C.black, [ 0, - 0.3, 0 ])                             // hull
+        boat.cone(0.65, 0.9, C.black, [ 0, - 0.08, - 2.25 ], 4, [ - Math.PI / 2, Math.PI / 4, 0 ])
+        boat.box([ 1.32, 0.08, 3.62 ], C.snow, [ 0, 0.15, 0 ])                             // white rub rail
+        boat.box([ 1.25, 0.55, 3.3 ], C.snow, [ 0, 0.2, 0.1 ])                             // main deck cabin
+        boat.box([ 1.27, 0.22, 3.0 ], C.dark, [ 0, 0.38, 0.15 ])                           // windows
+        boat.box([ 1.15, 0.5, 2.7 ], C.snow, [ 0, 0.75, 0.3 ])                             // upper deck
+        boat.box([ 1.17, 0.18, 2.4 ], C.dark, [ 0, 0.9, 0.35 ])
+        boat.box([ 0.9, 0.4, 0.8 ], C.snow, [ 0, 1.25, - 0.45 ])                           // wheelhouse
+        boat.box([ 0.92, 0.15, 0.82 ], C.dark, [ 0, 1.4, - 0.45 ])
+        for(const side of [ - 1, 1 ])
+        {
+            const label = new Model()
+            pixelText(label, 'ALCATRAZ CRUISES', C.dark, [ 0, 0, 0 ], 0.035, { depth: 0.02 })
+            boat.merge(label, [ side * 0.59, 1.04, 0.35 ], [ 0, side * Math.PI / 2, 0 ])
+            boat.box([ 0.03, 0.12, 2.6 ], C.snow, [ side * 0.56, 1.25, 0.3 ])           // top deck railing
+        }
+        const rp = rng(1934)
+        for(let k = 0; k < 10; k++)                                                        // passengers on the top deck
+        {
+            const x = (rp() - 0.5) * 0.9, z = 0.2 + rp() * 1.6
+            boat.cbox([ 0.12, 0.2, 0.1 ], [ C.red, C.sky, C.gold, C.snow, C.pink ][k % 5], [ x, 1.35, z ])
+            boat.sphere(0.06, [ C.peach, C.khaki, C.wood ][k % 3], [ x, 1.5, z ], 0)
+        }
+        boat.cylinder(0.02, 0.02, 0.6, C.dark, [ 0, 1.6, - 0.45 ], 4)                     // mast and flag
+        boat.cbox([ 0.01, 0.15, 0.25 ], C.red, [ 0, 2.1, - 0.33 ])
+        nodes.push(meshNode('alcatrazFerry', boat, ctx.atWorld([ 20, 0, - 74 ])))
     }
 
     /* The landing from the boardwalk and the path up stay clear */
@@ -1044,7 +1185,7 @@ builders.alcatraz = (ctx) =>
             const a = i / 70 * Math.PI * 2 + r() * 0.05
             const f = 0.9 + r() * 0.08
             const dx = Math.cos(a) * half[0] * f, dz = Math.sin(a) * half[1] * f
-            if(!clear(dx, dz, 0.6) || Math.hypot((dx - (17.5 - cx) / k), (dz - (- 72.5 - cz) / k)) < 1.6)
+            if(!clear(dx, dz, 0.6) || Math.hypot((dx - (9 - cx) / k), (dz - (- 70.2 - cz) / k)) < 1.6)
                 continue
             const s = [ 0.35 + r() * 0.35, 0.3 + r() * 0.4, 0.3 + r() * 0.3 ]
             rocks.cbox(s, r() < 0.7 ? C.khaki : C.stone, [ dx, localY(dx, dz) + s[1] * 0.2, dz ], [ (r() - 0.5) * 0.4, - a + r(), (r() - 0.5) * 0.4 ])
@@ -1743,13 +1884,24 @@ builders.goldenGate = (ctx) =>
     // Deck + rails (physical)
     const deck = new Model()
     deck.box([ halfWidth * 2, 0.6, length ], C.bridge, [ 0, - 0.6, 0 ])
-    deck.box([ halfWidth * 2 - 1, 0.62, length ], C.dark, [ 0, - 0.6, 0 ])
+    // roadway: grey asphalt, six lanes with dashed lines, the yellow center divider; raised sidewalks behind red railings
+    const road = halfWidth - 0.75
+    deck.box([ road * 2, 0.62, length ], C.slate, [ 0, - 0.6, 0 ])
+    deck.box([ 0.16, 0.25, length ], C.gold, [ 0, 0.02, 0 ])                            // the moveable median barrier
+    for(let z = - length / 2 + 0.4; z < length / 2 - 0.4; z += 1.1)
+        for(const o of [ - road * 2 / 3, - road / 3, road / 3, road * 2 / 3 ])
+            deck.cbox([ 0.06, 0.03, 0.55 ], C.snow, [ o, 0.03, z ])
+    for(const side of [ - 1, 1 ])
+    {
+        deck.box([ 0.7, 0.75, length ], C.stone, [ side * (road + 0.35), - 0.6, 0 ])       // sidewalk
+        deck.box([ 0.08, 0.45, length ], C.bridge, [ side * road, 0.15, 0 ])               // traffic railing
+        for(let z = - length / 2 + 0.5; z < length / 2; z += 0.5)
+            deck.box([ 0.04, 0.45, 0.05 ], C.bridge, [ side * road, 0.15, z ])
+    }
     // the rails stop a little before the north end, so the exit opens up into the bend toward Napa / Muir Woods
     const railCut = 2.5
     deck.box([ 0.3, 0.9, length - railCut ], C.bridge, [ - halfWidth, 0, railCut / 2 ])
     deck.box([ 0.3, 0.9, length - railCut ], C.bridge, [ halfWidth, 0, railCut / 2 ])
-    for(let z = - length / 2; z < length / 2; z += 1.2)
-        deck.cbox([ halfWidth * 2 - 1.2, 0.03, 0.4 ], C.snow, [ 0, 0.02, z ])
     // truss under the deck
     deck.box([ halfWidth * 2, 1.2, length ], C.bridge, [ 0, - 1.8, 0 ])
     // the stiffening truss: a lattice of diagonals along both sides of the deck, and lamp posts along the rails
@@ -1763,9 +1915,10 @@ builders.goldenGate = (ctx) =>
         }
         for(let z = - length / 2 + 2; z < length / 2 - 3; z += 4)
         {
-            deck.cylinder(0.05, 0.05, 1.8, C.bridge, [ side * (halfWidth - 0.1), 0, z ], 4)
-            deck.cbox([ 0.4, 0.08, 0.12 ], C.bridge, [ side * (halfWidth - 0.3), 1.8, z ])
-            deck.cbox([ 0.18, 0.06, 0.16 ], C.gold, [ side * (halfWidth - 0.45), 1.74, z ])
+            deck.cylinder(0.05, 0.06, 2.2, C.bridge, [ side * (halfWidth - 0.15), 0.15, z ], 6)
+            deck.beam([ side * (halfWidth - 0.15), 2.35, z ], [ side * (halfWidth - 0.5), 2.55, z ], 0.05, C.bridge)
+            deck.beam([ side * (halfWidth - 0.5), 2.55, z ], [ side * (halfWidth - 0.85), 2.45, z ], 0.05, C.bridge)
+            deck.cbox([ 0.28, 0.08, 0.16 ], C.gold, [ side * (halfWidth - 0.9), 2.38, z ])
         }
     }
     nodes.push(fixedNode('bridgeDeck', deck, local(x, deckY, midZ), [

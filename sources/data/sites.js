@@ -11,6 +11,7 @@ export const siteScale = {
     tennis: 1.85,          // a bit smaller, to fit Alamo Square park next to it
     napa: 2.2,             // castle, vineyard and lights at ~2x (fits west of the bridge)
     muirWoods: 1.2,
+    unionSquare: 1.2,      // a little smaller so it never touches Chinatown or Dolores Park
     alcatraz: 2.25,        // the cellhouse 1.5x bigger than the other sites, on a 2x island
 }
 
