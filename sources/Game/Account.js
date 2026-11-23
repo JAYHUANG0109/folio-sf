@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app'
-import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signInWithRedirect, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, signOut } from 'firebase/auth'
-import { getFirestore, doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore'
+import { getAuth, deleteUser, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signInWithRedirect, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, signOut } from 'firebase/auth'
+import { getFirestore, doc, getDoc, setDoc, deleteDoc, serverTimestamp } from 'firebase/firestore'
 
 /**
  * Accounts and cloud saves.
@@ -148,6 +148,9 @@ class AccountService
         {
             console.warn('Account: save failed', error)
             this.status = 'error'
+            // try again shortly (network blip, database just created...)
+            clearTimeout(this.retryTimeout)
+            this.retryTimeout = setTimeout(() => this.saveNow(), 5000)
         }
         this.emit()
     }
@@ -205,6 +208,18 @@ class AccountService
         location.reload()
     }
 
+    /** Remove this account and its cloud save for good */
+    async deleteAccount()
+    {
+        const user = this.auth.currentUser
+        if(!user)
+            return
+        await deleteDoc(doc(this.db, 'users', user.uid))
+        await deleteUser(user)
+        for(const key of PROGRESS_KEYS)
+            localStorage.removeItem(key)
+    }
+
     on(listener)
     {
         this.listeners.add(listener)
@@ -219,6 +234,8 @@ class AccountService
 }
 
 export const account = new AccountService()
+if(import.meta.env.VITE_GAME_PUBLIC)
+    window.__account = account
 
 export const authErrorText = (error) =>
 {
