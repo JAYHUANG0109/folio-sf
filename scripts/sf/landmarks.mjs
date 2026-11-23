@@ -743,13 +743,13 @@ builders.unionSquare = (ctx) =>
         m.beam([ 0, 13.2, 0 ], [ 0.7, 14.1, 0 ], 0.06, C.sage)                 // trident raised high
         m.beam([ 0, 13.1, 0 ], [ - 0.6, 12.7, 0.1 ], 0.06, C.sage)             // wreath arm
         m.add(new THREE.TorusGeometry(0.16, 0.04, 4, 10), C.sage, [ - 0.7, 12.65, 0.1 ])
-        nodes.push(fixedNode('deweyMonument', m, ctx.at(cx + 5.2, cz - 2.5), [ { shape: 'tube', position: [ 0, 1, 0 ], radius: 0.8, height: 2 }, { shape: 'tube', position: [ 0, 6.5, 0 ], radius: 0.4, height: 9 } ]))
+        nodes.push(fixedNode('deweyMonument', m, ctx.at(cx + 7.2, cz + 3), [ { shape: 'tube', position: [ 0, 1, 0 ], radius: 0.8, height: 2 }, { shape: 'tube', position: [ 0, 6.5, 0 ], radius: 0.4, height: 9 } ]))
     }
 
     // café tables with green umbrellas (knockable) and globe street lamps
     {
         const r = rng(1850)
-        for(const [ x, z ] of [ [ 3.5, - 5 ], [ 7, - 4.6 ], [ 3, 0.8 ], [ 6.8, 1.6 ], [ - 6.5, - 5.2 ], [ - 3, - 5.4 ] ])
+        for(const [ x, z ] of [ [ 3, 0.8 ], [ 6.8, 1.6 ], [ 3.2, 4.2 ], [ 6.6, 5 ] ])
         {
             const t = new Model()
             t.cylinder(0.05, 0.05, 1.7, C.dark, [ 0, 0, 0 ], 5)
@@ -762,7 +762,7 @@ builders.unionSquare = (ctx) =>
             }
             nodes.push(dynamicNode('cafeTable', t, ctx.at(cx + x, cz + z), [ { shape: 'tube', position: [ 0, 0.45, 0 ], radius: 0.45, height: 0.9 } ], 0.15))
         }
-        for(const [ x, z ] of [ [ 1, - 6 ], [ 8.4, 0 ], [ 8.4, 6 ], [ - 8.6, - 1.5 ], [ - 2.2, 8.6 ], [ 4.2, 8.6 ] ])
+        for(const [ x, z ] of [ [ 8.4, 0 ], [ 8.4, 6 ], [ - 8.6, 1.5 ], [ - 2.2, 8.6 ], [ 4.2, 8.6 ] ])
         {
             const l = new Model()
             l.cylinder(0.12, 0.18, 2.6, C.wood, [ 0, 0, 0 ], 8)
@@ -785,7 +785,7 @@ builders.unionSquare = (ctx) =>
     {
         const g = new Model()
         const r = rng(1902)
-        for(const z of [ - 6.9, 9.9 ])
+        for(const z of [ 9.9 ])                                              // south edge only: the north side opens onto Chinatown
             for(let x = - 8.5; x <= 8.5; x += 1.4)
             {
                 if(z > 0 && Math.abs(x) < 3.5)
@@ -851,16 +851,12 @@ builders.chinatown = (ctx) =>
         const f = z > 0 ? 1 : - 1
         gate.cbox([ 2.4, 1.0, 0.1 ], C.gold, [ 0, 3.9, z ])
         gate.cbox([ 2.15, 0.78, 0.12 ], C.sky, [ 0, 3.9, z + f * 0.01 ])
-        for(let k = 0; k < 4; k++)
-            gate.cbox([ 0.3, 0.42, 0.13 ], C.gold, [ - 0.72 + k * 0.48, 3.9, z + f * 0.02 ])
     }
     // white plaques with black characters over the side passages
     for(const x of [ - 4.8, 4.8 ])
         for(const z of [ - 0.42, 0.42 ])
         {
             gate.cbox([ 1.3, 0.4, 0.08 ], C.snow, [ x, 3.75, z ])
-            for(let k = 0; k < 4; k++)
-                gate.cbox([ 0.18, 0.22, 0.09 ], C.black, [ x - 0.42 + k * 0.28, 3.75, z + (z > 0 ? 0.01 : - 0.01) ])
         }
     // dragons on the ridge, chasing the flaming pearl, fish finials at the ends
     for(const side of [ - 1, 1 ])

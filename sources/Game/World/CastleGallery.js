@@ -277,45 +277,42 @@ export class CastleGallery
             const roof = add(plane(Lh, Math.hypot(W / 2, 5)), dark('#2a1d14'), 0, H + 2.5, side * W / 4)
             roof.rotateX(side < 0 ? Math.PI / 2 - slope : Math.PI / 2 + slope)
         }
-        for(let x = - Lh / 2 + 3; x <= Lh / 2 - 3; x += 6)
+        // close the pointed gables above both end walls
         {
-            for(const side of [ - 1, 1 ])
-            {
-                add(new THREE.CylinderGeometry(0.55, 0.65, H, 10), dark('#5c4c3d'), x, H / 2, side * (W / 2 - 0.6))          // clustered column
-                add(new THREE.CylinderGeometry(0.25, 0.25, H, 6), dark('#4a3c30'), x - 0.6, H / 2, side * (W / 2 - 0.4))
-                add(new THREE.CylinderGeometry(0.25, 0.25, H, 6), dark('#4a3c30'), x + 0.6, H / 2, side * (W / 2 - 0.4))
-                const rib = add(new THREE.BoxGeometry(0.35, Math.hypot(W / 2, 5) + 0.4, 0.4), wood, x, H + 2.45, side * W / 4)
-                rib.rotateX(side < 0 ? - (Math.PI / 2 - slope) : (Math.PI / 2 - slope))
-                // torch sconce on the column
-                add(new THREE.BoxGeometry(0.2, 0.6, 0.2), dark('#222'), x, 6, side * (W / 2 - 1.3))
-                add(new THREE.SphereGeometry(0.28, 8, 6), flame, x, 6.5, side * (W / 2 - 1.3))
-            }
+            const tri = new THREE.Shape()
+            tri.moveTo(- W / 2 - 0.5, 0); tri.lineTo(W / 2 + 0.5, 0); tri.lineTo(0, 5.6); tri.closePath()
+            add(new THREE.ShapeGeometry(tri), stoneMat, Lh / 2 - 0.02, H - 0.1, 0, 0, - Math.PI / 2)
+            add(new THREE.ShapeGeometry(tri), stoneMat, - Lh / 2 + 0.02, H - 0.1, 0, 0, Math.PI / 2)
         }
-        // pointed arches between columns along each wall (frame the portraits)
-        for(let x = - Lh / 2 + 6; x <= Lh / 2 - 6; x += 6)
+        // wall sconces (torches) between the portraits
+        for(let x = - Lh / 2 + 7.5; x <= Lh / 2 - 4; x += 7.5)
             for(const side of [ - 1, 1 ])
             {
-                const arch = new THREE.Shape()
-                arch.moveTo(- 2.6, 0); arch.lineTo(- 2.6, 9); arch.quadraticCurveTo(- 2.6, 12.5, 0, 14); arch.quadraticCurveTo(2.6, 12.5, 2.6, 9); arch.lineTo(2.6, 0)
-                arch.lineTo(2.3, 0); arch.lineTo(2.3, 9); arch.quadraticCurveTo(2.3, 12.2, 0, 13.5); arch.quadraticCurveTo(- 2.3, 12.2, - 2.3, 9); arch.lineTo(- 2.3, 0)
-                add(new THREE.ShapeGeometry(arch), dark('#5c4c3d'), x - 3, 0, side * (W / 2 - 0.05), 0, side < 0 ? 0 : Math.PI)
+                add(new THREE.BoxGeometry(0.25, 0.7, 0.25), dark('#2a2420'), x - 3.75, 9.6, side * (W / 2 - 0.25))
+                add(new THREE.SphereGeometry(0.3, 8, 6), flame, x - 3.75, 10.15, side * (W / 2 - 0.3))
             }
-        // two long feast tables with benches, gold plates and candlesticks
-        for(const z of [ - 3.2, 3.2 ])
+        // chandeliers: iron rings of candles hanging on chains down the middle of the hall
+        const iron = dark('#2b2522')
+        for(let x = - Lh / 2 + 12; x <= Lh / 2 - 10; x += 14)
         {
-            add(new THREE.BoxGeometry(Lh - 26, 0.2, 2.2), wood, - 2, 1.4, z)
-            for(const dz of [ - 1.7, 1.7 ])
-                add(new THREE.BoxGeometry(Lh - 26, 0.15, 0.7), wood, - 2, 0.8, z + dz)
-            for(let x = - Lh / 2 + 16; x < Lh / 2 - 14; x += 1.6)
+            add(new THREE.CylinderGeometry(0.04, 0.04, 5, 4), iron, x, H - 0.5, 0)
+            for(const [ r, y, n ] of [ [ 2.2, H - 3.2, 14 ], [ 1.3, H - 2.4, 8 ] ])
             {
-                add(new THREE.CylinderGeometry(0.28, 0.28, 0.04, 12), gold, x, 1.53, z - 0.6)
-                add(new THREE.CylinderGeometry(0.28, 0.28, 0.04, 12), gold, x, 1.53, z + 0.6)
-                if(Math.round(x * 10) % 48 === 0)
+                add(new THREE.TorusGeometry(r, 0.08, 6, 32), iron, x, y, 0, Math.PI / 2)
+                for(let k = 0; k < n; k++)
                 {
-                    add(new THREE.CylinderGeometry(0.06, 0.1, 0.7, 6), gold, x, 1.85, z)
-                    add(new THREE.SphereGeometry(0.1, 6, 4), flame, x, 2.3, z)
+                    const a = k / n * Math.PI * 2
+                    add(new THREE.CylinderGeometry(0.07, 0.07, 0.4, 6), candle, x + Math.cos(a) * r, y + 0.25, Math.sin(a) * r)
+                    add(new THREE.SphereGeometry(0.09, 6, 4), flame, x + Math.cos(a) * r, y + 0.55, Math.sin(a) * r)
+                }
+                for(let k = 0; k < 4; k++)
+                {
+                    const a = k / 4 * Math.PI * 2
+                    const arm = add(new THREE.CylinderGeometry(0.03, 0.03, r + 0.3, 4), iron, x + Math.cos(a) * r / 2, y + 0.6, Math.sin(a) * r / 2)
+                    arm.rotation.set(0, - a, Math.PI / 2 - 0.4)
                 }
             }
+            add(new THREE.SphereGeometry(0.35, 8, 6), iron, x, H - 3.4, 0)
         }
         // hundreds of floating candles under the vault (they bob gently)
         const candleGeo = new THREE.CylinderGeometry(0.07, 0.07, 0.5, 6)
@@ -325,20 +322,30 @@ export class CastleGallery
         for(let i = 0; i < n; i++)
             this.candles.base.push([ (rnd() - 0.5) * (Lh - 8), 9 + rnd() * 5, (rnd() - 0.5) * (W - 5), rnd() * 6 ])
         for(const m of [ this.candles.body, this.candles.flame ]) { m.frustumCulled = false; hall.add(m) }
-        // house banners hanging from the vault
-        const colors = [ '#7d0f22', '#1f4a2c', '#1d3363', '#b8901f' ]
-        let b = 0
-        for(let x = - Lh / 2 + 9; x <= Lh / 2 - 9; x += 12)
-            for(const side of [ - 1, 1 ])
-            {
-                add(plane(1.8, 4.5), dark(colors[b++ % 4]), x, H - 3, side * (W / 2 - 2.5), 0, Math.PI / 2)
-                add(new THREE.CylinderGeometry(0.05, 0.05, 2.2, 4), gold, x, H - 0.7, side * (W / 2 - 2.5), 0, 0, Math.PI / 2)
+        // J ♥ DJ in big glowing blocks over the entrance (turn around when you walk in)
+        {
+            const glyphs = {
+                J: [ '###', '..#', '..#', '#.#', '###' ],
+                D: [ '##.', '#.#', '#.#', '#.#', '##.' ],
+                '♥': [ '.#.#.', '#####', '#####', '.###.', '..#..' ],
+                ' ': [ '.', '.', '.', '.', '.' ],
             }
-        // the far end: a dais and the tall gothic window (the video plays inside its arch)
-        add(new THREE.BoxGeometry(6, 0.6, W - 1), dark('#4a3c30'), - Lh / 2 + 3, 0.3, 0)
-        const win = new THREE.Shape()
-        win.moveTo(- 6, 0); win.lineTo(- 6, 9); win.quadraticCurveTo(- 6, 15, 0, 18); win.quadraticCurveTo(6, 15, 6, 9); win.lineTo(6, 0); win.lineTo(- 6, 0)
-        add(new THREE.ShapeGeometry(win), dark('#1a2440'), - Lh / 2 + 0.05, 2, 0, 0, Math.PI / 2)
+            const text = [ [ 'J', '#e8c25a' ], [ ' ', '' ], [ '♥', '#e0203a' ], [ ' ', '' ], [ 'D', '#e8c25a' ], [ 'J', '#e8c25a' ] ]
+            const cell = 0.9
+            const width = text.reduce((w, [ ch ]) => w + (glyphs[ch][0].length + 1) * cell, - cell)
+            let zc = - width / 2
+            for(const [ ch, hex ] of text)
+            {
+                const rows = glyphs[ch]
+                const mat = hex ? this.flat(null, hex) : null
+                rows.forEach((row, ri) => [ ...row ].forEach((c, ci) =>
+                {
+                    if(c === '#')
+                        add(new THREE.BoxGeometry(cell * 0.92, cell * 0.92, 0.6), mat, Lh / 2 - 0.4, 8.2 + (rows.length - 1 - ri) * cell, zc + ci * cell + cell / 2, 0, Math.PI / 2)
+                }))
+                zc += (rows[0].length + 1) * cell
+            }
+        }
         // entrance doors behind the start point, glowing outside light
         add(plane(5, 7), dark('#ffd8a0'), Lh / 2 - 0.05, 3.5, 0, 0, - Math.PI / 2)
 
@@ -357,16 +364,15 @@ export class CastleGallery
         const frameColors = [ '#c9a227', '#a7791c', '#d8b54a', '#8a5a1c' ]
         // slots: every bay between columns gets a large portrait plus smaller ones above / beside it
         const slots = []
-        for(let x = L / 2 - 9; x >= - L / 2 + 12; x -= 6)
+        for(let x = L / 2 - 7; x >= - L / 2 + 5; x -= 7.5)
             for(const side of [ - 1, 1 ])
             {
-                slots.push({ x, y: 5.2, side, max: [ 3.6, 4.4 ] })
-                slots.push({ x: x - 1.2, y: 10.2, side, max: [ 2.0, 2.4 ] })
-                slots.push({ x: x + 1.3, y: 10.6, side, max: [ 1.6, 2.0 ] })
+                slots.push({ x, y: 5.4, side, max: [ 6.6, 8.2 ] })
+                slots.push({ x, y: 12.8, side, max: [ 6.6, 4.6 ] })
             }
         // order: big ones first so every photo gets a prominent spot before the small ones repeat
-        const ordered = [ ...slots.filter(s => s.max[0] > 3), ...slots.filter(s => s.max[0] <= 3) ]
-        const used = ordered.slice(0, Math.max(photos.length, Math.min(ordered.length, photos.length * 2)))
+        const ordered = [ ...slots.filter(s => s.y < 8), ...slots.filter(s => s.y >= 8) ]
+        const used = ordered.slice(0, Math.min(ordered.length, photos.length))   // every photo once, never twice
         used.forEach((slot, i) =>
         {
             const item = photos[i % photos.length]
@@ -397,7 +403,7 @@ export class CastleGallery
                 outer.scale.set(w + 0.55, h + 0.55, 1)
                 mesh.visible = true
             }
-            img.src = slot.max[0] > 3 ? item.full : item.thumb      // big portraits in full quality
+            img.src = item.full                                     // every portrait is big now: full quality
         })
         // video in the great window
         const videos = this.theatre.items.filter(i => i.type === 'video')
@@ -415,9 +421,9 @@ export class CastleGallery
             const mat = new THREE.MeshBasicNodeMaterial()
             mat.colorNode = texture(map)
             mat.fog = false
-            const screen = this.hallAdd(new THREE.PlaneGeometry(1, 1), mat, - L / 2 + 0.2, 9, 0, 0, Math.PI / 2)
-            const frame = this.hallAdd(new THREE.BoxGeometry(1, 1, 0.2), this.flat(null, '#c9a227'), - L / 2 + 0.1, 9, 0, 0, Math.PI / 2)
-            const fit = () => { const a = video.videoWidth / video.videoHeight || 16 / 9; let h = 11, w = h * a; if(w > 11) { w = 11; h = w / a } screen.scale.set(w, h, 1); frame.scale.set(w + 0.6, h + 0.6, 1) }
+            const screen = this.hallAdd(new THREE.PlaneGeometry(1, 1), mat, - L / 2 + 0.45, 8.5, 0, 0, Math.PI / 2)
+            const frame = this.hallAdd(new THREE.BoxGeometry(1, 1, 0.2), this.flat(null, '#c9a227'), - L / 2 + 0.2, 8.5, 0, 0, Math.PI / 2)
+            const fit = () => { const a = video.videoWidth / video.videoHeight || 16 / 9; let h = 14.5, w = h * a; if(w > W - 1.5) { w = W - 1.5; h = w / a } screen.scale.set(w, h, 1); frame.scale.set(w + 0.6, h + 0.6, 1) }
             fit()
             video.addEventListener('loadedmetadata', fit)
             this.hallVideo = { video, play }
@@ -432,7 +438,7 @@ export class CastleGallery
         el.innerHTML = `
             <div class="ct-vignette"></div>
             <div class="ct-title">Castello ♥ 我們的回憶</div>
-            <div class="ct-help">方向鍵 / WASD 走動 · 拖曳滑鼠或手指環顧四周</div>
+            <div class="ct-help">方向鍵 / WASD / 搖桿走動 · 拖曳或右搖桿環顧四周</div>
             <div class="ct-controls">
                 <button class="ct-sound">🔇 影片聲音</button>
                 <button class="ct-exit">離開城堡 →</button>
@@ -550,6 +556,27 @@ export class CastleGallery
                 w.yaw = Math.PI / 2 + Math.sin(t * 0.25) * 0.9
                 if(w.pos.x < - this.hallSize.L / 2 + 14) w.pos.x = this.hallSize.L / 2 - 3
             }
+        }
+        const pad = [ ...(navigator.getGamepads?.() || []) ].find(p => p && p.connected)
+        if(pad)
+        {
+            const dz = (v) => Math.abs(v) > 0.18 ? v : 0
+            const lx = dz(pad.axes[0] || 0), ly = dz(pad.axes[1] || 0), rx = dz(pad.axes[2] || 0), ry = dz(pad.axes[3] || 0)
+            if(lx || ly)
+            {
+                w.pos.x += (fx * - ly - fz * lx) * 6 * dt
+                w.pos.z += (fz * - ly + fx * lx) * 6 * dt
+                w.idle = 0
+            }
+            if(rx || ry)
+            {
+                w.yaw -= rx * 2.2 * dt
+                w.pitch = Math.max(- 0.6, Math.min(0.9, w.pitch - ry * 1.6 * dt))
+                w.idle = 0
+            }
+            const b = pad.buttons[1]?.pressed
+            if(b && !this.padBack) { this.padBack = true; this.closeTheatre(); return }
+            if(!b) this.padBack = false
         }
         const { W, L } = this.hallSize
         w.pos.x = Math.max(- L / 2 + 7, Math.min(L / 2 - 2, w.pos.x))
