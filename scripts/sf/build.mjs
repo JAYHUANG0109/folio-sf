@@ -21,6 +21,7 @@ import { writeGlb } from './gltf.mjs'
 import { Model, C, meshNode, fixedNode, dynamicNode, refNode, rng } from './kit.mjs'
 import { dogs as dogsData, turkey as turkeyData } from '../../sources/data/dogs.js'
 import { builders, nameBlocks, christmasTree, christmasStar } from './landmarks.mjs'
+import { bulb, lightString, litPine, candyCane, gifts, snowman, pumpkin, harvest, wreath } from './holiday.mjs'
 import { dogNodes } from './dogs.mjs'
 import { secrets } from '../../sources/data/secrets.js'
 import { scaleOf } from '../../sources/data/sites.js'
@@ -169,6 +170,7 @@ const frustumOverrides = {
     levis: { x: 12, z: 79, radius: 24 },
 }
 const areaNodes = []
+const SITE_LIGHTS_SKIP = new Set([ 'goldenGate' ]) // the bridge has its own look (and Santa)
 const siteFootprints = [] // [cx, cz, halfX, halfZ, angle] in design units, from the fixed colliders of every site
 
 /** Scale a landmark node around its own position (the position itself was already moved by ctx.at) */
@@ -212,6 +214,66 @@ for(const stop of [ ...Layout.stops, ...secrets ])
         road: (x, z, width = 4.5) => Math.max(roadY(x, z), roadY(x - width * 0.4, z), roadY(x + width * 0.4, z)),
     }
     const children = builders[stop.id](ctx).map(node => scaleNode(node, k))
+    // Holiday lights on the site's buildings: every solid block gets its roofline outlined in fairy lights and
+    // strands down its corners (the colliders trace the building shapes, so the lights follow the silhouettes)
+    if(!SITE_LIGHTS_SKIP.has(stop.id))
+    {
+        const deco = new Model()
+        let bulbs = 0
+        const boxes = []
+        for(const node of children)
+        {
+            if(!/PhysicalFixed$/.test(node.name || '') || !node.children || !node.mesh)
+                continue
+            const angle = node.rotation ? node.rotation[1] : 0
+            for(const c of node.children)
+            {
+                if(!/^cuboid/.test(c.name) || !c.scale || (c.rotation && (Math.abs(c.rotation[0] || 0) > 0.05 || Math.abs(c.rotation[2] || 0) > 0.05)))
+                    continue
+                const [ w, h, d ] = c.scale
+                if(h < 1.6 * k || w < 1.2 || d < 1.2 || w > 40 || d > 40)
+                    continue
+                boxes.push({ node, angle, c, w, h, d, v: w * h * d })
+            }
+        }
+        boxes.sort((a, b) => b.v - a.v)
+        for(const { node, angle, c, w, h, d } of boxes.slice(0, 14))
+        {
+            const ry = c.rotation ? c.rotation[1] || 0 : 0
+            const [ px, py, pz ] = c.position
+            const top = py + h / 2 + 0.06
+            const toSite = ([ lx, ly, lz ]) =>
+            {
+                // collider local -> node local -> site local (three.js Y rotation)
+                const x1 = px + lx * Math.cos(ry) + lz * Math.sin(ry), z1 = pz - lx * Math.sin(ry) + lz * Math.cos(ry)
+                const x2 = x1 * Math.cos(angle) + z1 * Math.sin(angle), z2 = - x1 * Math.sin(angle) + z1 * Math.cos(angle)
+                return [ node.position[0] + x2, node.position[1] + ly, node.position[2] + z2 ]
+            }
+            const hw = w / 2 + 0.07, hd = d / 2 + 0.07
+            const corners = [ [ - hw, - hd ], [ hw, - hd ], [ hw, hd ], [ - hw, hd ] ]
+            for(let i = 0; i < 4; i++)
+            {
+                const [ ax, az ] = corners[i], [ bx, bz ] = corners[(i + 1) % 4]
+                const len = Math.hypot(bx - ax, bz - az), n = Math.max(2, Math.round(len / 0.5))
+                for(let j = 0; j < n; j++)
+                {
+                    const t = j / n
+                    bulb(deco, toSite([ ax + (bx - ax) * t, top - Math.sin(t * Math.PI) * Math.min(0.25, len * 0.03), az + (bz - az) * t ]), 0.12)
+                    bulbs++
+                }
+                for(let ly = py - h / 2 + 0.5; ly < top - 0.2; ly += 0.7)                      // a strand down each corner
+                {
+                    bulb(deco, toSite([ ax, ly, az ]), 0.1)
+                    bulbs++
+                }
+            }
+            if(bulbs > 1400)
+                break
+        }
+        if(!deco.empty)
+            children.push(meshNode('siteLights', deco, [ 0, 0, 0 ]))
+        console.log('site lights', stop.id, boxes.length, 'blocks,', bulbs, 'bulbs')
+    }
     const frustum = frustumOverrides[stop.id] || { x: cx, z: cz, radius: stop.radius + 14 }
     const radius = stop.radius * k
     children.push(refNode('ZoneBounding', [ 0, 0, 0 ], undefined, radius))
@@ -824,7 +886,15 @@ const footprints = [] // [x, z, w, d, isDowntown] for the map
                 m.box([ w * 0.5, 0.8, d * 0.5 ], C.slate, [ 0, height, 0 ])
                 for(const [ cx2, cz2 ] of [ [ - 1, - 1 ], [ 1, - 1 ], [ - 1, 1 ], [ 1, 1 ] ])          // lights strung down the corners
                     for(let ly = 0.6; ly < height; ly += 0.45)
-                        m.sphere(0.12, C.fairy, [ cx2 * (w / 2 + 0.04), ly, cz2 * (d / 2 + 0.04) ], 0)
+                        bulb(m, [ cx2 * (w / 2 + 0.04), ly, cz2 * (d / 2 + 0.04) ], 0.12)
+                // the roofline outlined in lights, a second ring on the penthouse, and a lit tree or star on top
+                for(const [ a, b ] of [ [ [ - 1, - 1 ], [ 1, - 1 ] ], [ [ 1, - 1 ], [ 1, 1 ] ], [ [ 1, 1 ], [ - 1, 1 ] ], [ [ - 1, 1 ], [ - 1, - 1 ] ] ])
+                {
+                    lightString(m, [ a[0] * (w / 2 + 0.05), height + 0.05, a[1] * (d / 2 + 0.05) ], [ b[0] * (w / 2 + 0.05), height + 0.05, b[1] * (d / 2 + 0.05) ], 0.35, 0, 0.11)
+                    lightString(m, [ a[0] * (w / 4 + 0.04), height + 0.85, a[1] * (d / 4 + 0.04) ], [ b[0] * (w / 4 + 0.04), height + 0.85, b[1] * (d / 4 + 0.04) ], 0.3, 0, 0.09)
+                }
+                if(r() < 0.5) litPine(m, [ 0, height + 0.8, 0 ], 0.7)
+                else m.add(new THREE.OctahedronGeometry(0.35, 0), C.gold, [ 0, height + 1.3, 0 ], [ 0, 0, Math.PI / 4 ])
             }
             else
             {
@@ -835,14 +905,56 @@ const footprints = [] // [x, z, w, d, isDowntown] for the map
                     m.cbox([ w * 0.3, 0.8, 0.05 ], C.window, [ sd * w * 0.22, height * 0.6, d / 2 + 0.01 ])
                 }
                 m.cbox([ 0.7, 1.2, 0.05 ], C.wood, [ 0, 0.6, - d / 2 - 0.02 ])
-                // Christmas: fairy lights swagging along both eaves, a wreath with a red bow on the door
-                for(const sz of [ - 1, 1 ])
-                    for(let lx = - w / 2 + 0.15; lx <= w / 2 - 0.1; lx += 0.32)
-                        m.sphere(0.11, C.fairy, [ lx, height + 0.02 - Math.abs(Math.sin((lx + w) * 4.9)) * 0.12, sz * (d / 2 + 0.08) ], 0)
-                m.add(new THREE.TorusGeometry(0.22, 0.08, 5, 12), C.moss, [ 0, 1.0, - d / 2 - 0.08 ])
-                m.cbox([ 0.18, 0.12, 0.06 ], C.red, [ 0, 0.8, - d / 2 - 0.1 ])
+                // Christmas: fairy lights swagging along all four eaves, a wreath with a red bow on the door, garland over it
+                const ey = height + 0.02
+                lightString(m, [ - w / 2 - 0.08, ey, - d / 2 - 0.08 ], [ w / 2 + 0.08, ey, - d / 2 - 0.08 ], 0.3, 0.14)
+                lightString(m, [ - w / 2 - 0.08, ey, d / 2 + 0.08 ], [ w / 2 + 0.08, ey, d / 2 + 0.08 ], 0.3, 0.14)
+                lightString(m, [ - w / 2 - 0.08, ey, - d / 2 - 0.08 ], [ - w / 2 - 0.08, ey, d / 2 + 0.08 ], 0.3, 0.14)
+                lightString(m, [ w / 2 + 0.08, ey, - d / 2 - 0.08 ], [ w / 2 + 0.08, ey, d / 2 + 0.08 ], 0.3, 0.14)
+                for(const [ cx2, cz2 ] of [ [ - 1, - 1 ], [ 1, - 1 ], [ - 1, 1 ], [ 1, 1 ] ])          // icicle drops down the front corners
+                    for(let ly = 0.35; ly < height - 0.2; ly += 0.5)
+                        bulb(m, [ cx2 * (w / 2 + 0.06), ly, cz2 * (d / 2 + 0.06) ], 0.08)
+                wreath(m, [ 0, 1.0, - d / 2 - 0.08 ], 0)
+                for(let gx = - 0.45; gx <= 0.46; gx += 0.15)                                         // garland arch over the door
+                    m.sphere(0.07, gx * 7 % 2 ? C.moss : C.leaf, [ gx, 1.32 - gx * gx * 0.5, - d / 2 - 0.06 ], 0)
+                for(const sd of [ - 1, 1 ])                                                          // window tops strung with lights
+                    for(const fz of [ - 1, 1 ])
+                    {
+                        const wx = sd * w * 0.22, wy = height * 0.6, wz = fz * (d / 2 + 0.06)
+                        lightString(m, [ wx - w * 0.17, wy + 0.45, wz ], [ wx + w * 0.17, wy + 0.45, wz ], 0.26, 0.08, 0.065)
+                    }
+                // the yard: each house gets one holiday piece in front of the door (Thanksgiving or Christmas)
+                const pick = r()
+                const fx = (r() < 0.5 ? - 1 : 1) * (w / 2 - 0.25)
+                if(pick < 0.24) harvest(m, [ fx, 0, - d / 2 - 0.55 ], 0, 0.8)
+                else if(pick < 0.44) litPine(m, [ fx, 0, - d / 2 - 0.6 ], 0.6)
+                else if(pick < 0.6) { candyCane(m, [ - 0.6, 0, - d / 2 - 0.5 ], 0, 0.75); candyCane(m, [ 0.6, 0, - d / 2 - 0.5 ], Math.PI, 0.75) }
+                else if(pick < 0.74) snowman(m, [ fx, 0, - d / 2 - 0.6 ], 0, 0.7)
+                else if(pick < 0.88) gifts(m, [ fx, 0, - d / 2 - 0.55 ], 0.3, 0.8, count)
+                else { pumpkin(m, [ - 0.55, 0, - d / 2 - 0.35 ], 1.1); pumpkin(m, [ 0.55, 0, - d / 2 - 0.35 ], 0.9, C.gold) }
                 if(r() < 0.6)
-                    m.gable(w + 0.1, d + 0.1, 1 + r() * 0.6, r() < 0.5 ? C.slate : C.brick, [ 0, height + 0.04, 0 ]) // ridge along x, spans the depth
+                {
+                    const gh = 1 + r() * 0.6
+                    m.gable(w + 0.1, d + 0.1, gh, r() < 0.5 ? C.slate : C.brick, [ 0, height + 0.04, 0 ]) // ridge along x, spans the depth
+                    // lights outlining the roof: both gable ends and the ridge, a lit star at one end
+                    const ry0 = height + 0.1
+                    for(const ex of [ - 1, 1 ])
+                    {
+                        const gx = ex * (w / 2 + 0.07)
+                        lightString(m, [ gx, ry0, - d / 2 - 0.05 ], [ gx, ry0 + gh, 0 ], 0.3, 0)
+                        lightString(m, [ gx, ry0 + gh, 0 ], [ gx, ry0, d / 2 + 0.05 ], 0.3, 0)
+                    }
+                    lightString(m, [ - w / 2, ry0 + gh + 0.02, 0 ], [ w / 2, ry0 + gh + 0.02, 0 ], 0.3, 0)
+                    if(r() < 0.5)
+                        m.add(new THREE.OctahedronGeometry(0.22, 0), C.gold, [ w / 2 - 0.1, ry0 + gh + 0.3, 0 ], [ 0, 0, Math.PI / 4 ])
+                }
+                else
+                {
+                    if(r() < 0.4)
+                        litPine(m, [ 0, height + 0.04, 0 ], 0.55)                                    // a little lit tree up on the flat roof
+                    else if(r() < 0.5)
+                        gifts(m, [ 0, height + 0.04, 0 ], 0.6, 0.7, count + 3)
+                }
             }
             const mass = isDowntown ? 1.5 + height * 0.08 : 0.9
             sceneryNodes.push({
@@ -1064,6 +1176,58 @@ for(const dog of dogsData)
     const size = dog.id === 'xiaoke' ? [ 2.6, 2.8, 2.4 ] : [ 5.2, 5.2, 4.6 ]
     sceneryNodes.push({ ...fixedNode(`dogHouse`, m, [ x, ground(x, z), z ], [ { position: [ 0, size[1] / 2, 0 ], size } ]), rotation: [ 0, rotation, 0 ] })
 }
+// Holiday lawns: little lit firs, snowmen, candy canes, gift piles and Thanksgiving harvest corners scattered over the grass
+const holidaySpots = []
+{
+    const r = rng(1124)
+    const m = new Model()
+    const colliders = []
+    const clearOfHouses = (x, z, gap) => footprints.every(([ hx, hz, w, d ]) => Math.abs(x - hx) > w / 2 + gap || Math.abs(z - hz) > d / 2 + gap)
+    const rejects = {}
+    const kinds = [ 'pine', 'pine', 'pine', 'harvest', 'harvest', 'snowman', 'gifts', 'canes', 'pumpkins' ]
+    for(let i = 0; i < 12000 && holidaySpots.length < 110; i++)
+    {
+        const x = (r() - 0.5) * 176, z = (r() - 0.5) * 180
+        const why = paved(x, z) > 0.05 ? 'paved' : !onLand(x, z) ? 'water' : excluded(x, z, 1) ? 'excluded' : nearRoad(x, z, 2) ? 'road' : inSite(x, z, 2.5) ? 'site' : !clearOfHouses(x, z, 1.6) ? 'house' : null
+        if(why) { rejects[why] = (rejects[why] || 0) + 1; continue }
+        if(holidaySpots.some(([ hx, hz ]) => Math.hypot(hx - x, hz - z) < 5))
+            continue
+        const kind = kinds[holidaySpots.length % kinds.length]
+        const y = ground(x, z), ry = r() * Math.PI * 2
+        holidaySpots.push([ x, z ])
+        if(kind === 'pine')
+        {
+            const s = 0.9 + r() * 0.7
+            litPine(m, [ x, y, z ], s)
+            colliders.push({ shape: 'tube', position: [ x, y + s, z ], radius: 0.5 * s, height: 2 * s })
+            if(r() < 0.6) gifts(m, [ x + 0.9 * s, y, z + 0.3 ], ry, 0.7, i)
+        }
+        else if(kind === 'harvest')
+        {
+            harvest(m, [ x, y, z ], ry, 1.1)
+            colliders.push({ shape: 'tube', position: [ x, y + 0.4, z ], radius: 0.7, height: 0.8 })
+        }
+        else if(kind === 'snowman')
+        {
+            snowman(m, [ x, y, z ], ry, 1.1)
+            colliders.push({ shape: 'tube', position: [ x, y + 0.9, z ], radius: 0.45, height: 1.8 })
+        }
+        else if(kind === 'gifts')
+            gifts(m, [ x, y, z ], ry, 1.2, i)
+        else if(kind === 'canes')
+            for(let k = 0; k < 5; k++)
+                candyCane(m, [ x + Math.cos(ry) * (k - 2) * 0.9, ground(x + Math.cos(ry) * (k - 2) * 0.9, z - Math.sin(ry) * (k - 2) * 0.9), z - Math.sin(ry) * (k - 2) * 0.9 ], ry + (k % 2) * Math.PI, 1.1)
+        else
+            for(let k = 0; k < 6; k++)
+            {
+                const a = k / 6 * Math.PI * 2 + ry, rr = 0.5 + (k % 2) * 0.5
+                pumpkin(m, [ x + Math.cos(a) * rr, ground(x + Math.cos(a) * rr, z + Math.sin(a) * rr), z + Math.sin(a) * rr ], 1 + (k % 3) * 0.35, [ C.orange, C.orange, C.gold, C.snow ][k % 4])
+            }
+    }
+    sceneryNodes.push(fixedNode('holidayLawns', m, [ 0, 0, 0 ], colliders))
+    console.log('holiday lawn props', holidaySpots.length, rejects)
+}
+
 await writeGlb(out('static/scenery/scenery.glb'), sceneryNodes, { worldScale: W })
 console.log('scenery ok')
 
@@ -1087,6 +1251,7 @@ console.log('respawns ok')
     // props keep their real size: world positions, offsets in world units
     const push = (list, x, z, dy = 0, rotation = 0, scale = 1) => list.push([ round(x * W), round(groundWorld(x, z) + dy), round(z * W), round(rotation), round(scale) ])
     const trees = []
+    trees.push(...holidaySpots)
     const free = (x, z, d) => trees.every(([ tx, tz ]) => Math.hypot(tx - x, tz - z) > d)
 
     for(let i = 0; i < 9000 && trees.length < 230; i++)
