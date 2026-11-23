@@ -32,8 +32,8 @@ export const SEASONS = [
 // what every plant looks like in each season [colorA, colorB]
 const PALETTES = {
     spring: { birch: [ '#7fc34a', '#b8e36c' ], oak: [ '#6fb33c', '#a6d85a' ], cherry: [ '#f2a3c4', '#ffd6e6' ], redwood: [ '#2f6b33', '#5a9e45' ], bushes: [ '#6fa83a', '#b0d65a' ], grass: '#8cc63f', leaves: [ '#ffc2d9', '#fff0f5' ], showLeaves: true },
-    summer: { birch: [ '#3f8f2e', '#6fb83d' ], oak: [ '#357a28', '#5ea83a' ], cherry: [ '#3c8a34', '#66b044' ], redwood: [ '#244f27', '#3f7d33' ], bushes: [ '#4c8a30', '#7fb045' ], grass: '#6fb83a', leaves: [ '#3c8a34', '#66b044' ], showLeaves: false },
-    fall: { birch: [ '#e8452c', '#ff8a3d' ], oak: [ '#e39b2d', '#f6c64a' ], cherry: [ '#c4232b', '#f0553a' ], redwood: [ '#2b5a2c', '#4c8a3a' ], bushes: [ '#a8782a', '#d9a441' ], grass: '#a9b445', leaves: [ '#c0392b', '#ffa62b' ], showLeaves: true },
+    summer: { birch: [ '#3f8f2e', '#6fb83d' ], oak: [ '#357a28', '#5ea83a' ], cherry: [ '#3c8a34', '#66b044' ], redwood: [ '#244f27', '#3f7d33' ], bushes: [ '#4c8a30', '#7fb045' ], grass: '#7cc444', leaves: [ '#3c8a34', '#66b044' ], showLeaves: false },
+    fall: { birch: [ '#e8452c', '#ff8a3d' ], oak: [ '#e39b2d', '#f6c64a' ], cherry: [ '#c4232b', '#f0553a' ], redwood: [ '#2b5a2c', '#4c8a3a' ], bushes: [ '#a8782a', '#d9a441' ], grass: '#8ebd4a', leaves: [ '#c0392b', '#ffa62b' ], showLeaves: true },
     winter: { birch: [ '#cfdbe3', '#ffffff' ], oak: [ '#c7d4dd', '#f3f7fa' ], cherry: [ '#d3dee6', '#ffffff' ], redwood: [ '#3b5d47', '#e4eef2' ], bushes: [ '#c9d6de', '#f6f9fb' ], grass: '#e9eff3', leaves: [ '#ffffff', '#e8f0f6' ], showLeaves: false },
 }
 

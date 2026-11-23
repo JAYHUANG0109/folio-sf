@@ -623,35 +623,81 @@ builders.ferryBuilding = (ctx) =>
 /** Union Square's giant Christmas tree (model only, T = 1.5x) */
 export function christmasTree()
 {
+    // A grand plaza tree: many layered, drooping tiers of fir (dark at the core, lighter at the tips), a garland of
+    // fairy lights spiralling to the top, red and gold baubles, gold ribbon, and presents around the base.
+    // The big star is returned separately so it can glow (see build.mjs).
     const T = 1.5
     const tree = new Model()
-    tree.cylinder(0.4 * T, 0.5 * T, 1.4 * T, C.wood, [ 0, 0, 0 ], 6)
-    const tiers = 6
+    const r = rng(1225)
+    tree.cylinder(0.5 * T, 0.65 * T, 1.6 * T, C.wood, [ 0, 0, 0 ], 8)
+    tree.cylinder(1.7 * T, 1.9 * T, 0.5 * T, C.red, [ 0, 0, 0 ], 16)                     // skirt
+    tree.cylinder(1.75 * T, 1.75 * T, 0.08 * T, C.gold, [ 0, 0.5 * T, 0 ], 16)
+    const tiers = 9, top = 12.6
+    const radiusAt = (h) => (3.7 - (h - 1.4) / (top - 1.4) * 3.5) * T
     for(let i = 0; i < tiers; i++)
     {
-        const r = (3.4 - i * 0.5) * T
-        tree.cone(r, 3 * T, i % 2 ? C.olive : C.moss, [ 0, (1.2 + i * 1.6) * T, 0 ], 10)
+        const y = (1.4 + i * 1.22) * T
+        const rr = radiusAt(y / T)
+        tree.cone(rr, 2.2 * T, i % 2 ? C.scallion : C.leaf, [ 0, y, 0 ], 14)
+        // drooping branch tips around the rim, lighter green
+        const tips = 12 - Math.floor(i * 0.8)
+        for(let k = 0; k < tips; k++)
+        {
+            const a = k / tips * Math.PI * 2 + i * 0.4
+            tree.cone(0.42 * T, 0.9 * T, C.leaf, [ Math.cos(a) * rr * 0.86, y + 0.05 * T, Math.sin(a) * rr * 0.86 ], 5, [ Math.cos(a + Math.PI / 2) * 0.9, 0, Math.sin(a + Math.PI / 2) * - 0.9 ])
+        }
     }
-    const r = rng(7)
+    const surface = (h, a, inset = 0.88) => { const rr = radiusAt(h) * inset; return [ Math.cos(a) * rr, h * T, Math.sin(a) * rr ] }
+    // the garland of fairy lights: three spirals winding up
+    for(let g = 0; g < 3; g++)
+        for(let k = 0; k < 120; k++)
+        {
+            const t = k / 120, h = 1.8 + t * (top - 2.3)
+            tree.sphere(0.12 * T, C.fairy, surface(h, t * Math.PI * 9 + g * 2.1, 0.92 + Math.sin(k) * 0.02), 0)
+        }
+    // gold ribbon spiral
+    for(let k = 0; k < 70; k++)
+    {
+        const t = k / 70, h = 2 + t * (top - 3)
+        const p = surface(h, - t * Math.PI * 6, 0.97)
+        tree.cbox([ 0.5 * T, 0.12 * T, 0.12 * T ], C.gold, p, [ 0, t * Math.PI * 6, 0.35 ])
+    }
+    // baubles: red, gold and white, bigger near the bottom
     for(let i = 0; i < 70; i++)
     {
-        const t = r()
-        const h = (1.6 + t * 9) * T
-        const radius = (3.3 - t * 3) * 0.85 * T
-        const a = r() * Math.PI * 2
-        tree.sphere(0.22 * T, i % 2 ? C.fairy : [ C.red, C.gold ][Math.floor(i / 2) % 2], [ Math.cos(a) * radius, h, Math.sin(a) * radius ], 0)
+        const h = 1.8 + r() * (top - 2.6)
+        const size = (0.32 - (h / top) * 0.14) * T
+        tree.sphere(size, [ C.red, C.gold, C.red, C.snow, C.gold ][i % 5], surface(h, r() * Math.PI * 2, 0.95), 1)
     }
-    tree.cone(0.6 * T, 1.0 * T, C.gold, [ 0, 11.8 * T, 0 ], 5)
-    tree.cone(0.6 * T, 1.0 * T, C.gold, [ 0, 13.8 * T, 0 ], 5, [ Math.PI, 0, 0 ])
-    // gifts around the base
-    for(let i = 0; i < 8; i++)
+    // presents around the trunk
+    for(let i = 0; i < 12; i++)
     {
-        const a = i / 8 * Math.PI * 2 + 0.3
-        const size = 0.5 + (i % 3) * 0.2
-        tree.box([ size, size, size ], [ C.red, C.sky, C.gold, C.pink ][i % 4], [ Math.cos(a) * 3.2 * T, 0, Math.sin(a) * 3.2 * T ])
-        tree.cbox([ size + 0.04, 0.1, 0.12 ], C.snow, [ Math.cos(a) * 3.2 * T, size, Math.sin(a) * 3.2 * T ])
+        const a = i / 12 * Math.PI * 2 + 0.2
+        const size = (0.55 + (i % 3) * 0.22) * T
+        const x = Math.cos(a) * 2.9 * T, z = Math.sin(a) * 2.9 * T
+        tree.box([ size, size, size ], [ C.red, C.sky, C.gold, C.pink, C.leaf, C.snow ][i % 6], [ x, 0, z ], [ 0, a, 0 ])
+        tree.box([ size + 0.04, size + 0.02, 0.12 ], [ C.gold, C.red, C.snow ][i % 3], [ x, 0, z ], [ 0, a, 0 ])
+        tree.box([ 0.12, size + 0.02, size + 0.04 ], [ C.gold, C.red, C.snow ][i % 3], [ x, 0, z ], [ 0, a, 0 ])
     }
     return tree
+}
+
+/** The big five pointed star on top of the tree (emissive) */
+export function christmasStar()
+{
+    const T = 1.5
+    const star = new Model()
+    const shape = new THREE.Shape()
+    for(let i = 0; i < 10; i++)
+    {
+        const a = i / 10 * Math.PI * 2 + Math.PI / 2, rr = (i % 2 ? 0.55 : 1.35) * T
+        i === 0 ? shape.moveTo(Math.cos(a) * rr, Math.sin(a) * rr) : shape.lineTo(Math.cos(a) * rr, Math.sin(a) * rr)
+    }
+    shape.closePath()
+    const g = new THREE.ExtrudeGeometry(shape, { depth: 0.35 * T, bevelEnabled: true, bevelThickness: 0.12 * T, bevelSize: 0.08 * T, bevelSegments: 1 }).translate(0, 0, - 0.17 * T)
+    star.add(g, C.gold, [ 0, 0, 0 ])
+    star.add(g.clone().rotateY(Math.PI / 2), C.gold, [ 0, 0, 0 ])     // two crossed stars: a star from every side
+    return star
 }
 
 /** 3. Union Square: an open plaza. The big tree stands where the Dewey column was (east), the rink fills the west side */

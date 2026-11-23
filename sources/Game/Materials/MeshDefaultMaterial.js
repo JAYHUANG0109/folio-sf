@@ -121,7 +121,7 @@ export class MeshDefaultMaterial extends THREE.MeshLambertNodeMaterial
             
             // Self lit (lit windows, lamps at night): never darker than the glow
             if(this._emissiveNode)
-                outputColor.assign(max(outputColor, this._emissiveNode))
+                outputColor.assign(mix(outputColor, this._emissiveNode, this._emissiveNode.length().mul(1.2).clamp(0, 1)))   // a glowing bulb shows its own color
 
             // Fog
             if(this.hasFog)

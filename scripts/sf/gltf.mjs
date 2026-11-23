@@ -10,7 +10,7 @@ import { Document, NodeIO, VertexLayout } from '@gltf-transform/core'
 /** Palette swatches, index -> hex (from static/palette.png row 0) */
 export const PALETTE = [
     '#7c7691', '#ebd1a3', '#574e37', '#3dbbe7', '#c8c2c1', '#4a413c', '#575a5e', '#eec3af',
-    '#e4a90c', '#91ad78', '#e49a78', '#988165', '#abae2b', '#a49876', '#b36d45', '#e56202',
+    '#e4a90c', '#91ad78', '#e49a78', '#988165', '#6fae3a', '#a49876', '#b36d45', '#e56202',
     '#ec3f1c', '#fde6e1', '#f8a658', '#c30e3a', '#c366ef', '#ed719f', '#1e0603', '#fff2e8',
     // food colors (beef noodle soup), added in the free slots of the strip
     '#8a4f1e', '#5e2a1c', '#eecb7c', '#78b043', '#3f9a35', '#f1ece4',
@@ -28,10 +28,17 @@ export const C = {
     fairy: 63,          // fairy light bulbs: cream by day, twinkling red / green / gold / blue at night
 }
 
+let fairyCounter = 0
 export function paletteUv(index)
 {
-    // indices 32+ reuse a swatch but are flagged (v = 0.15) as multicolor Christmas fairy lights for the shader
-    return [ ((index % 32) * 4 + 2) / 128, index >= 32 ? 0.15 : 0.5 ]
+    // fairy lights (index 63) share the lamp swatch (31) but sit at one of four spots inside its 4px column:
+    // the shader reads that spot as red / green / gold / blue. Plain swatches sample the column center.
+    if(index === 63)
+    {
+        const spot = [ 0.4, 1.2, 2.8, 3.6 ][fairyCounter++ % 4]
+        return [ (31 * 4 + spot) / 128, 0.5 ]
+    }
+    return [ (index * 4 + 2) / 128, 0.5 ]
 }
 
 /**

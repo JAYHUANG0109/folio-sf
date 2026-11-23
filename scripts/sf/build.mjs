@@ -20,7 +20,7 @@ import { buildRasters, quantize, writeTerrainTextures, groundY, sample, RES, lom
 import { writeGlb } from './gltf.mjs'
 import { Model, C, meshNode, fixedNode, dynamicNode, refNode, rng } from './kit.mjs'
 import { dogs as dogsData, turkey as turkeyData } from '../../sources/data/dogs.js'
-import { builders, nameBlocks, christmasTree } from './landmarks.mjs'
+import { builders, nameBlocks, christmasTree, christmasStar } from './landmarks.mjs'
 import { dogNodes } from './dogs.mjs'
 import { secrets } from '../../sources/data/secrets.js'
 import { scaleOf } from '../../sources/data/sites.js'
@@ -639,7 +639,9 @@ const footprints = [] // [x, z, w, d, isDowntown] for the map
             }
             console.log(spots.sort((a, b) => b[0] - a[0]).slice(0, 8))
         }
-        sceneryNodes.push(scaleNode(fixedNode('christmasTree', christmasTree(), [ tx, ground(tx, tz), tz ], [ { shape: 'tube', position: [ 0, 4 * T, 0 ], radius: 2.2 * T, height: 8 * T } ]), k))
+        sceneryNodes.push(scaleNode(fixedNode('christmasTree', christmasTree(), [ tx, ground(tx, tz), tz ], [ { shape: 'tube', position: [ 0, 4 * T, 0 ], radius: 2.4 * T, height: 8 * T } ]), k))
+        const star = christmasStar()
+        sceneryNodes.push(scaleNode({ ...meshNode('christmasStar', star, [ tx, ground(tx, tz) + (12.6 + 2.0) * T * k, tz ]), mesh: { geometry: star.geometry(), material: 'emissiveOrangeRadialGradient' } }, k))
     }
     // Napa: vineyards all around the castle (rows of vines on trellises, ripe purple and red grapes, autumn leaves),
     // Italian cypresses along the edges and olive trees on the lawn. World units; each row is a low wall the car can't cross.
@@ -1106,7 +1108,7 @@ console.log('respawns ok')
         trees.push([ x, z ])
         push(placements.bushes, x, z, 1.1, r() * Math.PI * 2, 0.7 + r() * 0.5)
     }
-    for(let i = 0; i < 4000 && placements.flowers.length < 70; i++)
+    for(let i = 0; i < 4000 && placements.flowers.length < 220; i++)
     {
         const x = (r() - 0.5) * 180, z = (r() - 0.5) * 184
         if(grassy(x, z) < 0.35 || paved(x, z) > 0.1 || !onLand(x, z) || !free(x, z, 1.5) || nearRoad(x, z, 0.8) || inSite(x, z, 1))
