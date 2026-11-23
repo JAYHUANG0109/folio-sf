@@ -13,6 +13,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import * as THREE from 'three'
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import sharp from 'sharp'
 import * as Layout from './layout.mjs'
 import { buildRasters, quantize, writeTerrainTextures, groundY, sample, RES, lombardPoints } from './terrain.mjs'
@@ -564,6 +565,40 @@ const footprints = [] // [x, z, w, d, isDowntown] for the map
     sceneryNodes.push({ ...meshNode('boardwalkLights', bulbs, [ o.x, oy, o.z ]), mesh: { geometry: bulbs.geometry(), material: 'emissiveOrangeRadialGradient' } })
 }
 
+// Street lamps along every street: globe lamps on both sides, staggered; they glow after dark with a pool of light below
+{
+    const posts = new Model()
+    const pools = []
+    const colliders = []
+    for(const street of Layout.streets.filter(st => st.asphalt))
+    {
+        const curve = new THREE.CatmullRomCurve3(street.points.map(([ x, z ]) => new THREE.Vector3(x, 0, z)), false, 'centripetal')
+        const count = Math.floor(curve.getLength() / 7)
+        for(let i = 1; i < count; i++)
+        {
+            const t = i / count
+            const p = curve.getPointAt(t), d = curve.getTangentAt(t)
+            const side = i % 2 ? 1 : - 1
+            const off = street.width * (street.highway ? 0.45 : 0.4) + 1.1
+            const x = p.x - d.z * off * side, z = p.z + d.x * off * side
+            if(nearRoad(x, z, 0.5) || inSite(x, z, 1) || !onLand(x, z) || Math.abs(x) > 92 || Math.abs(z) > 92)
+                continue
+            const y = ground(x, z)
+            posts.cylinder(0.07, 0.1, 2.6, C.dark, [ x, y, z ], 6)
+            posts.cylinder(0.14, 0.1, 0.18, C.dark, [ x, y + 2.6, z ], 6)
+            posts.sphere(0.26, C.lamp, [ x, y + 2.95, z ], 1)
+            pools.push([ x, y + 0.04, z ])
+            colliders.push({ shape: 'tube', position: [ x, y + 1.3, z ], radius: 0.12, height: 2.6 })
+        }
+    }
+    sceneryNodes.push(fixedNode('streetLamps', posts, [ 0, 0, 0 ], colliders))
+    const g = new THREE.BufferGeometry()
+    const parts = pools.map(([ x, y, z ]) => new THREE.CircleGeometry(2.6, 20).rotateX(- Math.PI / 2).translate(x, y, z))
+    const merged = mergeGeometries(parts)
+    sceneryNodes.push({ name: 'lampPools', position: [ 0, 0, 0 ], mesh: { geometry: merged, material: 'lampPool' } })
+    console.log('street lamps', pools.length)
+}
+
 // Highway signs: 101 north to Napa (11/28 day trip), 101 south to SFO and Levi's
 {
     const highwaySign = (lines, color) =>
@@ -779,7 +814,7 @@ const footprints = [] // [x, z, w, d, isDowntown] for the map
             if(isDowntown)
             {
                 for(let k = 1; k < height / 1.6; k++)
-                    m.box([ w + 0.04, 0.35, d + 0.04 ], C.dark, [ 0, k * 1.6 - 0.6, 0 ])
+                    m.box([ w + 0.04, 0.35, d + 0.04 ], C.window, [ 0, k * 1.6 - 0.6, 0 ])
                 m.box([ w * 0.5, 0.8, d * 0.5 ], C.slate, [ 0, height, 0 ])
             }
             else
@@ -787,8 +822,8 @@ const footprints = [] // [x, z, w, d, isDowntown] for the map
                 m.box([ w + 0.06, 0.22, d + 0.06 ], C.snow, [ 0, height - 0.18, 0 ]) // sits a hair above the flat top (coplanar faces flicker)
                 for(const sd of [ - 1, 1 ])
                 {
-                    m.cbox([ w * 0.3, 0.8, 0.05 ], C.black, [ sd * w * 0.22, height * 0.6, - d / 2 - 0.01 ])
-                    m.cbox([ w * 0.3, 0.8, 0.05 ], C.black, [ sd * w * 0.22, height * 0.6, d / 2 + 0.01 ])
+                    m.cbox([ w * 0.3, 0.8, 0.05 ], C.window, [ sd * w * 0.22, height * 0.6, - d / 2 - 0.01 ])
+                    m.cbox([ w * 0.3, 0.8, 0.05 ], C.window, [ sd * w * 0.22, height * 0.6, d / 2 + 0.01 ])
                 }
                 m.cbox([ 0.7, 1.2, 0.05 ], C.wood, [ 0, 0.6, - d / 2 - 0.02 ])
                 if(r() < 0.6)

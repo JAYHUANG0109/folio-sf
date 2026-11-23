@@ -42,6 +42,7 @@ export class MeshDefaultMaterial extends THREE.MeshLambertNodeMaterial
         this._normalNode = parameters.normalNode ?? normalWorld
         this._alphaNode = parameters.alphaNode ?? float(1)
         this._shadowNode = parameters.shadowNode ?? float(0)
+        this._emissiveNode = parameters.emissiveNode ?? null
         this.alphaTest = parameters.alphaTest ?? 0.1
 
         this.normalNode = this._normalNode // Get rid of warning
@@ -118,6 +119,10 @@ export class MeshDefaultMaterial extends THREE.MeshLambertNodeMaterial
                 outputColor.assign(mix(outputColor, shadowColor, combinedShadowMix))
             }
             
+            // Self lit (lit windows, lamps at night): never darker than the glow
+            if(this._emissiveNode)
+                outputColor.assign(max(outputColor, this._emissiveNode))
+
             // Fog
             if(this.hasFog)
                 outputColor.assign(this.game.fog.strength.mix(outputColor, this.game.fog.color))

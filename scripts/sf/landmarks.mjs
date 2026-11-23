@@ -98,7 +98,7 @@ function victorian(width, height, depth, wall, trim, roof, seed, accent = C.red)
     const window = (x, y, z, w, h, ry = 0) =>
     {
         m.cbox([ 0.05, h + 0.16, w + 0.16 ], trim, [ x, y, z ], [ 0, ry, 0 ])
-        m.cbox([ 0.06, h, w ], C.dark, [ x - 0.01, y, z ], [ 0, ry, 0 ])
+        m.cbox([ 0.06, h, w ], C.window, [ x - 0.01, y, z ], [ 0, ry, 0 ])
         m.cbox([ 0.07, 0.03, w * 0.04 + 0.02 ], trim, [ x - 0.02, y, z ], [ 0, ry, 0 ])          // mullion
         m.cbox([ 0.14, 0.06, w + 0.26 ], trim, [ x - 0.04, y - h / 2 - 0.1, z ], [ 0, ry, 0 ])   // sill
         m.cbox([ 0.12, 0.1, w + 0.3 ], accent, [ x - 0.03, y + h / 2 + 0.13, z ], [ 0, ry, 0 ])  // head

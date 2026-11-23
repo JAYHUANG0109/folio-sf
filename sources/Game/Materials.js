@@ -1,6 +1,7 @@
 import * as THREE from 'three/webgpu'
 import { positionLocal, varying, uv, max, positionWorld, float, Fn, uniform, color, mix, vec3, vec4, normalWorld, texture, vec2, time, smoothstep, luminance } from 'three/tsl'
 import { Game } from './Game.js'
+import gsap from 'gsap'
 import { MeshDefaultMaterial } from './Materials/MeshDefaultMaterial.js'
 
 export class Materials
@@ -55,9 +56,24 @@ export class Materials
 
     createPalette()
     {
+        // night: 0 by day, 1 at night (tweened in update below). Window glass and lamp globes light up.
+        this.nightUniform = uniform(0)
+        const slot = uv().x.mul(32).floor()
+        const glow = slot.equal(30).select(color('#ffcf7a').mul(1.35), slot.equal(31).select(color('#fff1c4').mul(2.2), vec3(0)))
         const material = new MeshDefaultMaterial({
-            colorNode: texture(this.game.resources.paletteTexture).rgb
+            colorNode: texture(this.game.resources.paletteTexture).rgb,
+            emissiveNode: glow.mul(this.nightUniform)
         })
+        const toggle = (night) => gsap.to(this.nightUniform, { value: night ? 1 : 0, duration: 3, overwrite: true })
+        this.game.dayCycles.events.on('night', toggle)
+        toggle(this.game.dayCycles.intervalEvents.get('night').inInterval)
+
+        // warm pools of light on the ground under the street lamps
+        const pool = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })
+        const fall = float(1).sub(uv().sub(0.5).length().mul(2)).clamp(0, 1).pow(1.8)
+        pool.outputNode = vec4(color('#ffb85c').mul(fall.mul(0.55).mul(this.nightUniform)), 1)
+        pool.fog = false
+        this.save('lampPool', pool)
         
         this.save('palette', material)
 

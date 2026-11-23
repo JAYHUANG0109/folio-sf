@@ -14,6 +14,8 @@ export const PALETTE = [
     '#ec3f1c', '#fde6e1', '#f8a658', '#c30e3a', '#c366ef', '#ed719f', '#1e0603', '#fff2e8',
     // food colors (beef noodle soup), added in the free slots of the strip
     '#8a4f1e', '#5e2a1c', '#eecb7c', '#78b043', '#3f9a35', '#f1ece4',
+    // night lights: window glass and lamp globes (they glow after dark, see Materials palette)
+    '#3b3a55', '#f3ead2',
 ]
 
 /** Named colors for readability */
@@ -22,6 +24,7 @@ export const C = {
     gold: 8, sage: 9, salmon: 10, wood: 11, moss: 12, khaki: 13, brick: 14, orange: 15,
     bridge: 16, white: 17, peach: 18, red: 19, purple: 20, pink: 21, black: 22, snow: 23,
     broth: 24, beef: 25, noodle: 26, leaf: 27, scallion: 28, porcelain: 29,
+    window: 30, lamp: 31,
 }
 
 export function paletteUv(index)
