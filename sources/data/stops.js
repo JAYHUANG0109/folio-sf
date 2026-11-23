@@ -82,7 +82,7 @@ export const stops = [
         note: '叮噹車把我們送上 Russian Hill，再從 Hyde St 沿著八個髮夾彎慢慢開下來。彎很急，慢慢開。',
         position: { x: 6, z: -36 },
         radius: 13,
-        respawn: { x: -17, z: -40.7, rotation: Math.PI * 0.5 },
+        respawn: { x: -14.2, z: -40.7, rotation: 0 },   // at the top of the crooked street, facing down it, clear of the cable car on Hyde St
         // the apex of all 8 hairpins, then the bottom at Grant Ave (matches scripts/sf/terrain.mjs lombardApexes)
         task: { type: 'checkpoints', text: '從 Hyde St 開下九曲花街的八個彎', points: [ [ -9.4, -31.3 ], [ -5, -40.7 ], [ -0.6, -31.3 ], [ 3.8, -40.7 ], [ 8.2, -31.3 ], [ 12.6, -40.7 ], [ 17, -31.3 ], [ 21.4, -40.7 ], [ 26.8, -31.3 ] ] },
     },

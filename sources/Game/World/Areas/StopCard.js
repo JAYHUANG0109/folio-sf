@@ -45,6 +45,15 @@ const css = /* css */`
 .stop-card .stop-card-stamps i { flex: 1; height: 5px; border-radius: 3px; background: rgba(255, 255, 255, 0.18); }
 .stop-card .stop-card-stamps i.is-done { background: #e4a90c; }
 .stop-card.is-finale { background: rgba(195, 14, 58, 0.9); }
+/* phones in landscape: a compact card that leaves room for the on screen controls */
+@media (max-height: 500px)
+{
+    .stop-card { width: min(330px, calc(100vw - 300px)); padding: 9px 12px 8px; border-radius: 12px; top: max(8px, env(safe-area-inset-top)); }
+    .stop-card .stop-card-name { font-size: 18px; margin-top: 3px; }
+    .stop-card .stop-card-en, .stop-card .stop-card-note, .stop-card .stop-card-foot { display: none; }
+    .stop-card .stop-card-task { margin-top: 6px; padding: 4px 8px; font-size: 12px; }
+    .stop-card .stop-card-stamps { margin-top: 6px; }
+}
 `
 
 export class StopCard

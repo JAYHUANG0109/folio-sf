@@ -1,3 +1,4 @@
+import { VirtualPad } from './Inputs/VirtualPad.js'
 import * as THREE from 'three/webgpu'
 
 import { Debug } from './Debug.js'
@@ -210,6 +211,7 @@ export class Game
         this.physicalVehicle = new PhysicsVehicle()
         this.zones = new Zones()
         this.player = new Player()
+        this.virtualPad = new VirtualPad()
         this.closingManager = new ClosingManager()
         this.interactivePoints = new InteractivePoints()
         this.konamiCode = new KonamiCode()

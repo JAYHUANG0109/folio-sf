@@ -60,7 +60,7 @@ export const hills = [
     [-24, 46, 7.0, 8],     // Twin Peaks
     [-14, 54, 6.0, 7],
     [-44, 40, 4.0, 8],     // Mount Sutro
-    [2, 50, 3.0, 8],       // Dolores Heights
+    [3, 52, 3.4, 8],       // Dolores Heights: the park slopes down from here toward downtown
     [3, -84, 3.0, 8],      // Alcatraz
 ]
 
@@ -89,6 +89,7 @@ export const pads = [
     [-44, 52.5, 5, 8, 0],
     [3, -84, 8.5, 12, 2.4],   // Alcatraz summit (flat for the cellhouse), cliffs all around
     [-17, -52, 2, 5, 0],      // cable car turnaround
+    [-17, -40.7, 2.2, 5, null], // flat landing at the top of Lombard (Hyde St): the car doesn't roll away on spawn
 ]
 
 /** Grass areas */
@@ -96,7 +97,7 @@ export const parks = [
     { rect: [-84, -2, -34, 40] },         // Golden Gate Park (tennis center inside)
     { rect: [-34, 13, -24, 18] },         // Panhandle
     { ellipse: [-28, 14, 6, 5] },         // Alamo Square
-    { ellipse: [8, 42, 7, 6] },           // Dolores Park
+    { ellipse: [9, 43.5, 13, 9.5] },      // Dolores Park: the big sloping lawn
     { ellipse: [-22, 48, 11, 10] },       // Twin Peaks
     { ellipse: [-44, 40, 8, 7] },         // Mount Sutro
     { ellipse: [-50, -30, 14, 11] },      // Presidio

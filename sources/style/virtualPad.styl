@@ -1,0 +1,140 @@
+// On screen gamepad (phones / tablets only)
+.virtual-pad
+    display none
+    position absolute
+    left 0
+    right 0
+    bottom 0
+    height 0
+    z-index 3
+    pointer-events none
+    -webkit-user-select none
+    user-select none
+    -webkit-touch-callout none
+
+    html.has-virtual-pad &
+        display block
+
+    // hide while a menu or the map is open
+    html.has-modal-open &
+        display none
+
+    .vp-stick
+        position absolute
+        left calc(26px + env(safe-area-inset-left))
+        bottom calc(26px + env(safe-area-inset-bottom))
+        width 132px
+        height 132px
+        border-radius 50%
+        pointer-events auto
+        touch-action none
+        background radial-gradient(circle, rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0.04) 68%, rgba(255, 255, 255, 0) 72%)
+
+        .vp-ring
+            position absolute
+            inset 0
+            border-radius 50%
+            border 2px solid rgba(255, 255, 255, 0.35)
+            box-shadow 0 4px 18px rgba(0, 0, 0, 0.35), inset 0 0 18px rgba(0, 0, 0, 0.25)
+            backdrop-filter blur(3px)
+            -webkit-backdrop-filter blur(3px)
+
+        .vp-knob
+            position absolute
+            left calc(50% - 30px)
+            top calc(50% - 30px)
+            width 60px
+            height 60px
+            border-radius 50%
+            background radial-gradient(circle at 35% 30%, #ffffff, #d9d4e4 60%, #a9a2bb)
+            box-shadow 0 4px 12px rgba(0, 0, 0, 0.45)
+            transition transform 0.12s ease-out
+
+        &.is-active
+            .vp-ring
+                border-color rgba(255, 255, 255, 0.7)
+            .vp-knob
+                transition none
+
+    .vp-buttons
+        position absolute
+        right calc(86px + env(safe-area-inset-right))
+        bottom calc(22px + env(safe-area-inset-bottom))
+        width 156px
+        height 156px
+        pointer-events none
+
+    .vp-button
+        position absolute
+        width 54px
+        height 54px
+        border-radius 50%
+        border 2px solid rgba(255, 255, 255, 0.35)
+        background rgba(24, 19, 30, 0.55)
+        backdrop-filter blur(3px)
+        -webkit-backdrop-filter blur(3px)
+        box-shadow 0 4px 14px rgba(0, 0, 0, 0.4)
+        pointer-events auto
+        touch-action none
+        display flex
+        align-items center
+        justify-content center
+        transition transform 0.08s, background 0.08s
+
+        svg
+            width 26px
+            height 26px
+            fill none
+            stroke var(--c)
+            stroke-width 2.4
+            stroke-linecap round
+            stroke-linejoin round
+
+        span
+            position absolute
+            top 100%
+            margin-top 2px
+            font-size 10px
+            color rgba(255, 255, 255, 0.85)
+            text-shadow 0 1px 2px rgba(0, 0, 0, 0.8)
+            white-space nowrap
+
+        &.is-pressed
+            transform scale(0.9)
+            background var(--c)
+
+            svg
+                stroke #1d1721
+
+        &.triangle
+            --c #5fe0c4
+            left 51px
+            top 0
+
+        &.square
+            --c #f08fd0
+            left 0
+            top 51px
+
+        &.circle
+            --c #ff6b6b
+            left 102px
+            top 51px
+
+        &.cross
+            --c #8fb2ff
+            left 51px
+            top 102px
+
+            span
+                top auto
+                bottom 100%
+                margin 0 0 2px
+
+    @media only screen and (max-height 420px)
+        .vp-stick
+            width 112px
+            height 112px
+        .vp-buttons
+            transform scale(0.86)
+            transform-origin 100% 100%

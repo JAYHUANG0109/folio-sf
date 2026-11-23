@@ -19,7 +19,7 @@ import { buildRasters, quantize, writeTerrainTextures, groundY, sample, RES, lom
 import { writeGlb } from './gltf.mjs'
 import { Model, C, meshNode, fixedNode, dynamicNode, refNode, rng } from './kit.mjs'
 import { dogs as dogsData, turkey as turkeyData } from '../../sources/data/dogs.js'
-import { builders, nameBlocks } from './landmarks.mjs'
+import { builders, nameBlocks, christmasTree } from './landmarks.mjs'
 import { dogNodes } from './dogs.mjs'
 import { secrets } from '../../sources/data/secrets.js'
 import { scaleOf } from '../../sources/data/sites.js'
@@ -251,6 +251,7 @@ const inSite = (x, z, margin = 0) => siteFootprints.some(([ fx, fz, hx, hz, angl
 await writeGlb(out('static/areas/areas.glb'), areaNodes, { worldScale: W })
 console.log('areas ok')
 
+const TREE_SPOT = [ 2, 20 ] // the Christmas tree's lawn
 /* ---------------- Exclusion zones (no buildings / trees) ---------------- */
 const exclusions = [
     ...Layout.stops.map(s => ({ x: s.position.x, z: s.position.z, r: s.radius * scaleOf(s.id) + 4 })),
@@ -264,7 +265,7 @@ const exclusions = [
     { rect: [ - 76, - 12, - 40, 36 ] },                              // tennis (2.25x)
     { rect: [ 52, - 34, 70, - 2 ] },                                // Ferry Building
     ...secrets.map(s => ({ x: s.position.x, z: s.position.z, r: s.radius + 4 })),
-    { x: 46, z: - 24, r: 5 }, { x: 37, z: - 7, r: 5 }, { x: 46, z: - 35, r: 5 }, { x: - 34, z: 50, r: 4 },
+    { x: 46, z: - 24, r: 5 }, { x: 41, z: - 15, r: 5 }, { x: TREE_SPOT[0], z: TREE_SPOT[1], r: 9 }, { x: 46, z: - 35, r: 5 }, { x: - 34, z: 50, r: 4 },
 ]
 const excluded = (x, z, margin = 0) => exclusions.some(e => e.rect
     ? x > e.rect[0] - margin && x < e.rect[2] + margin && z > e.rect[1] - margin && z < e.rect[3] + margin
@@ -555,6 +556,23 @@ const footprints = [] // [x, z, w, d, isDowntown] for the map
 
 // Skyline landmarks
 {
+    // Union Square's giant Christmas tree, on its own lawn between Chinatown and the Painted Ladies (clear of every street)
+    {
+        const T = 1.5, k = 1.5
+        const [ tx, tz ] = TREE_SPOT
+        console.log('christmas tree clear of roads:', !nearRoad(tx, tz, 3.4 * T * k), 'not in a site:', !inSite(tx, tz, 7))
+        if(process.env.FIND_TREE)
+        {
+            const spots = []
+            for(let x = - 16; x <= 16; x += 1) for(let z = - 14; z <= 22; z += 1)
+            {
+                let m = 0; while(m < 14 && !nearRoad(x, z, m)) m += 0.5
+                if(!inSite(x, z, 7) && onLand(x, z)) spots.push([ m, x, z ])
+            }
+            console.log(spots.sort((a, b) => b[0] - a[0]).slice(0, 8))
+        }
+        sceneryNodes.push(scaleNode(fixedNode('christmasTree', christmasTree(), [ tx, ground(tx, tz), tz ], [ { shape: 'tube', position: [ 0, 4 * T, 0 ], radius: 2.2 * T, height: 8 * T } ]), k))
+    }
     // Transamerica Pyramid
     const pyramid = new Model()
     pyramid.add(new THREE.CylinderGeometry(0.3, 3.2, 20, 4).translate(0, 10, 0), C.snow, [ 0, 0, 0 ], [ 0, Math.PI / 4, 0 ])
@@ -569,7 +587,7 @@ const footprints = [] // [x, z, w, d, isDowntown] for the map
     sf.dome(1.6, C.stone, [ 0, 26, 0 ], 10)
     for(let i = 0; i < 12; i++)
         sf.cylinder(2.42 - i * 0.065, 2.42 - i * 0.065, 0.08, C.sky, [ 0, 1 + i * 2, 0 ], 10)
-    sceneryNodes.push(fixedNode('salesforce', sf, [ 37, ground(37, - 7), - 7 ], [ { shape: 'tube', position: [ 0, 8, 0 ], radius: 2.3, height: 16 } ]))
+    sceneryNodes.push(fixedNode('salesforce', sf, [ 41, ground(41, - 15), - 15 ], [ { shape: 'tube', position: [ 0, 8, 0 ], radius: 2.3, height: 16 } ]))
 
     // Coit Tower on Telegraph Hill
     const coit = new Model()

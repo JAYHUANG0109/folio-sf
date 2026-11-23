@@ -223,10 +223,10 @@ export class Player
             { name: 'right',                 categories: [ 'wandering', 'racing', 'cinematic' ], keys: [ 'Keyboard.ArrowRight', 'Gamepad.right' ] },
             { name: 'backward',              categories: [ 'wandering', 'racing', 'cinematic' ], keys: [ 'Keyboard.ArrowDown', 'Gamepad.l2' ] },
             { name: 'left',                  categories: [ 'wandering', 'racing', 'cinematic' ], keys: [ 'Keyboard.ArrowLeft', 'Gamepad.left' ] },
-            { name: 'boost',                 categories: [ 'wandering', 'racing'              ], keys: [ 'Keyboard.ShiftLeft', 'Keyboard.ShiftRight', 'Gamepad.triangle', 'Gamepad.r3' ] },
-            { name: 'brake',                 categories: [ 'wandering', 'racing'              ], keys: [ 'Keyboard.KeyB', 'Keyboard.ControlLeft', 'Gamepad.square' ] },
+            { name: 'boost',                 categories: [ 'wandering', 'racing'              ], keys: [ 'Keyboard.ShiftLeft', 'Keyboard.ShiftRight', 'Gamepad.triangle', 'Gamepad.r3', 'Virtual.triangle' ] },
+            { name: 'brake',                 categories: [ 'wandering', 'racing'              ], keys: [ 'Keyboard.KeyB', 'Keyboard.ControlLeft', 'Gamepad.square', 'Virtual.square' ] },
             { name: 'respawn',               categories: [ 'wandering',                       ], keys: [ 'Keyboard.KeyR', 'Gamepad.select' ] },
-            { name: 'suspensions',           categories: [ 'wandering', 'racing'              ], keys: [ 'Keyboard.Numpad5', 'Keyboard.Space', 'Gamepad.cross' ] },
+            { name: 'suspensions',           categories: [ 'wandering', 'racing'              ], keys: [ 'Keyboard.Numpad5', 'Keyboard.Space', 'Gamepad.cross', 'Virtual.cross' ] },
             { name: 'suspensionsFront',      categories: [ 'wandering', 'racing'              ], keys: [ 'Keyboard.Numpad8' ] },
             { name: 'suspensionsBack',       categories: [ 'wandering', 'racing'              ], keys: [ 'Keyboard.Numpad2' ] },
             { name: 'suspensionsRight',      categories: [ 'wandering', 'racing'              ], keys: [ 'Keyboard.Numpad6', 'Gamepad.r1' ] },
@@ -236,7 +236,7 @@ export class Player
             { name: 'suspensionsBackRight',  categories: [ 'wandering', 'racing'              ], keys: [ 'Keyboard.Numpad3', 'Keyboard.Digit4' ] },
             { name: 'suspensionsBackLeft',   categories: [ 'wandering', 'racing'              ], keys: [ 'Keyboard.Numpad1', 'Keyboard.Digit1' ] },
             { name: 'interact',              categories: [ 'wandering', 'racing', 'cinematic' ], keys: [ 'Keyboard.Enter', 'Keyboard.KeyE', 'Keyboard.KeyF', 'Gamepad.cross' ] },
-            { name: 'honk',                  categories: [ 'wandering', 'racing', 'cinematic' ], keys: [ 'Keyboard.KeyH', 'Gamepad.circle', 'Gamepad.l3' ] },
+            { name: 'honk',                  categories: [ 'wandering', 'racing', 'cinematic' ], keys: [ 'Keyboard.KeyH', 'Gamepad.circle', 'Gamepad.l3', 'Virtual.circle' ] },
         ])
 
         // Respawn
@@ -567,6 +567,21 @@ export class Player
         const moveStick = this.game.inputs.gamepad.joysticks[controls.gamepadMoveStick] || this.game.inputs.gamepad.joysticks.left
         if(this.steering === 0 && moveStick.active)
             this.steering = - moveStick.safeX
+
+        /**
+         * On screen joystick (phones): push up to drive, down to reverse, sideways to steer
+         */
+        const pad = this.game.virtualPad?.stick
+        if(pad && pad.active)
+        {
+            const length = Math.hypot(pad.x, pad.y)
+            if(length > 0.15)
+            {
+                const forward = - pad.y
+                this.accelerating = Math.abs(forward) > 0.2 ? Math.sign(forward) * Math.min(1, Math.abs(forward) * 1.3) : 0
+                this.steering = - Math.max(- 1, Math.min(1, pad.x * 1.4))
+            }
+        }
 
         /**
          * Nipple

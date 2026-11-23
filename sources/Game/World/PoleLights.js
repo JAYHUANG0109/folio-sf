@@ -36,7 +36,7 @@ export class PoleLights
         this.game.materials.updateObject(base)
 
         // Create instanced group
-        this.instancedGroup = new InstancedGroup(this.references, base, false)
+        this.instancedGroup = new InstancedGroup(this.references, base, true) // auto update: the lamps can be knocked over
 
         this.glass = this.instancedGroup.meshes.find(mesh => mesh.instance.name === 'glass').instance
         
@@ -48,22 +48,34 @@ export class PoleLights
 
     setPhysics()
     {
+        // light dynamic bodies (asleep until hit): the car knocks them over
+        this.objects = []
         for(const reference of this.references)
         {
-            this.game.objects.add(
-                null,
+            this.objects.push(this.game.objects.add(
+                { model: reference, updateMaterials: false, castShadow: false, receiveShadow: false, parent: null },
                 {
-                    type: 'fixed',
+                    type: 'dynamic',
                     position: reference.position,
                     rotation: reference.quaternion,
-                    colliders: [ { shape: 'cuboid', parameters: [ 0.2, 1.7, 0.2 ], category: 'object' } ],
+                    friction: 0.6,
+                    mass: 0.35,
+                    sleeping: true,
+                    contactThreshold: 15,
+                    colliders: [ { shape: 'cuboid', parameters: [ 0.2, 1.7, 0.2 ], position: { x: 0, y: 1.7, z: 0 }, category: 'object' } ],
                     onCollision: (force, position) =>
                     {
                         this.game.audio.groups.get('hitDefault').playRandomNext(force, position)
                     }
                 },
-            )
+            ))
         }
+        this.game.ticker.events.on('tick', () =>
+        {
+            for(const object of this.objects)
+                if(!object.physical.body.isSleeping() && object.physical.body.isEnabled())
+                    object.visual.object3D.needsUpdate = true
+        }, 10)
     }
 
     // setEmissives()

@@ -135,6 +135,44 @@ const GLYPHS = {
     '♥': [ '.#.#.', '#####', '#####', '.###.', '..#..' ],
 }
 
+/** 3x5 pixel font for painted sign lettering (merged into a model, not physical) */
+const FONT = {
+    A: '###' + '#.#' + '###' + '#.#' + '#.#', B: '##.#.###.#.###.', D: '##.#.##.##.###.', G: '####..#.##.####', H: '#.#' + '#.#' + '###' + '#.#' + '#.#', K: '#.##.###.#.##.#',
+    L: '#..#..#..#..###', M: '#.#' + '###' + '###' + '#.#' + '#.#', N: '##.#.##.##.##.#', P: '###' + '#.#' + '###' + '#..' + '#..', Q: '####.##.####..#', T: '###.#..#..#..#.',
+    U: '#.##.##.##.####', V: '#.##.##.##.#.#.', W: '#.##.##.#####.#', X: '#.##.#.#.#.##.#', Z: '###..#.#.#..###',
+    '0': '####.##.##.####', '1': '.#.##..#..#.###', '2': '###..#####..###', '3': '###..####..####', '5': '####..###..####',
+    '6': '####..####.####', '7': '###..#..#..#..#', '8': '####.#####.####', "'": '.#.' + '.#.' + '...' + '...' + '...', '.': '...' + '...' + '...' + '...' + '.#.', '-': '......###......', ' ': '...............',
+}
+for(const [ k, v ] of Object.entries(FONT))
+    FONT[k] = v.padEnd(15, '.')
+for(const [ k, rows ] of Object.entries(GLYPHS))
+    if(rows[0].length === 3 && !FONT[k])
+        FONT[k] = rows.join('')
+FONT.A = GLYPHS.A.join('')
+
+/** Paint text into a model: centered on origin [x, y, z] (y = bottom of the letters), reading along +x, facing +z (or -z with back) */
+export function pixelText(model, text, color, origin = [ 0, 0, 0 ], cell = 0.12, { depth = 0.04, back = false } = {})
+{
+    const chars = [ ...text.toUpperCase() ]
+    const advance = cell * 4
+    const width = chars.length * advance - cell
+    chars.forEach((char, ci) =>
+    {
+        const glyph = FONT[char] || FONT[' ']
+        for(let i = 0; i < 15; i++)
+        {
+            if(glyph[i] !== '#')
+                continue
+            const col = i % 3, row = Math.floor(i / 3)
+            let x = - width / 2 + ci * advance + col * cell + cell / 2
+            if(back)
+                x = - x
+            model.cbox([ cell, cell, depth ], color, [ origin[0] + x, origin[1] + (4 - row) * cell + cell / 2, origin[2] ])
+        }
+    })
+    return width
+}
+
 function letter(char, color, cell = 0.4)
 {
     const m = new Model()
@@ -321,14 +359,10 @@ builders.ferryBuilding = (ctx) =>
     return nodes
 }
 
-/** 3. Union Square: an open plaza. The big tree stands where the Dewey column was (east), the rink fills the west side */
-builders.unionSquare = (ctx) =>
+/** Union Square's giant Christmas tree (model only, T = 1.5x) */
+export function christmasTree()
 {
-    const nodes = []
-    const cx = 34, cz = 13
-    const T = 1.5 // the tree is 1.5x bigger than the other site parts
-
-    // Christmas tree
+    const T = 1.5
     const tree = new Model()
     tree.cylinder(0.4 * T, 0.5 * T, 1.4 * T, C.wood, [ 0, 0, 0 ], 6)
     const tiers = 6
@@ -356,7 +390,17 @@ builders.unionSquare = (ctx) =>
         tree.box([ size, size, size ], [ C.red, C.sky, C.gold, C.pink ][i % 4], [ Math.cos(a) * 3.2 * T, 0, Math.sin(a) * 3.2 * T ])
         tree.cbox([ size + 0.04, 0.1, 0.12 ], C.snow, [ Math.cos(a) * 3.2 * T, size, Math.sin(a) * 3.2 * T ])
     }
-    nodes.push(fixedNode('christmasTree', tree, ctx.at(cx + 3, cz - 3.5), [ { shape: 'tube', position: [ 0, 4 * T, 0 ], radius: 2.2 * T, height: 8 * T } ]))
+    return tree
+}
+
+/** 3. Union Square: an open plaza. The big tree stands where the Dewey column was (east), the rink fills the west side */
+builders.unionSquare = (ctx) =>
+{
+    const nodes = []
+    const cx = 34, cz = 13
+    const T = 1.5 // the tree is 1.5x bigger than the other site parts
+
+    // the Christmas tree now stands on its own lawn west of Chinatown (scenery, see build.mjs), off the streets
 
     // Ice rink (bigger), west side of the square: slippery!
     const W = 12, D = 8
@@ -389,7 +433,30 @@ builders.unionSquare = (ctx) =>
     macys.cbox([ 1.6, 1.6, 0.2 ], C.red, [ 0, 7.9, - 2.4 ], [ 0, 0, Math.PI / 4 ])
     macys.add(new THREE.TorusGeometry(0.8, 0.25, 5, 10), C.moss, [ - 4.4, 5.2, - 2.6 ])
     macys.add(new THREE.TorusGeometry(0.8, 0.25, 5, 10), C.moss, [ 4.4, 5.2, - 2.6 ])
+    pixelText(macys, "MACY'S", C.red, [ 0, 5.85, - 2.56 ], 0.2, { back: true })
+    macys.box([ 14.2, 0.5, 0.6 ], C.red, [ 0, 1.0, - 2.8 ])                         // red awnings over the doors
     nodes.push(fixedNode('macys', macys, ctx.at(cx, cz + 13), [ { position: [ 0, 3.5, 0 ], size: [ 14, 7, 5 ] } ]))
+
+    // the painted Union Square hearts, on their pedestals
+    const heartShape = new THREE.Shape()
+    heartShape.moveTo(0, - 1)
+    heartShape.bezierCurveTo(- 0.2, - 0.6, - 1.2, - 0.3, - 1.2, 0.35)
+    heartShape.bezierCurveTo(- 1.2, 1.05, - 0.25, 1.15, 0, 0.55)
+    heartShape.bezierCurveTo(0.25, 1.15, 1.2, 1.05, 1.2, 0.35)
+    heartShape.bezierCurveTo(1.2, - 0.3, 0.2, - 0.6, 0, - 1)
+    const heartGeometry = () => new THREE.ExtrudeGeometry(heartShape, { depth: 0.5, bevelEnabled: true, bevelThickness: 0.12, bevelSize: 0.1, bevelSegments: 2, curveSegments: 10 }).translate(0, 0, - 0.25)
+    for(const [ x, z, colors, ry ] of [ [ cx + 6, cz - 5, [ C.red, C.gold, C.sky ], 0.5 ], [ cx + 3, cz + 8.5, [ C.pink, C.purple, C.snow ], - 0.4 ] ])
+    {
+        const heart = new Model()
+        heart.box([ 1.6, 0.6, 1 ], C.stone)
+        heart.add(heartGeometry(), colors[0], [ 0, 1.65, 0 ], [ 0, 0, 0 ], 1.05)
+        // painted stripes and dots
+        heart.cbox([ 1.9, 0.18, 0.78 ], colors[1], [ 0, 1.75, 0 ], [ 0, 0, 0.25 ])
+        heart.cbox([ 1.5, 0.14, 0.8 ], colors[2], [ 0, 1.25, 0 ], [ 0, 0, - 0.3 ])
+        for(const [ dx, dy ] of [ [ - 0.6, 2.2 ], [ 0.55, 2.25 ], [ 0.1, 0.95 ] ])
+            heart.cylinder(0.12, 0.12, 0.82, colors[2], [ dx, dy, - 0.41 ], 8, [ Math.PI / 2, 0, 0 ])
+        nodes.push({ ...fixedNode('unionHeart', heart, ctx.at(x, z), [ { position: [ 0, 1.3, 0 ], size: [ 1.8, 2.6, 0.9 ] } ]), rotation: [ 0, ry, 0 ] })
+    }
 
     // palms only on the outer corners, the middle stays open for driving
     for(const [ x, z ] of [ [ cx + 8.5, cz + 7.5 ], [ cx - 10.5, cz + 8.5 ] ])
@@ -776,17 +843,79 @@ builders.pier39 = (ctx) =>
     ramp.box([ 10, 0.3, 3 ], C.wood, [ 0, - 0.3, 0 ])
     nodes.push(fixedNode('pierRamp', ramp, local(cx, deckY - 0.05, z0 + 1.2), [ { position: [ 0, - 0.15, 0 ], size: [ 10, 0.3, 3 ] } ]))
 
-    // shops with striped awnings
+    // two storey weathered wood shops (like the real pier), awnings, shop signs and balconies
     const shopColors = [ C.sky, C.red, C.gold, C.sage ]
+    const shopNames = [ 'CRAB', 'FUDGE', 'CREPES', 'GIFTS' ]
     for(let i = 0; i < 4; i++)
     {
         const shop = new Model()
         shop.box([ 2.6, 2.4, 3 ], C.wood)
-        shop.gable(3.2, 3, 0.9, C.dark, [ 0, 2.4, 0 ])
-        shop.cbox([ 0.9, 0.12, 3 ], shopColors[i], [ 1.6, 1.9, 0 ], [ 0, 0, - 0.3 ])
-        shop.cbox([ 0.06, 1.2, 1.4 ], C.black, [ 1.32, 0.9, 0 ])
+        shop.box([ 2.4, 1.6, 2.8 ], C.khaki, [ - 0.1, 2.4, 0 ])                    // upper floor
+        shop.gable(3.2, 3, 0.9, C.slate, [ - 0.1, 4.0, 0 ])
+        shop.cbox([ 0.9, 0.12, 3 ], shopColors[i], [ 1.6, 1.9, 0 ], [ 0, 0, - 0.3 ])   // awning
+        shop.cbox([ 0.06, 1.2, 1.4 ], C.black, [ 1.32, 0.9, 0 ])                      // shop window
+        for(const z of [ - 0.8, 0.8 ])
+            shop.cbox([ 0.06, 0.6, 0.6 ], C.black, [ 1.12, 3.2, z ])                   // upstairs windows
+        shop.box([ 0.5, 0.08, 3 ], C.wood, [ 1.35, 2.4, 0 ])                          // balcony
+        shop.cbox([ 0.06, 0.45, 3 ], C.snow, [ 1.58, 2.7, 0 ])                        // balcony rail
+        shop.cbox([ 0.08, 0.5, 2.4 ], shopColors[i], [ 1.33, 2.0, 0 ])                // name board
+        const label = new Model()
+        pixelText(label, shopNames[i], C.snow, [ 0, 1.82, 0 ], 0.075)
+        shop.merge(label, [ 1.38, 0, 0 ], [ 0, Math.PI / 2, 0 ])
         const x = i % 2 ? cx + 3.2 : cx - 3.2
-        nodes.push({ ...fixedNode('pierShop', shop, local(x, deckY, - 56 - Math.floor(i / 2) * 5), [ { position: [ 0, 1.2, 0 ], size: [ 2.6, 2.4, 3 ] } ]), rotation: [ 0, i % 2 ? Math.PI : 0, 0 ] })
+        nodes.push({ ...fixedNode('pierShop', shop, local(x, deckY, - 56 - Math.floor(i / 2) * 5), [ { position: [ 0, 1.6, 0 ], size: [ 2.6, 3.2, 3 ] } ]), rotation: [ 0, i % 2 ? Math.PI : 0, 0 ] })
+    }
+
+    // lamp posts with red Christmas bows along the rails, and strings of bulbs criss-crossing the deck
+    const decor = new Model()
+    const bulbs = new Model()
+    for(let z = z0 - 2; z > z1 + 1; z -= 3)
+    {
+        for(const side of [ - 1, 1 ])
+        {
+            const x = side * 4.6
+            decor.cylinder(0.07, 0.09, 3, C.dark, [ x, 0, z - (z0 + z1) / 2 ], 6)
+            decor.sphere(0.2, C.cream, [ x, 3.1, z - (z0 + z1) / 2 ], 1)
+            decor.sphere(0.16, C.red, [ x, 2.3, z - (z0 + z1) / 2 + side * 0.05 ], 0, [ 1.6, 1, 0.6 ])  // bow
+            decor.cbox([ 0.08, 0.5, 0.08 ], C.red, [ x, 2.0, z - (z0 + z1) / 2 ], [ 0, 0, 0.3 ])
+            bulbs.sphere(0.12, C.gold, [ x, 3.1, z - (z0 + z1) / 2 ], 1)
+        }
+        for(let k = 0; k <= 12; k++)
+        {
+            const t = k / 12
+            bulbs.sphere(0.07, C.gold, [ - 4.6 + 9.2 * t, 3.0 - Math.sin(t * Math.PI) * 0.6, z - 1.5 * t - (z0 + z1) / 2 ], 0)
+        }
+    }
+    nodes.push(meshNode('pierDecor', decor, local(cx, deckY, (z0 + z1) / 2)))
+    nodes.push({ ...meshNode('pierLights', bulbs, local(cx, deckY, (z0 + z1) / 2)), mesh: { geometry: bulbs.geometry(), material: 'emissiveOrangeRadialGradient' } })
+
+    // the famous crab statue on its red planter, just inside the entrance
+    {
+        const crab = new Model()
+        crab.box([ 1.6, 0.5, 1.6 ], C.red)
+        crab.box([ 1.7, 0.08, 1.7 ], C.brick, [ 0, 0.5, 0 ])
+        crab.sphere(0.7, C.olive, [ 0, 1.2, 0 ], 1, [ 1.3, 0.75, 1 ])                  // body, planted with yellow flowers
+        const rr = rng(390)
+        for(let k = 0; k < 26; k++)
+        {
+            const a = rr() * Math.PI * 2, e = rr() * 0.9
+            crab.sphere(0.09, k % 3 ? C.gold : C.sage, [ Math.cos(a) * 0.85 * Math.cos(e), 1.2 + Math.sin(e) * 0.5, Math.sin(a) * 0.65 * Math.cos(e) ], 0)
+        }
+        for(const side of [ - 1, 1 ])
+        {
+            for(let l = 0; l < 3; l++)
+            {
+                const z = - 0.35 + l * 0.35
+                crab.beam([ side * 0.75, 1.1, z ], [ side * 1.3, 1.35, z * 1.3 ], 0.08, C.dark)
+                crab.beam([ side * 1.3, 1.35, z * 1.3 ], [ side * 1.55, 0.55, z * 1.5 ], 0.07, C.dark)
+            }
+            crab.beam([ side * 0.6, 1.4, - 0.5 ], [ side * 1.0, 2.3, - 0.8 ], 0.12, C.dark)             // arm up
+            crab.sphere(0.32, C.dark, [ side * 1.05, 2.7, - 0.85 ], 1, [ 0.7, 1.3, 0.5 ])               // claw
+            crab.cbox([ 0.12, 0.5, 0.18 ], C.dark, [ side * 0.92, 3.05, - 0.85 ], [ 0, 0, side * 0.4 ])
+            crab.cylinder(0.03, 0.03, 0.5, C.dark, [ side * 0.2, 1.6, - 0.55 ], 4)                      // eye stalks
+            crab.sphere(0.07, C.dark, [ side * 0.2, 2.1, - 0.55 ], 0)
+        }
+        nodes.push(fixedNode('crabStatue', crab, local(cx - 3.4, deckY, - 53.3), [ { position: [ 0, 0.8, 0 ], size: [ 1.6, 1.6, 1.6 ] } ]))
     }
 
     // carousel
@@ -803,8 +932,37 @@ builders.pier39 = (ctx) =>
     carousel.sphere(0.2, C.gold, [ 0, 4.1, 0 ], 0)
     nodes.push(fixedNode('carousel', carousel, local(cx, deckY, - 62.5), [ { shape: 'tube', position: [ 0, 1.5, 0 ], radius: 2.2, height: 3 } ]))
 
-    // PIER 39 sign
-    nodes.push(meshNode('pierSign', sign(7, 4.2, C.sky, C.snow), local(cx, deckY, z0 - 0.5)))
+    // PIER 39 gateway: wooden towers either side of the entrance, the blue sign across, a cupola and the flag on top
+    {
+        const gate = new Model()
+        for(const side of [ - 1, 1 ])
+        {
+            gate.box([ 0.8, 4.6, 0.8 ], C.wood, [ side * 4.55, 0, 0 ])
+            gate.box([ 0.95, 0.2, 0.95 ], C.snow, [ side * 4.55, 4.6, 0 ])
+        }
+        gate.box([ 10, 0.7, 0.5 ], C.wood, [ 0, 4.6, 0 ])
+        gate.box([ 7.2, 1.3, 0.3 ], C.sky, [ 0, 4.9, 0.25 ])                // the blue sign
+        gate.box([ 7.4, 0.1, 0.32 ], C.snow, [ 0, 4.85, 0.25 ])
+        gate.box([ 7.4, 0.1, 0.32 ], C.snow, [ 0, 6.15, 0.25 ])
+        pixelText(gate, 'PIER 39', C.snow, [ 0, 5.15, 0.42 ], 0.17, { depth: 0.06 })
+        pixelText(gate, 'PIER 39', C.snow, [ 0, 5.15, 0.08 ], 0.17, { depth: 0.06, back: true })
+        gate.cylinder(0.75, 0.85, 0.9, C.snow, [ 0, 6.2, 0 ], 8)              // octagonal cupola
+        for(let k = 0; k < 8; k++)
+        {
+            const a = k / 8 * Math.PI * 2
+            gate.cbox([ 0.22, 0.4, 0.04 ], C.dark, [ Math.cos(a) * 0.8, 6.65, Math.sin(a) * 0.8 ], [ 0, - a + Math.PI / 2, 0 ])
+        }
+        gate.cone(0.95, 0.5, C.slate, [ 0, 7.1, 0 ], 8)
+        gate.cylinder(0.03, 0.03, 1.6, C.snow, [ 0, 7.6, 0 ], 4)              // flag
+        gate.cbox([ 0.9, 0.5, 0.02 ], C.red, [ 0.47, 8.9, 0 ])
+        gate.cbox([ 0.38, 0.26, 0.03 ], C.sky, [ 0.21, 9.03, 0 ])
+        for(let k = 0; k < 3; k++)
+            gate.cbox([ 0.9, 0.05, 0.025 ], C.snow, [ 0.47, 8.72 + k * 0.1, 0 ])
+        nodes.push(fixedNode('pierGate', gate, local(cx, deckY, z0 + 0.4), [
+            { position: [ - 4.55, 2.3, 0 ], size: [ 0.8, 4.6, 0.8 ] },
+            { position: [ 4.55, 2.3, 0 ], size: [ 0.8, 4.6, 0.8 ] },
+        ]))
+    }
 
     // Sea lion floats west of the pier, with sea lions you can push around
     const r = rng(39)
@@ -887,7 +1045,7 @@ builders.lombard = (ctx) =>
     const lastX = firstLegX + hairpins * spacing
     const edgeN = north - r - lane / 2 - 0.55 // outer hedges, north and south of the block
     const edgeS = south + r + lane / 2 + 0.55
-    const blooms = [ C.pink, C.purple, C.lavender, C.red, C.blush, C.snow ]
+    const blooms = [ C.pink, C.blush, C.lavender, C.sky, C.snow, C.pink, C.purple, C.blush ] // hydrangeas: pink, blue, white, violet
     const r0 = rng(77)
 
     // a clipped box hedge with hydrangea / rose blooms on top, running along z
@@ -897,11 +1055,21 @@ builders.lombard = (ctx) =>
         const m = new Model()
         m.box([ width, 0.18, length ], C.brick)                    // brick curb
         m.box([ width - 0.12, height, length - 0.12 ], C.moss, [ 0, 0.1, 0 ])
-        const count = Math.max(2, Math.round(length / 0.55))
+        // leafy shrub mounds, each crowned with a round hydrangea head (a cluster of little florets)
+        const count = Math.max(2, Math.round(length / 0.6))
         for(let k = 0; k < count; k++)
         {
             const z = - length / 2 + 0.3 + (length - 0.6) * k / (count - 1)
-            m.sphere(0.2 + rr() * 0.1, blooms[Math.floor(rr() * blooms.length)], [ (rr() - 0.5) * (width - 0.4), height + 0.12, z ], 0)
+            const x = (rr() - 0.5) * Math.max(0, width - 0.5)
+            m.sphere(0.3, rr() < 0.5 ? C.moss : C.sage, [ x, height + 0.08, z ], 1, [ 1.2, 0.6, 1.1 ])
+            const color = blooms[Math.floor(rr() * blooms.length)]
+            const y = height + 0.3
+            m.sphere(0.19, color, [ x, y, z ], 1)
+            for(let f = 0; f < 4; f++)
+            {
+                const a = f / 4 * Math.PI * 2 + rr()
+                m.sphere(0.12, color, [ x + Math.cos(a) * 0.13, y + 0.04 + rr() * 0.06, z + Math.sin(a) * 0.13 ], 1)
+            }
         }
         return m
     }
@@ -974,7 +1142,7 @@ builders.lombard = (ctx) =>
     for(let k = 0; k < hairpins; k += 2)
     {
         const x = firstLegX + k * spacing + r
-        nodes.push(meshNode('lombardLamp', lampPost(2.2), ctx.at(x, edgeN - 0.6)))
+        nodes.push(dynamicNode('lombardLamp', lampPost(2.2), ctx.at(x, edgeN - 0.6), [ { position: [ 0, 1.1, 0 ], size: [ 0.25, 2.2, 0.25 ] } ], 0.3)) // knockable
     }
 
     // Cable car on Hyde St, a kinematic body moving along the line (path in world coordinates)
@@ -1012,39 +1180,123 @@ builders.lombard = (ctx) =>
 /** 8. Dolores Park */
 builders.doloresPark = (ctx) =>
 {
+    // Like the real park: a wide lawn sloping down toward downtown, full of people on picnic blankets,
+    // palms along the edges, the curving path, a playground, and Mission High's white tower with its dome
     const nodes = []
     const cx = 10, cz = 42
     const r = rng(8)
-    for(let i = 0; i < 6; i++)
+    const skins = [ C.peach, C.blush, C.khaki, C.wood ]
+    const clothes = [ C.red, C.sky, C.snow, C.dark, C.gold, C.sage, C.pink, C.lavender, C.slate ]
+
+    // people relaxing on the lawn (no collisions: drive gently around them)
+    const crowd = new Model()
+    const person = (x, z, facing, sitting) =>
     {
-        const x = cx - 6 + i * 2.6, z = cz - 6 + (i % 2) * 0.8
-        nodes.push(dynamicNode('palm', palmTree(5 + r() * 2), ctx.at(x, z), [ { shape: 'tube', position: [ 0, 2, 0 ], radius: 0.3, height: 4 } ], 0.5))
+        const c = clothes[Math.floor(r() * clothes.length)], skin = skins[Math.floor(r() * skins.length)]
+        const m = new Model()
+        if(sitting)
+        {
+            m.cbox([ 0.34, 0.42, 0.24 ], c, [ 0, 0.27, 0 ])
+            m.cbox([ 0.3, 0.14, 0.45 ], C.slate, [ 0, 0.08, - 0.25 ])
+            m.sphere(0.14, skin, [ 0, 0.62, 0 ], 1)
+        }
+        else
+        {
+            m.cbox([ 0.3, 0.55, 0.22 ], C.slate, [ 0, 0.28, 0 ])
+            m.cbox([ 0.36, 0.5, 0.24 ], c, [ 0, 0.8, 0 ])
+            m.sphere(0.14, skin, [ 0, 1.18, 0 ], 1)
+        }
+        m.sphere(0.145, r() < 0.5 ? C.black : C.wood, [ 0, sitting ? 0.68 : 1.24, 0.03 ], 0, [ 1, 0.6, 1 ])  // hair
+        const [ wx, wy, wz ] = ctx.at(x, z)
+        crowd.merge(m, [ wx / ctx.S, wy / ctx.S, wz / ctx.S ], [ 0, facing, 0 ])
     }
-    // picnic blankets with snacks
-    const blankets = [ C.red, C.sky, C.gold, C.pink ]
-    for(let i = 0; i < 4; i++)
+    const blanketModel = new Model()
+    const blankets = [ C.red, C.sky, C.gold, C.pink, C.sage, C.snow, C.lavender ]
+    const spots = []
+    for(let i = 0; i < 40 && spots.length < 16; i++)
+    {
+        const a = r() * Math.PI * 2, d = Math.sqrt(r()) * 6.2
+        const x = cx - 1 + Math.cos(a) * d * 1.15, z = cz + 1 + Math.sin(a) * d * 0.8
+        if(spots.some(([ sx, sz ]) => Math.hypot(sx - x, sz - z) < 2.2))
+            continue
+        spots.push([ x, z ])
+    }
+    for(const [ x, z ] of spots)
     {
         const b = new Model()
-        b.box([ 2, 0.03, 1.6 ], blankets[i])
-        b.box([ 0.4, 0.3, 0.3 ], C.wood, [ 0.5, 0.03, 0.3 ])
-        b.cylinder(0.08, 0.08, 0.35, C.snow, [ - 0.4, 0.03, - 0.3 ], 5)
-        nodes.push({ ...meshNode('blanket', b, ctx.at(cx - 4 + i * 3, cz + 2 + (i % 2) * 2.5, 0.02)), rotation: [ 0, r() * 0.8, 0 ] })
+        b.box([ 1.6, 0.03, 1.2 ], blankets[Math.floor(r() * blankets.length)])
+        b.cbox([ 1.6, 0.032, 0.12 ], C.snow, [ 0, 0.016, 0.25 ])
+        if(r() < 0.6) b.box([ 0.35, 0.25, 0.25 ], C.wood, [ 0.45, 0.03, - 0.3 ])          // basket
+        if(r() < 0.6) b.cylinder(0.06, 0.06, 0.28, C.sage, [ - 0.5, 0.03, - 0.35 ], 5)   // bottle
+        const [ wx, wy, wz ] = ctx.at(x, z, 0.02)
+        const rot = r() * 0.8
+        blanketModel.merge(b, [ wx / ctx.S, wy / ctx.S, wz / ctx.S ], [ 0, rot, 0 ])
+        // everyone faces downhill, toward the skyline (north east)
+        const n = 1 + Math.floor(r() * 3)
+        for(let k = 0; k < n; k++)
+            person(x - 0.5 + k * 0.5, z + 0.1 + (k % 2) * 0.25, Math.PI * 0.8 + (r() - 0.5) * 0.6, true)
     }
-    // golden fire hydrant (the famous one is nearby)
+    for(let i = 0; i < 6; i++)
+        person(cx - 6 + r() * 12, cz - 5 + r() * 10, r() * Math.PI * 2, false)
+    nodes.push({ ...meshNode('picnics', blanketModel, [ 0, 0, 0 ]), noScale: false })
+    nodes.push(meshNode('parkCrowd', crowd, [ 0, 0, 0 ]))
+
+    // the curving concrete path around the lawn
+    const path = new Model()
+    for(let i = 0; i < 48; i++)
+    {
+        const a = i / 48 * Math.PI * 2
+        const x = cx - 1 + Math.cos(a) * 7.8, z = cz + 1 + Math.sin(a) * 5.6
+        const [ wx, wy, wz ] = ctx.at(x, z, 0.015)
+        path.cbox([ 0.7, 0.03, 1.15 ], C.stone, [ wx / ctx.S, wy / ctx.S, wz / ctx.S ], [ 0, - a, 0 ])
+    }
+    nodes.push(meshNode('parkPath', path, [ 0, 0, 0 ]))
+
+    // tall palms around the edges (knockable)
+    for(const [ x, z, h ] of [ [ cx - 8, cz - 3, 7 ], [ cx - 8.5, cz + 2, 6 ], [ cx - 6, cz + 7, 7.5 ], [ cx + 4, cz + 7.5, 6.5 ], [ cx + 7.5, cz + 4.5, 7 ], [ cx + 2, cz - 6.5, 6 ], [ cx - 3, cz - 6.8, 6.8 ] ])
+        nodes.push(dynamicNode('palm', palmTree(h), ctx.at(x, z), [ { shape: 'tube', position: [ 0, 2, 0 ], radius: 0.3, height: 4 } ], 0.5))
+
+    // playground at the south west corner
+    const play = new Model()
+    play.box([ 2.6, 0.05, 2.2 ], C.khaki)
+    for(const [ x, z ] of [ [ - 0.8, - 0.6 ], [ 0.2, - 0.6 ], [ - 0.8, 0.4 ], [ 0.2, 0.4 ] ])
+        play.cylinder(0.06, 0.06, 1.4, C.red, [ x, 0, z ], 5)
+    play.box([ 1.2, 0.1, 1.2 ], C.sky, [ - 0.3, 0.9, - 0.1 ])
+    play.cone(0.8, 0.6, C.gold, [ - 0.3, 1.4, - 0.1 ], 4, [ 0, Math.PI / 4, 0 ])
+    play.cbox([ 0.5, 0.06, 1.4 ], C.red, [ 0.75, 0.5, - 0.1 ], [ 0.6, 0, 0 ])             // slide
+    play.cbox([ 0.5, 0.06, 1.4 ], C.red, [ 0.6, 0.45, - 0.1 ], [ 0, 0, 0.6 ])
+    nodes.push(fixedNode('playground', play, ctx.at(cx - 6.5, cz + 4.5), [ { position: [ - 0.3, 0.7, - 0.1 ], size: [ 1.3, 1.4, 1.3 ] } ]))
+
+    // Mission High School on the east side: white walls, orange tile roofs, the ornate white tower with a dome
+    {
+        const m = new Model()
+        m.box([ 3, 2.6, 9 ], C.snow)
+        m.gable(9.2, 3.2, 1, C.salmon, [ 0, 2.6, 0 ], [ 0, Math.PI / 2, 0 ])
+        for(let i = 0; i < 7; i++)
+            for(const y of [ 0.7, 1.7 ])
+                m.cbox([ 0.05, 0.55, 0.45 ], C.black, [ - 1.52, y, - 3.6 + i * 1.2 ])
+        // the tower, rising from the middle of the west facade
+        m.box([ 1.6, 6.4, 1.6 ], C.snow, [ - 1.2, 0, 0 ])
+        m.box([ 1.8, 0.2, 1.8 ], C.cream, [ - 1.2, 3.2, 0 ])
+        m.box([ 1.8, 0.2, 1.8 ], C.cream, [ - 1.2, 6.4, 0 ])
+        for(const y of [ 4.2, 5.4 ])
+            m.cbox([ 0.05, 0.7, 0.5 ], C.black, [ - 2.02, y, 0 ])
+        m.cylinder(0.08, 0.08, 0.1, C.cream, [ - 1.2, 6.6, 0 ], 4)
+        m.box([ 1.3, 1.2, 1.3 ], C.snow, [ - 1.2, 6.6, 0 ])                          // belfry
+        for(const z of [ - 0.4, 0.4 ])
+            m.cbox([ 0.05, 0.7, 0.3 ], C.dark, [ - 1.86, 7.1, z ])
+        m.sphere(0.75, C.salmon, [ - 1.2, 7.8, 0 ], 1, [ 1, 1.1, 1 ])                  // tiled dome
+        m.cylinder(0.05, 0.05, 0.6, C.gold, [ - 1.2, 8.6, 0 ], 4)
+        m.sphere(0.1, C.gold, [ - 1.2, 9.25, 0 ], 0)
+        nodes.push(fixedNode('missionHigh', m, ctx.at(cx + 10.5, cz - 0.5), [ { position: [ 0, 1.3, 0 ], size: [ 3, 2.6, 9 ] }, { position: [ - 1.2, 4, 0 ], size: [ 1.6, 8, 1.6 ] } ]))
+    }
+
+    // the golden fire hydrant (the famous one is just up the hill)
     const hydrant = new Model()
     hydrant.cylinder(0.25, 0.3, 0.8, C.gold, [ 0, 0, 0 ], 8)
     hydrant.sphere(0.27, C.gold, [ 0, 0.8, 0 ], 0)
     hydrant.cylinder(0.1, 0.1, 0.5, C.gold, [ 0, 0.5, 0 ], 6, [ 0, 0, Math.PI / 2 ])
-    nodes.push(fixedNode('hydrant', hydrant, ctx.at(cx + 8, cz - 3), [ { shape: 'tube', position: [ 0, 0.5, 0 ], radius: 0.3, height: 1 } ]))
-    // Mission Dolores church on the west side
-    const church = new Model()
-    church.box([ 4, 4, 9 ], C.snow)
-    church.gable(9.2, 4.4, 1.6, C.brick, [ 0, 4, 0 ], [ 0, Math.PI / 2, 0 ]) // ridge along the nave (z)
-    church.box([ 4.4, 1.2, 0.6 ], C.snow, [ 0, 4, - 4.6 ])
-    church.box([ 1.2, 1, 0.1 ], C.wood, [ 0, 0, - 4.55 ])
-    for(const x of [ - 1.4, 1.4 ])
-        church.cylinder(0.3, 0.3, 3.6, C.cream, [ x, 0, - 4.7 ], 6)
-    nodes.push({ ...fixedNode('church', church, ctx.at(cx + 10, cz + 1), [ { position: [ 0, 2.5, 0 ], size: [ 4.2, 5, 9.4 ] } ]), rotation: [ 0, Math.PI / 2, 0 ] })
+    nodes.push(fixedNode('hydrant', hydrant, ctx.at(cx - 8.5, cz + 6), [ { shape: 'tube', position: [ 0, 0.5, 0 ], radius: 0.3, height: 1 } ]))
     return nodes
 }
 
@@ -1231,9 +1483,21 @@ builders.levis = (ctx) =>
         field.box([ 0.12, 0.06, 11 ], C.snow, [ - 10 + i * 2, 0, 0 ])
     field.box([ 2, 0.055, 11 ], C.red, [ - 11, 0, 0 ])
     field.box([ 2, 0.055, 11 ], C.red, [ 11, 0, 0 ])
-    // midfield logo
-    field.cylinder(1.4, 1.4, 0.07, C.red, [ 0, 0, 0 ], 12)
-    field.cylinder(1.0, 1.0, 0.08, C.gold, [ 0, 0, 0 ], 12)
+    // midfield logo: the red SF oval with a gold ring
+    field.cylinder(1.6, 1.6, 0.07, C.gold, [ 0, 0, 0 ], 20, undefined)
+    field.add(new THREE.CylinderGeometry(1.45, 1.45, 0.08, 20).translate(0, 0.04, 0), C.red, [ 0, 0, 0 ], [ 0, 0, 0 ], [ 1.35, 1, 0.85 ])
+    {
+        const logo = new Model()
+        pixelText(logo, 'SF', C.snow, [ 0, - 0.38, 0 ], 0.17, { depth: 0.04 })
+        field.merge(logo, [ 0, 0.1, 0 ], [ - Math.PI / 2, 0, 0 ])
+    }
+    // yard numbers
+    for(const [ i, n ] of [ [ 1, '10' ], [ 2, '20' ], [ 3, '30' ], [ 4, '40' ], [ 5, '50' ], [ 6, '40' ], [ 7, '30' ], [ 8, '20' ], [ 9, '10' ] ])
+    {
+        const t = new Model()
+        pixelText(t, n, C.snow, [ 0, 0, 0 ], 0.09, { depth: 0.03 })
+        field.merge(t, [ - 10 + i * 2, 0.07, 4 ], [ - Math.PI / 2, 0, 0 ])
+    }
     nodes.push(meshNode('field', field, ctx.at(cx, cz, 0.01)))
 
     // goal posts
@@ -1268,15 +1532,38 @@ builders.levis = (ctx) =>
     addStand('standWest', cx - 15.5, cz, 9, - Math.PI / 2)
     addStand('standEast', cx + 15.5, cz, 9, Math.PI / 2)
 
-    // scoreboard tower
-    const board = new Model()
-    board.box([ 0.6, 8, 0.6 ], C.dark, [ - 3, 0, 0 ])
-    board.box([ 0.6, 8, 0.6 ], C.dark, [ 3, 0, 0 ])
-    board.box([ 8, 3.2, 0.5 ], C.black, [ 0, 7, 0 ])
-    board.box([ 3.4, 1.2, 0.55 ], C.red, [ - 2, 8.2, 0 ])
-    board.box([ 3.4, 1.2, 0.55 ], C.sky, [ 2, 8.2, 0 ])
-    board.box([ 7.4, 0.4, 0.55 ], C.gold, [ 0, 7.3, 0 ])
-    nodes.push(fixedNode('scoreboard', board, ctx.at(cx, cz - 15), [ { position: [ 0, 4, 0 ], size: [ 7, 8, 0.6 ] } ]))
+    // the suite tower on the north side: stacked glass decks, a green roof, LEVI'S STADIUM in red letters
+    {
+        const tower = new Model()
+        tower.box([ 24, 9, 3.6 ], C.stone)
+        for(let lvl = 0; lvl < 4; lvl++)
+        {
+            tower.box([ 24.1, 1.1, 3.7 ], C.slate, [ 0, 1.2 + lvl * 1.9, 0 ])                  // glass bands
+            tower.box([ 24.2, 0.15, 3.9 ], C.snow, [ 0, 2.35 + lvl * 1.9, 0 ])
+        }
+        tower.box([ 24.4, 0.3, 4 ], C.snow, [ 0, 9, 0 ])
+        tower.box([ 23, 0.25, 3.2 ], C.moss, [ 0, 9.3, 0 ])                                  // the green roof
+        for(let i = 0; i < 10; i++)
+            tower.cbox([ 1.6, 0.08, 1.1 ], C.slate, [ - 9.9 + i * 2.2, 9.6, 0.5 ], [ 0.25, 0, 0 ]) // solar panels
+        tower.box([ 20, 1.4, 0.2 ], C.snow, [ 0, 7.25, 1.85 ])
+        pixelText(tower, "LEVI'S STADIUM", C.red, [ 0, 7.45, 1.98 ], 0.2, { depth: 0.08 })
+        tower.box([ 20, 1.4, 0.2 ], C.snow, [ 0, 7.25, - 1.85 ])
+        pixelText(tower, "LEVI'S STADIUM", C.red, [ 0, 7.45, - 1.98 ], 0.2, { depth: 0.08, back: true })
+        nodes.push(fixedNode('suiteTower', tower, ctx.at(cx, cz - 15), [ { position: [ 0, 4.7, 0 ], size: [ 24, 9.4, 3.6 ] } ]))
+    }
+
+    // giant video boards above both end zones, playing the 49ers
+    for(const side of [ - 1, 1 ])
+    {
+        const b = new Model()
+        for(const z of [ - 2.6, 2.6 ])
+            b.box([ 0.5, 6.5, 0.5 ], C.dark, [ z, 0, 0 ])
+        b.box([ 8.4, 3.4, 0.5 ], C.dark, [ 0, 6.2, 0 ])
+        b.box([ 8, 3, 0.1 ], C.black, [ 0, 6.4, 0.25 ])
+        b.box([ 8, 0.5, 0.11 ], C.red, [ 0, 6.4, 0.26 ])
+        pixelText(b, '49ERS', C.gold, [ 0, 7.25, 0.33 ], 0.26, { depth: 0.06 })
+        nodes.push({ ...fixedNode('videoBoard', b, ctx.at(cx + side * 20.5, cz), [ { position: [ - 2.6, 3.25, 0 ], size: [ 0.5, 6.5, 0.5 ] }, { position: [ 2.6, 3.25, 0 ], size: [ 0.5, 6.5, 0.5 ] } ]), rotation: [ 0, - side * Math.PI / 2, 0 ] })
+    }
 
     // giant 49ERS letters outside
     nodes.push(...letters(ctx, '49ERS', C.red, cx + 14, cz - 12, 0, 0.45))
