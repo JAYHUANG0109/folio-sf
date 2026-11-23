@@ -1,12 +1,13 @@
 import * as THREE from 'three/webgpu'
 import { texture } from 'three/tsl'
+import gsap from 'gsap'
 import { Game } from '../Game.js'
 import { secrets } from '../../data/secrets.js'
 
 /**
  * The great hall of the Napa castle: polaroid photos on the walls and a big looping video on the keep.
- * Put files in static/gallery/ and list them in static/gallery/gallery.json:
- *   { "photos": [ { "src": "gallery/01.jpg", "caption": "第一次約會" } ], "video": "gallery/us.mp4" }
+ * Drop photos in static/gallery/img and videos in static/gallery/vid; `npm run sf:build` (scripts/sf/gallery.mjs)
+ * resizes them and writes static/gallery/gallery.json. 8 frames take turns showing all photos; the screen plays every video.
  * While the car is inside, the roof and upper walls ('castleUpper') hide so the hall is visible from the camera.
  */
 export class CastleGallery
@@ -50,15 +51,18 @@ export class CastleGallery
             [ cx - 2.0 * k, zN, 0 ], [ cx - 0.2 * k, zN, 0 ], [ cx + 1.6 * k, zN, 0 ],
             [ cx - 2.0 * k, zS, Math.PI ], [ cx - 0.2 * k, zS, Math.PI ], [ cx + 1.6 * k, zS, Math.PI ],
             [ xBack, cz - 2.7 * k, Math.PI / 2 ], [ xBack, cz + 2.7 * k, Math.PI / 2 ],
+            [ cx + 3.03 * k, cz - 2.7 * k, - Math.PI / 2 ], [ cx + 3.03 * k, cz + 2.7 * k, - Math.PI / 2 ],
         ]
-        const photos = manifest.photos?.length ? manifest.photos : placeholders
-        slots.forEach(([ x, z, ry ], i) =>
-        {
-            const photo = photos[i % photos.length]
-            this.addPolaroid(photo, x, y, z, ry, (i % 2 ? - 1 : 1) * 0.04)
-        })
-        // the big screen on the front face of the keep
-        this.addScreen(manifest.video, cx - 1.68 * k, this.floor + 2.9, cz, Math.PI / 2)
+        // a carousel: frame i shows photo (offset + i); every few seconds the offset moves on, in a wave around the hall.
+        // Frames are never more than photos, so the same photo is never on two walls at once.
+        this.photos = manifest.photos?.length ? manifest.photos : placeholders
+        const used = slots.slice(0, Math.min(slots.length, this.photos.length))
+        this.frames = used.map(([ x, z, ry ], i) => this.addPolaroid(this.photos[i], x, y, z, ry, (i % 2 ? - 1 : 1) * 0.04))
+        this.offset = 0
+        this.swapTimer = 0
+        // the big screen on the front face of the keep: plays every video one after the other
+        const videos = manifest.videos?.length ? manifest.videos.map(v => v.src) : (manifest.video ? [ manifest.video ] : [])
+        this.addScreen(videos, cx - 1.68 * k, this.floor + 2.9, cz, Math.PI / 2)
     }
 
     frame(width, height, x, y, z, ry, tilt, hex)
@@ -82,8 +86,9 @@ export class CastleGallery
         return mesh
     }
 
-    addPolaroid(photo, x, y, z, ry, tilt)
+    addPolaroid(initial, x, y, z, ry, tilt)
     {
+        let photo = initial
         const canvas = document.createElement('canvas')
         canvas.width = 512
         canvas.height = 600
@@ -122,27 +127,40 @@ export class CastleGallery
             ctx.fillText(photo.caption || '', 256, 560)
             map.needsUpdate = true
         }
-        draw(null)
-        if(photo.src)
+        const show = (next) =>
         {
-            const image = new Image()
-            image.onload = () => draw(image)
-            image.src = photo.src
+            photo = next
+            draw(null)
+            if(photo.src)
+            {
+                const image = new Image()
+                image.onload = () => { if(photo === next) draw(image) }
+                image.src = photo.src
+            }
         }
+        show(photo)
         this.frame(2.2, 2.55, x, y, z, ry, tilt, '#6b4423')
         this.picture(map, 2.2, 2.58, x, y, z, ry, tilt)
+        return { show }
     }
 
-    addScreen(src, x, y, z, ry)
+    addScreen(sources, x, y, z, ry)
     {
         const width = 5.6, height = 3.15
         this.frame(width, height, x, y, z, ry, 0, '#c9a227')
-        if(src)
+        if(sources.length)
         {
             const video = document.createElement('video')
-            video.src = src
+            let index = 0
+            video.src = sources[0]
             video.muted = true
-            video.loop = true
+            video.loop = sources.length === 1
+            video.addEventListener('ended', () =>
+            {
+                index = (index + 1) % sources.length
+                video.src = sources[index]
+                video.play().catch(() => {})
+            })
             video.playsInline = true
             video.crossOrigin = 'anonymous'
             video.preload = 'auto'
@@ -187,6 +205,28 @@ export class CastleGallery
             if(this.video)
                 near ? this.video.play().catch(() => {}) : this.video.pause()
         }
+        if(near && this.frames && this.photos.length > this.frames.length)
+        {
+            this.swapTimer += this.game.ticker.delta
+            if(this.swapTimer > 6)
+            {
+                this.swapTimer = 0
+                this.offset = (this.offset + 1) % this.photos.length
+                const count = this.frames.length, total = this.photos.length
+                // update from the last frame down to the first: the newest photo appears first, and a photo only
+                // moves to the frame before it after that frame has let go of its own, so no duplicates mid-wave
+                const wave = total > count
+                for(let i = count - 1; i >= 0; i--)
+                {
+                    const photo = this.photos[(this.offset + i) % total]
+                    const frame = this.frames[i]
+                    if(wave)
+                        setTimeout(() => frame.show(photo), (count - 1 - i) * 180)
+                    else
+                        frame.show(photo)
+                }
+            }
+        }
         if(!this.upper)
             this.upper = this.game.scene.getObjectByName('castleUpper') || null
         const inside = Math.abs(dx) < this.half.x + 1.2 && Math.abs(dz) < this.half.z && p.y < this.floor + 4
@@ -194,6 +234,19 @@ export class CastleGallery
         {
             this.inside = inside
             this.upper.visible = !inside
+            // look down into the hall (the towers would hide it from the usual angle), and back out again
+            const view = this.game.view
+            if(inside)
+            {
+                this.savedView = { phi: view.spherical.phi, zoom: view.zoom.baseRatio }
+                gsap.to(view.spherical, { phi: 0.32, duration: 1.2, ease: 'power2.inOut', onUpdate: () => { view.optimalArea.needsUpdate = true } })
+                gsap.to(view.zoom, { baseRatio: 0.4, duration: 1.2, ease: 'power2.inOut' })
+            }
+            else if(this.savedView)
+            {
+                gsap.to(view.spherical, { phi: this.savedView.phi, duration: 1.2, ease: 'power2.inOut', onUpdate: () => { view.optimalArea.needsUpdate = true } })
+                gsap.to(view.zoom, { baseRatio: this.savedView.zoom, duration: 1.2, ease: 'power2.inOut' })
+            }
         }
     }
 }

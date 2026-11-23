@@ -8,7 +8,7 @@
         "build": "vite build --mode production",
         "preview": "vite preview",
         "compress": "node scripts/compress.js static/",
-        "sf:build": "node scripts/sf/build.mjs",
+        "sf:build": "node scripts/sf/build.mjs && node scripts/sf/gallery.mjs",
         "deploy:preview": "npm run sf:build && npm run build && firebase hosting:channel:deploy preview --expires 30d",
         "deploy:live": "npm run sf:build && npm run build && firebase deploy --only hosting"
     },

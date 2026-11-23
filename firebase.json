@@ -5,7 +5,9 @@
       "firebase.json",
       "**/.*",
       "**/*.blend",
-      "**/*.blend1"
+      "**/*.blend1",
+      "gallery/img/**",
+      "gallery/vid/**"
     ],
     "headers": [
       {
