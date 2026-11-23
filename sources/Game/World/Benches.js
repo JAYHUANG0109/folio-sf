@@ -1,5 +1,6 @@
 import { Game } from '../Game.js'
 import { InstancedGroup } from '../InstancedGroup.js'
+import { relocate, placements } from './placements.js'
 
 export class Benches
 {
@@ -8,7 +9,7 @@ export class Benches
         this.game = Game.getInstance()
 
         // Base and references
-        const [ base, references ] = InstancedGroup.getBaseAndReferencesFromInstances(this.game.resources.benchesModel.scene.children)
+        const [ base, references ] = InstancedGroup.getBaseAndReferencesFromInstances(relocate(this.game.resources.benchesModel.scene.children, placements.benches))
         base.castShadow = true
         base.receiveShadow = true
         base.frustumCulled = true

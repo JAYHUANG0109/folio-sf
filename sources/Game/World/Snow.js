@@ -89,6 +89,9 @@ export class Snow
             // Water elevation
             elevation.addAssign(terrainData.b.remap(0, 1, 0, -2))
 
+            // Hills
+            elevation.addAssign(this.game.terrain.heightNode(position.xy))
+
             return elevation
         })
 

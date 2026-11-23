@@ -3,6 +3,7 @@ import { Game } from '../Game.js'
 import { InstancedGroup } from '../InstancedGroup.js'
 import { hash, instancedArray, instanceIndex, sin, uniform, vec3 } from 'three/tsl'
 import gsap from 'gsap'
+import { relocate, placements } from './placements.js'
 
 export class PoleLights
 {
@@ -20,7 +21,7 @@ export class PoleLights
         }
 
         // Base and references
-        const [ base, references ] = InstancedGroup.getBaseAndReferencesFromInstances(this.game.resources.poleLightsModel.scene.children)
+        const [ base, references ] = InstancedGroup.getBaseAndReferencesFromInstances(relocate(this.game.resources.poleLightsModel.scene.children, placements.poleLights))
         this.references = references
         
         // Setup base

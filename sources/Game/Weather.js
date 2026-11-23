@@ -68,7 +68,8 @@ export class Weather
                 const amplitude = 1
                 const variation = this.noise(this.game.dayCycles.absoluteProgress * frequency) * amplitude
 
-                return dayValue * variation
+                // SF trip: no thunder or lightning
+                return Math.min(0, dayValue * variation)
             }
         )
 
@@ -82,7 +83,7 @@ export class Weather
                 const frequency = 0.44
                 const amplitude = 1
                 const variation = this.noise(this.game.dayCycles.absoluteProgress * frequency) * amplitude
-                return variation
+                return Math.min(variation, 0.25) // mostly clear autumn skies
             }
         )
 
@@ -94,8 +95,8 @@ export class Weather
             () =>
             {
                 const frequency = 1
-                const variation = this.noise(this.game.dayCycles.absoluteProgress * frequency) * 0.5 + 0.5
-                return variation
+                const variation = this.noise(this.game.dayCycles.absoluteProgress * frequency) * 0.35 + 0.6
+                return variation // breezy, leaves drifting
             }
         )
 
@@ -106,7 +107,7 @@ export class Weather
             1,
             () =>
             {
-                return remapClamp(this.humidity.value, 0.65, 1, 0, 1) * remapClamp(this.clouds.value, 0, 1, 0, 1)
+                return 0 // no rain (and so no snow)
             }
         )
 

@@ -117,6 +117,10 @@ export class Audio
                 item.howl.load()
             }
 
+            // Still loading: skip (queuing every hit until the file arrives overflows Howler's load queue)
+            if(item.howl.state() !== 'loaded')
+                return
+
             // Anti spam
             if(item.antiSpam)
             {
@@ -219,7 +223,7 @@ export class Audio
                 // Notification
                 const html = /* html */`
                     <div class="top">
-                        <div class="title">Now playing<br /><span class="song-name">${this.playlist.current.name}</span></div>
+                        <div class="title">正在播放<br /><span class="song-name">${this.playlist.current.name}</span></div>
                         <div class="music-note-icon"></div>
                     </div>
                 `
@@ -717,6 +721,10 @@ export class Audio
         {
             for(const item of group.items)
             {
+                // Not loaded yet: Howler would queue every rate/volume call until it is (and overflow)
+                if(item.howl.state() !== 'loaded')
+                    continue
+
                 // Apply tick binding
                 if(typeof item.onPlaying === 'function')
                 {

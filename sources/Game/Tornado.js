@@ -4,6 +4,7 @@ import { Line2 } from 'three/addons/lines/webgpu/Line2.js';
 import { Game } from './Game.js'
 import gsap from 'gsap'
 import { remapClamp } from './utilities/maths.js';
+import { placements } from './World/placements.js'
 
 export class Tornado
 {
@@ -48,7 +49,7 @@ export class Tornado
     {
         const points = []
 
-        const children = [...this.game.resources.tornadoPathReferencesModel.scene.children]
+        const children = placements.tornado.map(([ x, y, z ], i) => ({ name: `tornado.${String(i).padStart(3, '0')}`, position: { x, y, z } }))
         children.sort((a, b) =>
         {
             if ( a.name < b.name )

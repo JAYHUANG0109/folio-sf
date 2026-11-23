@@ -3,7 +3,7 @@ import { Game } from './Game.js'
 
 export class Respawns
 {
-    constructor(defaultName = 'landing')
+    constructor(defaultName = 'sfo')
     {
         this.game = Game.getInstance()
         this.defaultName = defaultName
@@ -27,7 +27,7 @@ export class Respawns
                 name: name,
                 position: new THREE.Vector3(
                     child.position.x,
-                    4,
+                    child.position.y + 3.5, // respawn references are placed on the ground (hills)
                     child.position.z
                 ),
                 rotation: child.rotation.y

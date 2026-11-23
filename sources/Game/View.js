@@ -1,6 +1,7 @@
 import * as THREE from 'three/webgpu'
 import CameraControls from 'camera-controls'
 import { Game } from './Game.js'
+import controls from '../data/controls.js'
 import { clamp, lerp, remap, smoothstep } from './utilities/maths.js'
 import { mix, uniform, vec4, Fn, positionGeometry, attribute } from 'three/tsl'
 import gsap from 'gsap'
@@ -284,7 +285,7 @@ export class View
     setZoom()
     {
         this.zoom = {}
-        this.zoom.baseRatio = 0.6
+        this.zoom.baseRatio = 0.55
         this.zoom.ratio = this.zoom.baseRatio
         this.zoom.smoothedRatio = this.zoom.baseRatio
         this.zoom.speedAmplitude = - 0.4
@@ -295,7 +296,7 @@ export class View
 
         this.game.inputs.addActions([
             { name: 'zoom',    categories: [ 'wandering', 'racing' ], keys: [ 'Wheel.roll' ] },
-            { name: 'zoomToggle',  categories: [ 'wandering', 'racing' ], keys: [ 'Gamepad.r3' ] },
+            { name: 'zoomToggle',  categories: [ 'wandering', 'racing' ], keys: [] }, // R3 is boost now
         ])
 
         this.game.inputs.events.on('zoom', (action) =>
@@ -303,6 +304,70 @@ export class View
             this.zoom.baseRatio -= action.value * this.zoom.sensitivity
             this.zoom.baseRatio = clamp(this.zoom.baseRatio, 0, 1)
         })
+
+        // Zoom buttons (+ / -) and keys, handy on phones and to see over the hills
+        const zoomBy = (amount) =>
+        {
+            this.zoom.baseRatio = clamp(this.zoom.baseRatio + amount, 0, 1)
+        }
+        this.game.inputs.addActions([
+            { name: 'zoomIn',  categories: [ 'wandering', 'racing' ], keys: [ 'Keyboard.Equal', 'Keyboard.NumpadAdd', 'Keyboard.+', 'Keyboard.=', 'Gamepad.up' ] },
+            { name: 'zoomOut', categories: [ 'wandering', 'racing' ], keys: [ 'Keyboard.Minus', 'Keyboard.NumpadSubtract', 'Keyboard.-', 'Gamepad.down' ] },
+        ])
+        this.game.inputs.events.on('zoomIn', (action) => { if(action.active) zoomBy(0.15) })
+        this.game.inputs.events.on('zoomOut', (action) => { if(action.active) zoomBy(- 0.15) })
+        for(const [ selector, amount ] of [ [ '.js-zoom-in', 0.15 ], [ '.js-zoom-out', - 0.15 ] ])
+        {
+            const button = this.game.domElement.querySelector(selector)
+            if(button)
+            {
+                button.addEventListener('click', (event) => { event.preventDefault(); zoomBy(amount) })
+                button.addEventListener('pointerdown', (event) => event.stopPropagation())
+                button.addEventListener('touchstart', (event) => event.stopPropagation(), { passive: true })
+            }
+        }
+
+        // Camera angle: arrow keys, right stick, on screen buttons. C (or L3 + R3 area) resets
+        this.orbit = {
+            thetaSpeed: 1.8,
+            phiSpeed: 0.9,
+            phiMin: Math.PI * 0.08,
+            phiMax: Math.PI * 0.38, // lower than this the view runs past the horizon and the ground patch can't cover it
+            defaultTheta: Math.PI * 0.25,
+            defaultPhi: null,
+            buttonTheta: 0,
+        }
+        this.game.inputs.addActions([
+            { name: 'cameraLeft',  categories: [ 'wandering', 'racing' ], keys: [ 'Keyboard.KeyA' ] },
+            { name: 'cameraRight', categories: [ 'wandering', 'racing' ], keys: [ 'Keyboard.KeyD' ] },
+            { name: 'cameraUp',    categories: [ 'wandering', 'racing' ], keys: [ 'Keyboard.KeyW' ] },
+            { name: 'cameraDown',  categories: [ 'wandering', 'racing' ], keys: [ 'Keyboard.KeyS' ] },
+            { name: 'cameraReset', categories: [ 'wandering', 'racing' ], keys: [ 'Keyboard.c', 'Keyboard.KeyC' ] },
+        ])
+        this.game.inputs.events.on('cameraReset', (action) =>
+        {
+            if(action.active)
+            {
+                this.focusPoint.isTracking = true
+                this.spherical.theta = this.orbit.defaultTheta
+                if(this.orbit.defaultPhi !== null)
+                    this.spherical.phi = this.orbit.defaultPhi
+                this.optimalArea.needsUpdate = true
+            }
+        })
+        for(const [ selector, direction ] of [ [ '.js-rotate-left', 1 ], [ '.js-rotate-right', - 1 ] ])
+        {
+            const button = this.game.domElement.querySelector(selector)
+            if(button)
+            {
+                const start = (event) => { event.preventDefault(); event.stopPropagation(); this.orbit.buttonTheta = direction }
+                const stop = () => { this.orbit.buttonTheta = 0 }
+                button.addEventListener('pointerdown', start)
+                button.addEventListener('pointerup', stop)
+                button.addEventListener('pointerleave', stop)
+                button.addEventListener('pointercancel', stop)
+            }
+        }
 
         this.game.inputs.events.on('zoomToggle', (action) =>
         {
@@ -336,7 +401,7 @@ export class View
         this.spherical.theta = Math.PI * 0.25
 
         this.spherical.radius = {}
-        this.spherical.radius.edges = { min: 15, max: 30 }
+        this.spherical.radius.edges = { min: 10, max: 55 }
         this.spherical.radius.current = lerp(this.spherical.radius.edges.min, this.spherical.radius.edges.max, 1 - this.zoom.smoothedRatio)
         this.spherical.radius.nonIdealRatioOffset = 9
 
@@ -595,18 +660,13 @@ export class View
                 if(action.active)
                 {
                     // Map
+                    // Mouse / trackpad drag (or two fingers) turns the camera around the car
                     if(this.game.inputs.pointer.mode === Pointer.MODE_MOUSE || this.game.inputs.pointer.touches.length >= 2)
                     {
-                        this.focusPoint.isTracking = false
-                        
-                        const mapMovement = new THREE.Vector2(this.game.inputs.pointer.delta.x, this.game.inputs.pointer.delta.y)                    
-                        mapMovement.rotateAround(new THREE.Vector2(), -this.spherical.theta)
-
                         const smallestSide = Math.min(this.game.viewport.width, this.game.viewport.height)
-                        mapMovement.multiplyScalar(10 / smallestSide)
-                        
-                        this.focusPoint.position.x -= mapMovement.x * 2
-                        this.focusPoint.position.z -= mapMovement.y * 2
+                        this.spherical.theta -= this.game.inputs.pointer.delta.x / smallestSide * 3.2
+                        this.spherical.phi = clamp(this.spherical.phi - this.game.inputs.pointer.delta.y / smallestSide * 2.2, this.orbit?.phiMin ?? 0.2, this.orbit?.phiMax ?? 1.4)
+                        this.optimalArea.needsUpdate = true
                     }
 
                     // Pinch
@@ -619,27 +679,58 @@ export class View
 
     update()
     {
-        // Gamepad Joystick map controls
-        if(this.mode === View.MODE_DEFAULT && this.game.inputs.gamepad.joysticks.right.active && !this.cinematic.active)
+        // Camera orbit (arrow keys, right stick, rotate buttons)
+        if(this.mode === View.MODE_DEFAULT && !this.cinematic.active && this.orbit)
         {
-            this.focusPoint.isTracking = false
+            if(this.orbit.defaultPhi === null)
+                this.orbit.defaultPhi = this.spherical.phi
 
-            const mapMovement = new THREE.Vector2(this.game.inputs.gamepad.joysticks.right.x, this.game.inputs.gamepad.joysticks.right.y)
-            mapMovement.rotateAround(new THREE.Vector2(), -this.spherical.theta)
-            mapMovement.multiplyScalar(20 * this.game.ticker.delta)
+            const actions = this.game.inputs.actions
+            let thetaInput = this.orbit.buttonTheta
+            let phiInput = 0
+            // WASD slide the camera over the map (look around without moving the car); driving brings it back
+            let panX = 0, panZ = 0
+            if(actions.get('cameraLeft')?.active) panX -= 1
+            if(actions.get('cameraRight')?.active) panX += 1
+            if(actions.get('cameraUp')?.active) panZ += 1
+            if(actions.get('cameraDown')?.active) panZ -= 1
+            if(panX !== 0 || panZ !== 0)
+            {
+                const theta = this.spherical.theta
+                const speed = (12 + this.spherical.radius.current * 1.1) * this.game.ticker.delta / Math.hypot(panX, panZ)
+                const half = this.game.terrain.size / 2 - 4
+                this.focusPoint.isTracking = false
+                this.focusPoint.isPanned = true
+                this.focusPoint.position.x = clamp(this.focusPoint.position.x + (Math.cos(theta) * panX - Math.sin(theta) * panZ) * speed, - half, half)
+                this.focusPoint.position.z = clamp(this.focusPoint.position.z + (- Math.sin(theta) * panX - Math.cos(theta) * panZ) * speed, - half, half)
+            }
 
-            this.focusPoint.position.x += mapMovement.x
-            this.focusPoint.position.z += mapMovement.y
+            const stick = this.game.inputs.gamepad.joysticks[controls.gamepadMoveStick === 'right' ? 'left' : 'right']
+            if(stick.active)
+            {
+                thetaInput -= stick.x
+                phiInput -= stick.y
+            }
+
+            if(thetaInput !== 0 || phiInput !== 0)
+            {
+                const delta = this.game.ticker.delta
+                this.spherical.theta += thetaInput * this.orbit.thetaSpeed * delta
+                this.spherical.phi = clamp(this.spherical.phi + phiInput * this.orbit.phiSpeed * delta, this.orbit.phiMin, this.orbit.phiMax)
+                this.optimalArea.needsUpdate = true
+            }
         }
         
         // Focus point
+        if(this.focusPoint.isTracking)
+            this.focusPoint.isPanned = false
         if(this.focusPoint.isTracking)
         {
             this.focusPoint.position.x = this.focusPoint.trackedPosition.x
             this.focusPoint.position.z = this.focusPoint.trackedPosition.z
         }
 
-        if(this.focusPoint.magnet.active)
+        if(this.focusPoint.magnet.active && !this.focusPoint.isPanned)
         {
             const magnetDelta = { x: this.focusPoint.trackedPosition.x - this.focusPoint.position.x, z: this.focusPoint.trackedPosition.z - this.focusPoint.position.z }
             const distanceToMagnet = Math.hypot(magnetDelta.x, magnetDelta.z)
@@ -709,6 +800,14 @@ export class View
 
         // Position
         this.position.copy(this.focusPoint.smoothedPosition).add(this.spherical.offset)
+
+        // never dip under the ground (hills, the raised bridge ends): you'd see through the land from below
+        if(this.game.terrain?.getHeight)
+        {
+            const ground = this.game.terrain.getHeight(this.position.x, this.position.z)
+            if(this.position.y < ground + 2)
+                this.position.y = ground + 2
+        }
 
         // Default camera position
         this.delta = this.position.clone().sub(this.defaultCamera.position)

@@ -1,3 +1,5 @@
+import { paints } from '../data/paints.js'
+import { stops } from '../data/stops.js'
 import * as THREE from 'three/webgpu'
 import achievementsData from '../data/achievements.js'
 import { Game } from './Game.js'
@@ -169,21 +171,61 @@ export class Achievements
     setRewards()
     {
         this.rewards = {}
-        this.rewards.elements = this.menu.instance.contentElement.querySelectorAll('.js-reward')
+
+        // Swatches: basic colors (always available) and premium finishes (unlocked by achievements)
+        const rowsElement = this.menu.instance.contentElement.querySelector('.js-rewards-rows')
+        const isLockable = (paint) => paint.stop || paint.allStops || paint.allAchievements
+        const howToUnlock = (paint) =>
+        {
+            if(paint.stop)
+            {
+                const stop = stops.find(s => s.id === paint.stop)
+                return `${stop ? `${stop.label} ${stop.name}` : ''}<br />蓋章解鎖`
+            }
+            if(paint.allStops)
+                return '蓋滿 13 個章解鎖'
+            return '完成全部成就解鎖'
+        }
+        const swatch = (paint) => /* html */`
+            <button class="js-reward reward has-tooltip${isLockable(paint) ? ' is-locked' : ''}" data-name="${paint.name}"${paint.default ? ' data-default' : ''}>
+                <div class="js-tooltip tooltip"><strong>${paint.label}</strong>${isLockable(paint) ? `<span class="how"><br />${howToUnlock(paint)}</span>` : ''}</div>
+                ${paint.image
+                    ? `<img class="picture" src="${paint.image}" loading="lazy">`
+                    : `<span class="picture swatch" style="background: linear-gradient(160deg, ${paint.colors[0]}, ${paint.colors[1]})"></span>`}
+                <div class="lock"><img class="lock-icon" src="ui/lock.svg" loading="lazy"></div>
+            </button>`
+        rowsElement.innerHTML = /* html */`
+            <div class="rewards-row-title">基本色</div>
+            <div class="rewards">${paints.filter(p => !isLockable(p)).map(swatch).join('')}</div>
+            <div class="rewards-row-title">景點限定色 <span>每到一站蓋章，解鎖一個顏色</span></div>
+            <div class="rewards">${paints.filter(p => p.stop).map(swatch).join('')}</div>
+            <div class="rewards-row-title">終極塗裝</div>
+            <div class="rewards">${paints.filter(p => p.allStops || p.allAchievements).map(swatch).join('')}</div>`
+
+        this.rewards.elements = rowsElement.querySelectorAll('.js-reward')
         this.rewards.items = new Map()
         this.rewards.default = null
-        this.rewards.count = this.rewards.elements.length
-
         // Items
-        let i = 0
         for(const rewardElement of this.rewards.elements)
         {
+            const paint = paints.find(p => p.name === rewardElement.dataset.name)
             const item = {}
             item.name = rewardElement.dataset.name
             item.element = rewardElement
-            item.threshold = Math.round(i / (this.rewards.count - 1) * this.globalProgress.totalCount)
+            item.label = paint?.label ?? item.name
+            item.isUnlocked = () =>
+            {
+                if(!paint || !isLockable(paint))
+                    return true
+                const stamps = this.groups.get('stops')?.progress
+                if(paint.stop)
+                    return stamps instanceof Set && stamps.has(paint.stop)
+                if(paint.allStops)
+                    return stamps instanceof Set && stamps.size >= stops.length
+                return this.globalProgress.achievedCount >= this.globalProgress.totalCount
+            }
             item.locked = true
-            item.tooltipTextElement = item.element.querySelector('.js-tooltip strong')
+            item.wasEverUnlocked = null
 
             item.element.addEventListener('click', (event) =>
             {
@@ -202,7 +244,6 @@ export class Achievements
 
             this.rewards.items.set(item.name, item)
 
-            i++
         }
 
         // Current
@@ -253,14 +294,17 @@ export class Achievements
             this.rewards.items.forEach(item =>
             {
                 // Unlock
-                if(this.globalProgress.achievedCount >= item.threshold)
+                if(item.isUnlocked())
                 {
                     if(item.locked)
                     {
                         item.locked = false
                         item.element.classList.remove('is-locked')
-                        item.element.classList.remove('has-tooltip')
+                        // a new paint while playing (not on load): tell her
+                        if(item.wasEverUnlocked === false)
+                            this.game.notifications.show(`<span>🎨 解鎖新塗裝「${item.label}」！到選單的成就頁換上它</span>`, '', 5, () => this.game.menu.open('achievements'), `paint-${item.name}`)
                     }
+                    item.wasEverUnlocked = true
                 }
                 // Lock
                 else
@@ -276,7 +320,8 @@ export class Achievements
                             this.rewards.set(this.rewards.default.name)
                         }
                     }
-                    item.tooltipTextElement.textContent = item.threshold
+                    if(item.wasEverUnlocked === null)
+                        item.wasEverUnlocked = false
 
                     // Current should be locked (shouldn't happen but you never know)
                     if(item === this.rewards.current)
@@ -351,7 +396,14 @@ export class Achievements
 
             for(const achievement of group.items)
             {
-                const progress = Math.min(groupProgress, achievement.total)
+                // Specific id required (ex: one passport stamp) => 1 if that id is in the Set
+                const progress = achievement.requiredId !== null
+                    ? (group.progress instanceof Set && group.progress.has(achievement.requiredId) ? 1 : 0)
+                    : Math.min(groupProgress, achievement.total)
+
+                // Nothing changed for this one
+                if(achievement.requiredId !== null && progress === 0)
+                    continue
 
                 // Progress
                 achievement.progressCurrentElement.textContent = progress
@@ -395,10 +447,11 @@ export class Achievements
     {
         const itemsElement = this.menu.instance.contentElement.querySelector('.js-items')
 
-        for(const [ name, title, description, total ] of achievementsData)
+        for(const [ name, title, description, total, unique = false, requiredId = null ] of achievementsData)
         {
             const achievement = {
                 total,
+                requiredId,
                 achieved: false
             }
             const group = this.groups.get(name)
@@ -521,17 +574,17 @@ export class Achievements
 
             if(clickCount === 1)
             {
-                button.textContent = 'Are you sure?'
+                button.textContent = '確定嗎？'
             }
 
             else if(clickCount === 2)
             {
-                button.textContent = 'Definitely?'
+                button.textContent = '真的要重來？'
             }
 
             else if(clickCount === 3)
             {
-                button.textContent = 'Done!'
+                button.textContent = '已重設'
                 clickCount = 0
                 this.reset()
             }
@@ -542,7 +595,7 @@ export class Achievements
             event.preventDefault()
             clickCount = 0
 
-            button.textContent = 'Reset achievements'
+            button.textContent = '重設成就'
         })
     }
 
@@ -587,6 +640,13 @@ export class Achievements
 
         this.globalProgress.reset()
         this.storage.save()
+
+        // Stop tasks (sources/Game/World/Areas/StopTask.js)
+        import('./World/Areas/StopTask.js').then(({ taskStore }) =>
+        {
+            taskStore.reset()
+            location.reload()
+        })
         this.globalProgress.update()
         this.rewards.update()
 

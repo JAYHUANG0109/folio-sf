@@ -7,3 +7,6 @@ dist
 .autosave
 .wav
 !static/sounds/music/*.wav
+# Firebase
+.firebase/
+firebase-debug.log

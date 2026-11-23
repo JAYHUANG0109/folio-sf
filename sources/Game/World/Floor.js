@@ -44,8 +44,8 @@ export class Floor
 
         // Terrain data
         const terrainData = this.game.terrain.terrainNode(positionWorld.xz)
-        const slabHighColor = uniform(color('#ffcf8b'))
-        const slabLowColor = uniform(color('#a87762'))
+        const slabHighColor = uniform(color('#eee3d2'))
+        const slabLowColor = uniform(color('#b3a493'))
         const slabTextureFrequency = uniform(0.175)
         const slabNoiseFrequency = uniform(0.03)
         const colorNode = Fn(() =>
@@ -69,7 +69,7 @@ export class Floor
         // Material
         const material = new MeshDefaultMaterial({
             colorNode: colorNode,
-            normalNode: vec3(0, 1, 0),
+            normalNode: this.game.terrain.normalNode(positionWorld.xz),
             shadowNode: terrainData.g,
             hasWater: false,
             hasLightBounce: false,
@@ -82,6 +82,7 @@ export class Floor
 
             const newPosition = positionLocal
             newPosition.y.addAssign(terrainData.b.mul(-1.5).mul(uvDim))
+            newPosition.y.addAssign(this.game.terrain.heightNode(positionWorld.xz))
 
             return newPosition
         })()
@@ -92,21 +93,25 @@ export class Floor
         // this.mesh.castShadow = true
         this.game.scene.add(this.mesh)
 
-        // Resize
-        this.game.viewport.events.on('throttleChange', () =>
+        // Resize: the patch must always cover what the camera sees (window resize, but also tilting the camera low)
+        this.resize = () =>
         {
-            this.size = Math.round(this.game.view.optimalArea.radius * 2) + 1
+            const size = Math.min(320, Math.round(this.game.view.optimalArea.radius * 2) + 1)
+            if(Math.abs(size - this.size) < this.size * 0.08)
+                return
+            this.size = size
             this.halfSize = this.size * 0.5
-            this.subdivisions = this.size
-            
+            this.subdivisions = Math.round(this.size / this.cellSize)
+
             geometry.dispose()
-            
+
             geometry = new THREE.PlaneGeometry(this.size, this.size, this.subdivisions, this.subdivisions)
             geometry.rotateX(-Math.PI * 0.5)
             geometry.deleteAttribute('normal')
 
             this.mesh.geometry = geometry
-        }, 2)
+        }
+        this.game.viewport.events.on('throttleChange', () => this.resize(), 2)
 
         if(this.game.debug.active)
         {
@@ -175,6 +180,9 @@ export class Floor
 
     update()
     {
+        if(this.resize)
+            this.resize()
+
         this.mesh.position.x = Math.round(this.game.view.optimalArea.position.x / this.cellSize) * this.cellSize
         this.mesh.position.z = Math.round(this.game.view.optimalArea.position.z / this.cellSize) * this.cellSize
 

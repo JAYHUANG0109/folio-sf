@@ -1,5 +1,6 @@
 import { Game } from '../Game.js'
 import { InstancedGroup } from '../InstancedGroup.js'
+import { relocate, placements } from './placements.js'
 
 export class Lanterns
 {
@@ -8,7 +9,7 @@ export class Lanterns
         this.game = Game.getInstance()
 
         // Base and references
-        const [ base, references ] = InstancedGroup.getBaseAndReferencesFromInstances(this.game.resources.lanternsModel.scene.children)
+        const [ base, references ] = InstancedGroup.getBaseAndReferencesFromInstances(relocate(this.game.resources.lanternsModel.scene.children, placements.lanterns))
 
         // Setup base
         for(const child of base.children)

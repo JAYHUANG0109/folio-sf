@@ -1,0 +1,1100 @@
+/**
+ * Builds the San Francisco world.
+ * Usage: npm run sf:build
+ *
+ * Writes:
+ *  static/terrain/terrain.png, terrainHeight.png, terrain.glb
+ *  static/areas/areas.glb               (13 stops)
+ *  static/scenery/scenery.glb           (streets, city blocks, skyline)
+ *  static/respawns/respawnsReferences.glb
+ *  sources/data/placements.json         (trees, bushes, flowers, props)
+ *  static/ui/map/map-day.(png|webp), map-night.(png|webp)
+ */
+import fs from 'node:fs'
+import path from 'node:path'
+import * as THREE from 'three'
+import sharp from 'sharp'
+import * as Layout from './layout.mjs'
+import { buildRasters, quantize, writeTerrainTextures, groundY, sample, RES, lombardPoints } from './terrain.mjs'
+import { writeGlb } from './gltf.mjs'
+import { Model, C, meshNode, fixedNode, dynamicNode, refNode, rng } from './kit.mjs'
+import { dogs as dogsData, turkey as turkeyData } from '../../sources/data/dogs.js'
+import { builders, nameBlocks } from './landmarks.mjs'
+import { dogNodes } from './dogs.mjs'
+import { secrets } from '../../sources/data/secrets.js'
+import { scaleOf } from '../../sources/data/sites.js'
+
+const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../..')
+const out = (p) => path.join(ROOT, p)
+
+const rastersRaw = await buildRasters()
+const R = quantize(rastersRaw)
+const W = Layout.W
+// ground() is in design units (world / W) so models placed in design units land on the terrain after scaling
+const groundWorld = (x, z) => groundY(R, x, z)
+const ground = (x, z) => groundWorld(x, z) / W
+const round = (v) => Math.round(v * 1000) / 1000
+
+/** Road surface height: conservative max of the ground around a point so the ribbon never sinks into the floor mesh */
+const roadY = (x, z, tx = 0, tz = 1) =>
+{
+    let y = - Infinity
+    for(const [ ox, oz ] of [ [ 0, 0 ], [ tx * 0.8, tz * 0.8 ], [ - tx * 0.8, - tz * 0.8 ], [ 0.75, 0 ], [ - 0.75, 0 ], [ 0, 0.75 ], [ 0, - 0.75 ] ])
+        y = Math.max(y, ground(x + ox, z + oz))
+    return Math.max(y, - 0.2) + 0.05
+}
+
+/** Distance from a point to the nearest street edge (negative inside the street) */
+const streetSegments = []
+for(const street of Layout.streets)
+{
+    const curve = new THREE.CatmullRomCurve3(street.points.map(([ x, z ]) => new THREE.Vector3(x, 0, z)), false, 'centripetal')
+    const pts = curve.getSpacedPoints(Math.ceil(curve.getLength() / 2))
+    for(let i = 1; i < pts.length; i++)
+        streetSegments.push([ pts[i - 1].x, pts[i - 1].z, pts[i].x, pts[i].z, street.width / 2 ])
+}
+/** Junction fillets: wherever a street ends on (or at) another one, round the corners with a quadratic curve */
+const streetFillets = []
+{
+    const sampled = Layout.streets.filter(st => st.asphalt).map((street) =>
+    {
+        const curve = new THREE.CatmullRomCurve3(street.points.map(([ x, z ]) => new THREE.Vector3(x, 0, z)), false, 'centripetal')
+        return { street, pts: curve.getSpacedPoints(Math.max(2, Math.ceil(curve.getLength() / 0.5))) }
+    })
+    const step = (pts) => pts[0].distanceTo(pts[1])
+    for(const A of sampled)
+    {
+        for(const end of [ 0, A.pts.length - 1 ])
+        {
+            const E = A.pts[end]
+            const inward = end === 0 ? 1 : - 1
+            for(const B of sampled)
+            {
+                if(B === A)
+                    continue
+                let best = - 1, bestDistance = Infinity
+                B.pts.forEach((p, j) => { const d = Math.hypot(p.x - E.x, p.z - E.z); if(d < bestDistance) { bestDistance = d; best = j } })
+                if(bestDistance > B.street.width / 2 + 0.6)
+                    continue
+                const reach = Math.max(A.street.width, B.street.width) * 1.1
+                const ia = end + inward * Math.round(reach / step(A.pts))
+                if(ia < 0 || ia >= A.pts.length)
+                    continue
+                const P0 = A.pts[ia], C = B.pts[best]
+                const dirA = new THREE.Vector3(P0.x - C.x, 0, P0.z - C.z).normalize()
+                for(const dir of [ - 1, 1 ])
+                {
+                    const ib = best + dir * Math.round(reach / step(B.pts))
+                    if(ib < 0 || ib >= B.pts.length)
+                        continue
+                    const P2 = B.pts[ib]
+                    const dirB = new THREE.Vector3(P2.x - C.x, 0, P2.z - C.z).normalize()
+                    // the two arms must open up (not fold back onto each other)
+                    if(dirA.dot(dirB) > 0.5)
+                        continue
+                    const points = []
+                    for(let k = 0; k <= 14; k++)
+                    {
+                        const t = k / 14
+                        points.push(new THREE.Vector3(
+                            (1 - t) * (1 - t) * P0.x + 2 * (1 - t) * t * C.x + t * t * P2.x, 0,
+                            (1 - t) * (1 - t) * P0.z + 2 * (1 - t) * t * C.z + t * t * P2.z
+                        ))
+                    }
+                    const width = Math.min(A.street.width, B.street.width)
+                    streetFillets.push({ points, half: width * 0.42, width })
+                }
+            }
+        }
+    }
+}
+console.log('street fillets', streetFillets.length)
+// the Alcatraz boardwalk counts as a street (keeps houses, trees and props off it)
+{
+    const pts = Layout.boardwalk.points
+    for(let i = 1; i < pts.length; i++)
+        streetSegments.push([ pts[i - 1][0], pts[i - 1][1], pts[i][0], pts[i][1], Layout.boardwalk.width / 2 + 0.6 ])
+}
+// keep props and houses off the rounded corners too
+for(const fillet of streetFillets)
+    for(let i = 1; i < fillet.points.length; i++)
+        streetSegments.push([ fillet.points[i - 1].x, fillet.points[i - 1].z, fillet.points[i].x, fillet.points[i].z, fillet.width / 2 ])
+
+const nearRoad = (x, z, margin = 0) => streetSegments.some(([ ax, az, bx, bz, half ]) =>
+{
+    const dx = bx - ax, dz = bz - az
+    const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz)))
+    return Math.hypot(x - (ax + dx * t), z - (az + dz * t)) < half + margin
+})
+
+/* ---------------- Terrain ---------------- */
+await writeTerrainTextures(rastersRaw, out('static/terrain/terrain.png'), out('static/terrain/terrainHeight.png'))
+{
+    const rows = 193 // 1.5 world units between samples
+    const positions = new Float32Array(rows * rows * 3)
+    const indices = []
+    for(let ix = 0; ix < rows; ix++)
+    {
+        for(let iz = 0; iz < rows; iz++)
+        {
+            const x = - Layout.HALF + ix * Layout.SIZE / (rows - 1)
+            const z = - Layout.HALF + iz * Layout.SIZE / (rows - 1)
+            const i = ix * rows + iz
+            positions[i * 3 + 0] = x * W
+            positions[i * 3 + 1] = groundWorld(x, z)
+            positions[i * 3 + 2] = z * W
+        }
+    }
+    for(let ix = 0; ix < rows - 1; ix++)
+        for(let iz = 0; iz < rows - 1; iz++)
+        {
+            const a = ix * rows + iz, b = (ix + 1) * rows + iz, c = ix * rows + iz + 1, d = (ix + 1) * rows + iz + 1
+            indices.push(a, c, b, b, c, d)
+        }
+    const geometry = new THREE.BufferGeometry()
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+    geometry.setIndex(indices)
+    await writeGlb(out('static/terrain/terrain.glb'), [ { name: 'terrain', mesh: { geometry, material: 'terrain' } } ])
+}
+console.log('terrain ok')
+
+/* ---------------- Areas (stops) ---------------- */
+const frustumOverrides = {
+    goldenGate: { x: - 62, z: - 63, radius: 30 },
+    ferryBuilding: { x: 66, z: - 14, radius: 26 },
+    lombard: { x: 6, z: - 36, radius: 28 },
+    napa: { x: - 79, z: - 84, radius: 14 },
+    pier39: { x: 32, z: - 60, radius: 16 },
+    levis: { x: 12, z: 79, radius: 24 },
+}
+const areaNodes = []
+const siteFootprints = [] // [cx, cz, halfX, halfZ, angle] in design units, from the fixed colliders of every site
+
+/** Scale a landmark node around its own position (the position itself was already moved by ctx.at) */
+const scaleNode = (node, k) =>
+{
+    if(k === 1 || node.noScale)
+        return node
+    const out = { ...node }
+    if(node.mesh)
+    {
+        const g = node.mesh.geometry.clone()
+        g.scale(k, k, k)
+        out.mesh = { ...node.mesh, geometry: g }
+    }
+    else if(node.scale !== undefined)
+    {
+        out.scale = typeof node.scale === 'number' ? node.scale * k : node.scale.map(v => v * k)
+    }
+    if(node.children)
+        out.children = node.children.map(child => ({
+            ...child,
+            position: child.position ? child.position.map(v => v * k) : child.position,
+            scale: child.scale !== undefined ? (typeof child.scale === 'number' ? child.scale * k : child.scale.map(v => v * k)) : undefined,
+        }))
+    return out
+}
+
+for(const stop of [ ...Layout.stops, ...secrets ])
+{
+    const cx = stop.position.x, cz = stop.position.z
+    const y = ground(cx, cz)
+    const k = scaleOf(stop.id)
+    const sx = (x) => cx + (x - cx) * k
+    const sz = (z) => cz + (z - cz) * k
+    const ctx = {
+        cx, cz, y, ground, S: k,
+        // world x/z of the unscaled design -> spread out by the site scale, resting on the ground
+        at: (x, z, dy = 0) => [ round(sx(x) - cx), round(ground(sx(x), sz(z)) + dy * k - y), round(sz(z) - cz) ],
+        atWorld: ([ x, wy, z ]) => [ round(x - cx), round(wy - y), round(z - cz) ],
+        // street surface along a north-south street of the given width (Hyde St for the cable car)
+        road: (x, z, width = 4.5) => Math.max(roadY(x, z), roadY(x - width * 0.4, z), roadY(x + width * 0.4, z)),
+    }
+    const children = builders[stop.id](ctx).map(node => scaleNode(node, k))
+    const frustum = frustumOverrides[stop.id] || { x: cx, z: cz, radius: stop.radius + 14 }
+    const radius = stop.radius * k
+    children.push(refNode('ZoneBounding', [ 0, 0, 0 ], undefined, radius))
+    children.push(refNode('ZoneFrustum', [ sx(frustum.x) - cx, 0, sz(frustum.z) - cz ], undefined, frustum.radius * k))
+    areaNodes.push({ name: stop.id, position: [ cx, y, cz ], children })
+
+    // footprints of everything solid at this site (to keep roads and houses out)
+    for(const node of children)
+    {
+        if(!/PhysicalFixed$/.test(node.name || '') || !node.children)
+            continue
+        const angle = node.rotation ? node.rotation[1] : 0
+        const [ nx, , nz ] = node.position
+        for(const c of node.children)
+        {
+            if(!c.scale || !c.position)
+                continue
+            const [ px, , pz ] = c.position
+            const rx = px * Math.cos(angle) + pz * Math.sin(angle)
+            const rz = - px * Math.sin(angle) + pz * Math.cos(angle)
+            const [ w, , d ] = Array.isArray(c.scale) ? c.scale : [ c.scale, c.scale, c.scale ]
+            if(w < 0.5 && d < 0.5)
+                continue
+            siteFootprints.push([ cx + nx + rx, cz + nz + rz, w / 2, d / 2, angle ])
+        }
+    }
+}
+console.log('site footprints', siteFootprints.length)
+
+/** Is a design point inside (or within margin of) a site's solid parts? */
+const inSite = (x, z, margin = 0) => siteFootprints.some(([ fx, fz, hx, hz, angle ]) =>
+{
+    const dx = x - fx, dz = z - fz
+    const lx = dx * Math.cos(angle) - dz * Math.sin(angle)
+    const lz = dx * Math.sin(angle) + dz * Math.cos(angle)
+    return Math.abs(lx) < hx + margin && Math.abs(lz) < hz + margin
+})
+await writeGlb(out('static/areas/areas.glb'), areaNodes, { worldScale: W })
+console.log('areas ok')
+
+/* ---------------- Exclusion zones (no buildings / trees) ---------------- */
+const exclusions = [
+    ...Layout.stops.map(s => ({ x: s.position.x, z: s.position.z, r: s.radius * scaleOf(s.id) + 4 })),
+    { x: - 62, z: - 66, r: 0, rect: [ - 70, - 92, - 54, - 40 ] }, // bridge corridor
+    { rect: [ - 20, - 56, - 14, - 10 ] },                           // cable car line (Hyde St)
+    { rect: [ - 15, - 48, 29, - 24 ] },                             // Lombard crooked block
+    { rect: [ - 8, 66, 34, 92 ] },                                  // stadium
+    { rect: [ 48, 54, 80, 82 ] },                                   // SFO
+    { rect: [ - 60, - 48, - 20, - 14 ] },                           // Palace
+    { rect: [ - 78, 52, - 28, 86 ] },                               // turkey + dog houses
+    { rect: [ - 76, - 12, - 40, 36 ] },                              // tennis (2.25x)
+    { rect: [ 52, - 34, 70, - 2 ] },                                // Ferry Building
+    ...secrets.map(s => ({ x: s.position.x, z: s.position.z, r: s.radius + 4 })),
+    { x: 46, z: - 24, r: 5 }, { x: 37, z: - 7, r: 5 }, { x: 46, z: - 35, r: 5 }, { x: - 34, z: 50, r: 4 },
+]
+const excluded = (x, z, margin = 0) => exclusions.some(e => e.rect
+    ? x > e.rect[0] - margin && x < e.rect[2] + margin && z > e.rect[1] - margin && z < e.rect[3] + margin
+    : Math.hypot(x - e.x, z - e.z) < e.r + margin)
+const onLand = (x, z) => sample(R.depth, x, z) < 0.04
+const paved = (x, z) => sample(R.paving, x, z)
+const grassy = (x, z) => sample(R.parks, x, z) // parks (grass now covers all land)
+
+/* ---------------- Scenery ---------------- */
+const sceneryNodes = []
+const footprints = [] // [x, z, w, d, isDowntown] for the map
+
+// Asphalt roads: one merged ribbon mesh draped on the ground (Bruno's glittery road material),
+// plus lane markings painted with the palette
+{
+    const positions = [], uvs = [], indices = []
+    const marks = { positions: [], uvs: [] }
+    const quad = (cx, cy, cz, tx, tz, length, width, colorIndex) =>
+    {
+        const nx = - tz, nz = tx
+        const [ u, v ] = [ (colorIndex * 4 + 2) / 128, 0.5 ]
+        const p = (a, b) => [ cx + tx * a + nx * b, cy, cz + tz * a + nz * b ]
+        const c0 = p(- length / 2, - width / 2), c1 = p(- length / 2, width / 2), c2 = p(length / 2, - width / 2), c3 = p(length / 2, width / 2)
+        for(const v3 of [ c0, c1, c2, c1, c3, c2 ])
+        {
+            marks.positions.push(...v3)
+            marks.uvs.push(u, v)
+        }
+    }
+
+    // Every cross section is 4 vertices: outer shoulder, edge, edge, outer shoulder.
+    // The shoulders slope down into the ground, and each run of road starts/ends with a ramp,
+    // so the car can always climb onto the asphalt (no ledge at road ends or edges)
+    const SHOULDER = 0.9
+    const groundAt = (x, z) => Math.max(ground(x, z), - 0.2) - 0.03
+    const pushSection = (px, pz, nx, nz, cy, half, u, flat = false) =>
+    {
+        const first = positions.length / 3
+        for(const [ side, outer ] of [ [ - 1, true ], [ - 1, false ], [ 1, false ], [ 1, true ] ])
+        {
+            const w = half + (outer ? SHOULDER : 0)
+            const x = px + nx * w * side, z = pz + nz * w * side
+            const y = flat ? groundAt(x, z) : outer ? Math.min(cy, groundAt(x, z)) : cy
+            positions.push(x, y, z)
+            uvs.push(u, side < 0 ? 0 : 1)
+        }
+        return first
+    }
+    const connectSections = (a, b) =>
+    {
+        for(let k = 0; k < 3; k++)
+            indices.push(a + k, a + k + 1, b + k, a + k + 1, b + k + 1, b + k)
+    }
+    // ramp section just beyond the end of a run (dir = -1 before the start, 1 after the end)
+    const pushRamp = (p, t, n, half, u, dir) => pushSection(p.x + t.x * dir * 1.2, p.z + t.z * dir * 1.2, n.x, n.z, 0, half, u, true)
+
+    for(const street of Layout.streets.filter(s => s.asphalt))
+    {
+        const curve = new THREE.CatmullRomCurve3(street.points.map(([ x, z ]) => new THREE.Vector3(x, 0, z)), false, 'centripetal')
+        const length = curve.getLength()
+        const count = Math.ceil(length / 0.8)
+        const pts = curve.getSpacedPoints(count)
+        const half = street.width * (street.highway ? 0.45 : 0.4)
+        const centerYs = []
+        const blocked = pts.map(p => inSite(p.x, p.z, half * 0.6))
+        let previous = - 1
+        pts.forEach((p, i) =>
+        {
+            // the road stops where a (bigger) site stands
+            if(blocked[i])
+            {
+                previous = - 1
+                centerYs.push(null)
+                return
+            }
+            const t = curve.getTangentAt(i / count)
+            const n = new THREE.Vector3(- t.z, 0, t.x).normalize()
+            const cy = Math.max(roadY(p.x, p.z, t.x, t.z), roadY(p.x + n.x * half, p.z + n.z * half, t.x, t.z), roadY(p.x - n.x * half, p.z - n.z * half, t.x, t.z))
+            centerYs.push(cy)
+            if(previous < 0)
+                previous = pushRamp(p, t, n, half, i / count, - 1)
+            const current = pushSection(p.x, p.z, n.x, n.z, cy, half, i / count)
+            connectSections(previous, current) // counter clockwise seen from above
+            previous = current
+            // end of this run: ramp down
+            if(i === pts.length - 1 || blocked[i + 1])
+                connectSections(current, pushRamp(p, t, n, half, i / count, 1))
+        })
+
+        // markings
+        const spacing = 0.8
+        pts.forEach((p, i) =>
+        {
+            if(i === 0 || i === pts.length - 1 || centerYs[i] === null)
+                return
+            const t = curve.getTangentAt(i / count)
+            const n = { x: - t.z, z: t.x }
+            const y = centerYs[i] + 0.015
+            if(street.highway)
+            {
+                // double yellow center line, white dashed lanes
+                for(const o of [ - 0.16, 0.16 ])
+                    quad(p.x + n.x * o, y, p.z + n.z * o, t.x, t.z, spacing + 0.05, 0.12, C.gold)
+                if(i % 3 === 0)
+                    for(const o of [ - half * 0.5, half * 0.5 ])
+                        quad(p.x + n.x * o, y, p.z + n.z * o, t.x, t.z, 1.2, 0.14, C.snow)
+            }
+            else if(i % 3 === 0)
+            {
+                quad(p.x, y, p.z, t.x, t.z, 1.1, 0.14, C.snow)
+            }
+        })
+    }
+    // Rounded corners where streets meet: a curved strip from one street into the other (both sides of a T)
+    for(const fillet of streetFillets)
+    {
+        const half = fillet.half
+        let previous = - 1
+        fillet.points.forEach((p, i) =>
+        {
+            const a = fillet.points[Math.max(0, i - 1)], b = fillet.points[Math.min(fillet.points.length - 1, i + 1)]
+            const t = new THREE.Vector3(b.x - a.x, 0, b.z - a.z).normalize()
+            const n = new THREE.Vector3(- t.z, 0, t.x)
+            if(inSite(p.x, p.z, half * 0.6))
+            {
+                previous = - 1
+                return
+            }
+            // a hair under the streets so the overlap never flickers
+            const cy = Math.max(roadY(p.x, p.z, t.x, t.z), roadY(p.x + n.x * half, p.z + n.z * half, t.x, t.z), roadY(p.x - n.x * half, p.z - n.z * half, t.x, t.z)) - 0.008
+            const current = pushSection(p.x, p.z, n.x, n.z, cy, half, i / fillet.points.length)
+            if(previous >= 0)
+                connectSections(previous, current)
+            previous = current
+        })
+    }
+
+    // Lombard crooked block: one brick lane, solid like the streets (asphalt underneath for the physics, bricks painted on top)
+    {
+        const pts = lombardPoints(0.3).map(([ x, z ]) => new THREE.Vector3(x, 0, z))
+        const half = Layout.lombard.lane / 2
+        let previous = - 1
+        const sections = []
+        pts.forEach((p, i) =>
+        {
+            const a = pts[Math.max(0, i - 1)], b = pts[Math.min(pts.length - 1, i + 1)]
+            const t = new THREE.Vector3(b.x - a.x, 0, b.z - a.z).normalize()
+            const n = new THREE.Vector3(- t.z, 0, t.x)
+            const cy = Math.max(roadY(p.x, p.z, t.x, t.z), roadY(p.x + n.x * half, p.z + n.z * half, t.x, t.z), roadY(p.x - n.x * half, p.z - n.z * half, t.x, t.z))
+            const current = positions.length / 3
+            for(const side of [ - 1, 1 ])
+            {
+                positions.push(p.x + n.x * half * side, cy, p.z + n.z * half * side)
+                uvs.push(i / pts.length, side < 0 ? 0 : 1)
+            }
+            if(previous >= 0)
+                indices.push(previous, previous + 1, current, previous + 1, current + 1, current)
+            previous = current
+            sections.push({ p, n, cy })
+        })
+        // painted on top as continuous strips (no gaps on the curves): red brick rows of two tones, light curbs
+        const strip = (o0, o1, lift, colorOf) =>
+        {
+            for(let i = 1; i < sections.length; i++)
+            {
+                const A = sections[i - 1], B = sections[i]
+                const [ u, v ] = [ (colorOf(i) * 4 + 2) / 128, 0.5 ]
+                const at = (S, o) => [ S.p.x + S.n.x * o, S.cy + lift, S.p.z + S.n.z * o ]
+                const a0 = at(A, o0), a1 = at(A, o1), b0 = at(B, o0), b1 = at(B, o1)
+                for(const v3 of [ a0, a1, b0, a1, b1, b0 ])
+                {
+                    marks.positions.push(...v3)
+                    marks.uvs.push(u, v)
+                }
+            }
+        }
+        strip(- half - 0.02, half + 0.02, 0.012, () => C.brick)
+        strip(- half - 0.02, - half + 0.12, 0.02, () => C.stone)
+        strip(half - 0.12, half + 0.02, 0.02, () => C.stone)
+    }
+
+    // compact: drop vertices no triangle uses (Rapier's trimesh builder panics on them)
+    const remap = new Map()
+    const cPositions = [], cUvs = [], cIndices = []
+    for(const index of indices)
+    {
+        if(!remap.has(index))
+        {
+            remap.set(index, cPositions.length / 3)
+            cPositions.push(positions[index * 3], positions[index * 3 + 1], positions[index * 3 + 2])
+            cUvs.push(uvs[index * 2], uvs[index * 2 + 1])
+        }
+        cIndices.push(remap.get(index))
+    }
+    const g = new THREE.BufferGeometry()
+    g.setAttribute('position', new THREE.Float32BufferAttribute(cPositions, 3))
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(cUvs, 2))
+    g.setIndex(cIndices)
+    g.computeVertexNormals()
+    // solid road: the car drives on the asphalt itself, not on the coarser terrain heightfield
+    sceneryNodes.push({
+        name: 'refRoadPhysicalFixed',
+        mesh: { geometry: g, material: 'road' },
+        extras: { friction: 0.3 },
+        children: [ { name: 'trimesh', mesh: { geometry: g, material: 'road' } } ],
+    })
+
+    const m = new THREE.BufferGeometry()
+    m.setAttribute('position', new THREE.Float32BufferAttribute(marks.positions, 3))
+    m.setAttribute('uv', new THREE.Float32BufferAttribute(marks.uvs, 2))
+    m.computeVertexNormals()
+    sceneryNodes.push({ name: 'roadMarkings', mesh: { geometry: m, material: 'palette' } })
+}
+
+// Alcatraz boardwalk: a wooden causeway on pilings, low white rails, lamp posts and swooping string lights
+{
+    const curve = new THREE.CatmullRomCurve3(Layout.boardwalk.points.map(([ x, z ]) => new THREE.Vector3(x, 0, z)), false, 'centripetal')
+    const count = Math.ceil(curve.getLength() / 1.2)
+    const pts = curve.getSpacedPoints(count)
+    const half = Layout.boardwalk.width / 2
+    // just above the water, following the ground where it lands on the shore
+    let ys = pts.map(p => Math.max(0.3, ground(p.x, p.z) + 0.06))
+    for(let it = 0; it < 6; it++)
+        ys = ys.map((y, i) => i === 0 || i === ys.length - 1 ? y : Math.max(y, (ys[i - 1] + ys[i + 1]) / 2))
+    const o = pts[0], oy = ys[0]
+    const deck = new Model()
+    const bulbs = new Model()
+    const colliders = []
+    const postEvery = 4
+    for(let i = 1; i < pts.length; i++)
+    {
+        const a = pts[i - 1], b = pts[i], ya = ys[i - 1], yb = ys[i]
+        const dx = b.x - a.x, dz = b.z - a.z, len = Math.hypot(dx, dz)
+        const rotation = [ - Math.atan2(yb - ya, len), Math.atan2(dx, dz), 0 ]
+        const L = Math.hypot(len, yb - ya) + 0.06
+        const mid = [ (a.x + b.x) / 2 - o.x, (ya + yb) / 2 - oy, (a.z + b.z) / 2 - o.z ]
+        const nx = dz / len, nz = - dx / len
+        // planks with dark seams
+        deck.cbox([ half * 2, 0.22, L ], C.wood, [ mid[0], mid[1] - 0.11, mid[2] ], rotation)
+        deck.cbox([ half * 2 - 0.3, 0.02, 0.05 ], C.olive, [ mid[0], mid[1] + 0.005, mid[2] ], rotation)
+        colliders.push({ position: [ mid[0], mid[1] - 0.11, mid[2] ], size: [ half * 2, 0.22, L ], rotation })
+        for(const side of [ - 1, 1 ])
+        {
+            const rx = mid[0] + nx * (half - 0.08) * side, rz = mid[2] + nz * (half - 0.08) * side
+            deck.cbox([ 0.09, 0.09, L ], C.snow, [ rx, mid[1] + 0.55, rz ], rotation)          // top rail
+            deck.cbox([ 0.05, 0.05, L ], C.snow, [ rx, mid[1] + 0.28, rz ], rotation)          // mid rail
+            colliders.push({ position: [ rx, mid[1] + 0.3, rz ], size: [ 0.14, 0.6, L ], rotation })
+            const px = a.x - o.x + nx * (half - 0.08) * side, pz = a.z - o.z + nz * (half - 0.08) * side
+            deck.cbox([ 0.1, 0.6, 0.1 ], C.snow, [ px, ya - oy + 0.3, pz ])                    // rail post
+            deck.cylinder(0.13, 0.13, 2, C.wood, [ px, ya - oy - 2.2, pz ], 6)                  // piling into the water
+            // lamp posts in pairs, bulbs swooping post to post
+            if((i - 1) % postEvery === 0)
+            {
+                deck.cylinder(0.06, 0.08, 2.3, C.dark, [ px, ya - oy, pz ], 6)
+                deck.cbox([ 0.3, 0.08, 0.3 ], C.dark, [ px, ya - oy + 2.3, pz ])
+                bulbs.sphere(0.16, C.gold, [ px, ya - oy + 2.48, pz ], 1)
+            }
+            for(const f of [ 0, 0.5 ])
+            {
+                const t = (((i - 1) % postEvery) + f) / postEvery
+                const bx = a.x + dx * f - o.x + nx * (half - 0.08) * side, bz = a.z + dz * f - o.z + nz * (half - 0.08) * side
+                bulbs.sphere(0.07, C.gold, [ bx, ya + (yb - ya) * f - oy + 2.2 - Math.sin(t * Math.PI) * 0.5, bz ], 0)
+            }
+        }
+    }
+    sceneryNodes.push(fixedNode('alcatrazBoardwalk', deck, [ o.x, oy, o.z ], colliders))
+    sceneryNodes.push({ ...meshNode('boardwalkLights', bulbs, [ o.x, oy, o.z ]), mesh: { geometry: bulbs.geometry(), material: 'emissiveOrangeRadialGradient' } })
+}
+
+// Highway signs: 101 north to Napa (11/28 day trip), 101 south to SFO and Levi's
+{
+    const highwaySign = (lines, color) =>
+    {
+        const m = new Model()
+        m.cylinder(0.12, 0.12, 4.2, C.slate, [ - 1.8, 0, 0 ], 6)
+        m.cylinder(0.12, 0.12, 4.2, C.slate, [ 1.8, 0, 0 ], 6)
+        m.box([ 4.6, 2, 0.2 ], color, [ 0, 3.2, 0 ])
+        m.box([ 4.8, 0.1, 0.22 ], C.snow, [ 0, 5.15, 0 ])
+        m.box([ 4.8, 0.1, 0.22 ], C.snow, [ 0, 3.2, 0 ])
+        lines.forEach((w, i) => m.box([ w, 0.22, 0.24 ], C.snow, [ - (4 - w) / 2, 4.55 - i * 0.55, 0 ]))
+        // shield
+        m.box([ 0.8, 0.8, 0.26 ], C.snow, [ 1.6, 4.1, 0 ])
+        return m
+    }
+    sceneryNodes.push({ ...fixedNode('signNapa', highwaySign([ 2.4, 1.6, 2 ], C.moss), [ - 58, ground(- 58, - 93.5), - 93.5 ], [ { position: [ 0, 2.1, 0 ], size: [ 4.6, 4.2, 0.4 ] } ]), rotation: [ 0, 0, 0 ] }) // beside the road, not on it
+    sceneryNodes.push({ ...fixedNode('sign101', highwaySign([ 2.4, 2 ], C.moss), [ 51.5, ground(51.5, 49), 49 ], [ { position: [ 0, 2.1, 0 ], size: [ 4.6, 4.2, 0.4 ] } ]), rotation: [ 0, 0.3, 0 ] })
+}
+
+// Skyline landmarks
+{
+    // Transamerica Pyramid
+    const pyramid = new Model()
+    pyramid.add(new THREE.CylinderGeometry(0.3, 3.2, 20, 4).translate(0, 10, 0), C.snow, [ 0, 0, 0 ], [ 0, Math.PI / 4, 0 ])
+    pyramid.box([ 1.2, 3, 0.4 ], C.snow, [ - 1.8, 9, 0 ])
+    pyramid.box([ 1.2, 3, 0.4 ], C.snow, [ 1.8, 9, 0 ])
+    pyramid.cylinder(0.05, 0.25, 3, C.snow, [ 0, 20, 0 ], 4)
+    sceneryNodes.push(fixedNode('transamerica', pyramid, [ 46, ground(46, - 24), - 24 ], [ { position: [ 0, 5, 0 ], size: [ 4.2, 10, 4.2 ] } ]))
+
+    // Salesforce Tower
+    const sf = new Model()
+    sf.add(new THREE.CylinderGeometry(1.6, 2.4, 26, 10).translate(0, 13, 0), C.stone)
+    sf.dome(1.6, C.stone, [ 0, 26, 0 ], 10)
+    for(let i = 0; i < 12; i++)
+        sf.cylinder(2.42 - i * 0.065, 2.42 - i * 0.065, 0.08, C.sky, [ 0, 1 + i * 2, 0 ], 10)
+    sceneryNodes.push(fixedNode('salesforce', sf, [ 37, ground(37, - 7), - 7 ], [ { shape: 'tube', position: [ 0, 8, 0 ], radius: 2.3, height: 16 } ]))
+
+    // Coit Tower on Telegraph Hill
+    const coit = new Model()
+    coit.cylinder(1.3, 1.3, 7, C.cream, [ 0, 0, 0 ], 10)
+    for(let i = 0; i < 10; i++)
+    {
+        const a = i / 10 * Math.PI * 2
+        coit.cbox([ 0.25, 0.8, 0.1 ], C.dark, [ Math.cos(a) * 1.31, 6.3, Math.sin(a) * 1.31 ], [ 0, - a + Math.PI / 2, 0 ])
+    }
+    coit.cylinder(1.5, 1.5, 0.4, C.cream, [ 0, 7, 0 ], 10)
+    coit.box([ 4, 1, 4 ], C.cream)
+    sceneryNodes.push(fixedNode('coit', coit, [ 46, ground(46, - 35), - 35 ], [ { shape: 'tube', position: [ 0, 3.5, 0 ], radius: 1.4, height: 7 } ]))
+
+    // Sutro Tower
+    const sutro = new Model()
+    const legs = [ [ - 1.2, - 0.7 ], [ 1.2, - 0.7 ], [ 0, 1.4 ] ]
+    for(const [ x, z ] of legs)
+        sutro.beam([ x * 1.6, 0, z * 1.6 ], [ x * 0.6, 14, z * 0.6 ], 0.3, C.red)
+    for(const h of [ 4, 8, 12 ])
+        sutro.cylinder(1.6 - h * 0.06, 1.6 - h * 0.06, 0.25, C.snow, [ 0, h, 0 ], 3)
+    for(const [ x, z ] of legs)
+    {
+        sutro.box([ 0.3, 3, 0.3 ], C.snow, [ x * 0.6, 14, z * 0.6 ])
+        sutro.box([ 0.2, 1.2, 0.2 ], C.red, [ x * 0.6, 17, z * 0.6 ])
+    }
+    sceneryNodes.push(fixedNode('sutro', sutro, [ - 34, ground(- 34, 50), 50 ], [ { position: [ 0, 4, 0 ], size: [ 3, 8, 3 ] } ]))
+}
+
+// City blocks: every house is its own light block the car can knock around
+{
+    const r = rng(415)
+    const downtown = { x: 44, z: - 14 }
+    const pastel = [ C.blush, C.cream, C.sky, C.sage, C.peach, C.lavender, C.snow, C.salmon, C.pink ]
+    const glass = [ C.stone, C.slate, C.snow, C.cream, C.sky ]
+    const step = 4.2
+    let count = 0
+    for(let gx = - 88; gx <= 88; gx += step)
+    {
+        for(let gz = - 92; gz <= 90; gz += step)
+        {
+            const x = gx + (r() - 0.5) * 1.4
+            const z = gz + (r() - 0.5) * 1.4
+            const dt = Math.hypot(x - downtown.x, z - downtown.z)
+            const isDowntown = dt < 20
+            const w = isDowntown ? 3.2 + r() * 1.2 : 2.6 + r() * 1.2
+            const d = isDowntown ? 3.2 + r() * 1.2 : 2.8 + r() * 1.4
+            const corners = [ [ x - w / 2 - 0.6, z - d / 2 - 0.6 ], [ x + w / 2 + 0.6, z - d / 2 - 0.6 ], [ x - w / 2 - 0.6, z + d / 2 + 0.6 ], [ x + w / 2 + 0.6, z + d / 2 + 0.6 ], [ x, z ] ]
+            if(excluded(x, z, 3) || inSite(x, z, 3))
+                continue
+            if(!corners.every(([ cx, cz ]) => onLand(cx, cz) && paved(cx, cz) < 0.05 && grassy(cx, cz) < 0.15))
+                continue
+            if(nearRoad(x, z, Math.max(w, d) / 2 + 0.6))
+                continue
+            if(Math.abs(x) > 88 || Math.abs(z) > 90)
+                continue
+            if(r() < (isDowntown ? 0.03 : 0.06))
+                continue
+            const ys = corners.map(([ cx, cz ]) => ground(cx, cz))
+            if(Math.max(...ys) - Math.min(...ys) > 1.1)
+                continue
+            const baseY = ys.reduce((a, b) => a + b, 0) / ys.length
+            const height = isDowntown ? 5 + (1 - dt / 20) * 10 + r() * 3 : 2.6 + r() * 1.6
+            const color = isDowntown ? glass[Math.floor(r() * glass.length)] : pastel[Math.floor(r() * pastel.length)]
+            const m = new Model()
+            m.box([ w, height, d ], color, [ 0, 0, 0 ])
+            if(isDowntown)
+            {
+                for(let k = 1; k < height / 1.6; k++)
+                    m.box([ w + 0.04, 0.35, d + 0.04 ], C.dark, [ 0, k * 1.6 - 0.6, 0 ])
+                m.box([ w * 0.5, 0.8, d * 0.5 ], C.slate, [ 0, height, 0 ])
+            }
+            else
+            {
+                m.box([ w + 0.06, 0.22, d + 0.06 ], C.snow, [ 0, height - 0.18, 0 ]) // sits a hair above the flat top (coplanar faces flicker)
+                for(const sd of [ - 1, 1 ])
+                {
+                    m.cbox([ w * 0.3, 0.8, 0.05 ], C.black, [ sd * w * 0.22, height * 0.6, - d / 2 - 0.01 ])
+                    m.cbox([ w * 0.3, 0.8, 0.05 ], C.black, [ sd * w * 0.22, height * 0.6, d / 2 + 0.01 ])
+                }
+                m.cbox([ 0.7, 1.2, 0.05 ], C.wood, [ 0, 0.6, - d / 2 - 0.02 ])
+                if(r() < 0.6)
+                    m.gable(w + 0.1, d + 0.1, 1 + r() * 0.6, r() < 0.5 ? C.slate : C.brick, [ 0, height + 0.04, 0 ]) // ridge along x, spans the depth
+            }
+            const mass = isDowntown ? 1.5 + height * 0.08 : 0.9
+            sceneryNodes.push({
+                ...dynamicNode('house', m, [ round(x), round(baseY), round(z) ], [ { position: [ 0, height / 2, 0 ], size: [ w, height, d ] } ], mass),
+                rotation: [ 0, (r() - 0.5) * 0.2, 0 ],
+            })
+            footprints.push([ x, z, w, d, isDowntown ])
+            count++
+        }
+    }
+    console.log('houses', count)
+}
+
+// Thanksgiving: a giant, detailed roast turkey dish in the bottom left (built at 1x, placed at 1.5x)
+{
+    const { x, z } = turkeyData
+    const S = 1.5
+    const y = ground(x, z)
+    const r = rng(1124)
+    const dish = new Model()
+    // platter: white porcelain, gold rim with a beaded pattern, a little foot
+    dish.cylinder(5.4, 5.0, 0.25, C.snow, [ 0, 0, 0 ], 32)
+    dish.cylinder(6.3, 5.4, 0.35, C.snow, [ 0, 0.25, 0 ], 32)
+    dish.add(new THREE.TorusGeometry(6.15, 0.16, 6, 48), C.gold, [ 0, 0.62, 0 ], [ Math.PI / 2, 0, 0 ])
+    for(let i = 0; i < 40; i++)
+    {
+        const a = i / 40 * Math.PI * 2
+        dish.sphere(0.12, C.gold, [ Math.cos(a) * 6.0, 0.66, Math.sin(a) * 6.0 ], 0)
+    }
+    dish.cylinder(5.3, 5.3, 0.04, C.cream, [ 0, 0.6, 0 ], 32)
+    // bed of greens under the bird
+    for(let i = 0; i < 26; i++)
+    {
+        const a = r() * Math.PI * 2, d = 2.2 + r() * 1.6
+        dish.sphere(0.45 + r() * 0.25, i % 3 ? C.moss : C.olive, [ Math.cos(a) * d * 1.2, 0.75, Math.sin(a) * d * 0.85 ], 1, [ 1.3, 0.35, 1 ])
+    }
+
+    // the roast turkey: layered golden-brown body, crispy darker underside, glossy highlights
+    const T = [ 0, 0.7, 0 ]
+    dish.sphere(2.7, C.wood, [ 0, T[1] + 1.25, 0 ], 2, [ 1.45, 0.62, 1.05 ])          // darker underside
+    dish.sphere(2.6, C.brick, [ 0, T[1] + 1.65, 0 ], 2, [ 1.42, 0.78, 1.0 ])          // main roast
+    dish.sphere(2.0, C.orange, [ 0.4, T[1] + 2.35, 0 ], 2, [ 1.45, 0.62, 0.95 ])      // golden breast
+    // breast bone ridge and skin highlights
+    dish.sphere(0.55, C.gold, [ 0.6, T[1] + 3.45, 0 ], 1, [ 4.2, 0.45, 0.6 ])
+    for(const [ hx, hz ] of [ [ - 1.2, 0.9 ], [ 0.9, - 1 ], [ 1.8, 0.7 ], [ - 0.4, - 1.3 ], [ - 2, - 0.5 ] ])
+        dish.sphere(0.35, C.gold, [ hx, T[1] + 3.0, hz ], 1, [ 1.6, 0.35, 1 ])
+    // crispy browned spots
+    for(let i = 0; i < 14; i++)
+    {
+        const a = r() * Math.PI * 2
+        dish.sphere(0.22 + r() * 0.15, C.wood, [ Math.cos(a) * 2.8, T[1] + 2.2 + r() * 0.7, Math.sin(a) * 1.9 ], 0)
+    }
+    // tail end (pope's nose) and the neck end
+    dish.sphere(0.9, C.brick, [ - 3.4, T[1] + 1.8, 0 ], 1, [ 1, 0.8, 1.1 ])
+    dish.sphere(0.8, C.orange, [ 3.3, T[1] + 1.9, 0 ], 1, [ 0.8, 0.9, 1.3 ])
+    for(const side of [ - 1, 1 ])
+    {
+        // thighs, drumsticks pointing up and forward, with paper frill crowns
+        dish.sphere(1.15, C.brick, [ 1.9, T[1] + 1.7, side * 1.75 ], 1, [ 1.5, 0.95, 0.95 ])
+        dish.sphere(0.55, C.orange, [ 2.1, T[1] + 2.25, side * 1.85 ], 1, [ 1.5, 0.6, 0.8 ])
+        dish.cylinder(0.32, 0.5, 1.6, C.brick, [ 3.3, T[1] + 2.0, side * 1.55 ], 8, [ 0, 0, - Math.PI * 0.36 ])
+        dish.cylinder(0.16, 0.16, 0.8, C.snow, [ 4.45, T[1] + 2.75, side * 1.45 ], 6, [ 0, 0, - Math.PI * 0.36 ])
+        for(let k = 0; k < 7; k++)
+        {
+            const a = k / 7 * Math.PI * 2
+            dish.cone(0.1, 0.35, C.snow, [ 4.85 + Math.cos(a) * 0.15, T[1] + 3.05, side * 1.45 + Math.sin(a) * 0.18 ], 4)
+        }
+        // wings tucked on the sides
+        dish.sphere(0.95, C.brick, [ - 0.8, T[1] + 1.9, side * 2.45 ], 1, [ 1.6, 0.55, 0.45 ])
+        dish.sphere(0.45, C.wood, [ 0.3, T[1] + 1.7, side * 2.6 ], 1, [ 1.2, 0.6, 0.5 ])
+    }
+    // herb sprigs on top (rosemary, thyme) and a bay leaf
+    for(let i = 0; i < 6; i++)
+    {
+        const hx = - 1.6 + i * 0.6, hz = (i % 2 - 0.5) * 0.6
+        dish.cylinder(0.04, 0.04, 1.1, C.olive, [ hx, T[1] + 3.35, hz ], 4, [ Math.PI / 2, 0, 0.4 + i * 0.5 ])
+        for(let k = 0; k < 4; k++)
+            dish.sphere(0.08, C.moss, [ hx + (k - 1.5) * 0.15, T[1] + 3.4, hz + (k - 1.5) * 0.2 ], 0)
+    }
+
+    // garnish ring: orange slices, cranberries, roasted potatoes and carrots, grapes, green beans
+    for(let i = 0; i < 18; i++)
+    {
+        const a = i / 18 * Math.PI * 2 + 0.1
+        const px = Math.cos(a) * 4.55, pz = Math.sin(a) * 4.35
+        const kind = i % 6
+        if(kind === 0)
+        {
+            dish.cylinder(0.55, 0.55, 0.12, C.orange, [ px, 0.75, pz ], 10, [ 0.5, a, 0.4 ])
+            dish.cylinder(0.42, 0.42, 0.13, C.gold, [ px, 0.76, pz ], 10, [ 0.5, a, 0.4 ])
+        }
+        else if(kind === 1)
+            for(let k = 0; k < 5; k++)
+                dish.sphere(0.17, C.red, [ px + (r() - 0.5) * 0.6, 0.85 + r() * 0.15, pz + (r() - 0.5) * 0.6 ], 0)
+        else if(kind === 2)
+            for(let k = 0; k < 3; k++)
+                dish.sphere(0.32, C.khaki, [ px + (k - 1) * 0.45, 0.88, pz + (r() - 0.5) * 0.3 ], 1, [ 1.2, 0.8, 1 ])
+        else if(kind === 3)
+            for(let k = 0; k < 3; k++)
+                dish.cone(0.16, 0.9, C.orange, [ px + (k - 1) * 0.28, 0.85, pz ], 6, [ Math.PI / 2, a + k * 0.3, 0 ])
+        else if(kind === 4)
+            for(let k = 0; k < 6; k++)
+                dish.sphere(0.16, C.purple, [ px + (k % 3 - 1) * 0.25, 0.85 + Math.floor(k / 3) * 0.2, pz + (k % 2) * 0.2 ], 0)
+        else
+            for(let k = 0; k < 5; k++)
+                dish.cylinder(0.06, 0.06, 0.9, C.moss, [ px + (k - 2) * 0.12, 0.8, pz ], 4, [ Math.PI / 2, a + (k - 2) * 0.15, 0 ])
+    }
+    // carving knife and fork resting on the platter
+    dish.box([ 2.6, 0.06, 0.32 ], C.stone, [ 0.5, 0.67, 4.2 ], [ 0, 0.2, 0 ])
+    dish.box([ 1.2, 0.18, 0.28 ], C.wood, [ - 1.3, 0.67, 4.55 ], [ 0, 0.2, 0 ])
+    dish.box([ 2.1, 0.08, 0.12 ], C.stone, [ 0.2, 0.67, - 4.3 ], [ 0, - 0.15, 0 ])
+    for(const o of [ - 0.12, 0, 0.12 ])
+        dish.box([ 0.6, 0.06, 0.05 ], C.stone, [ 1.5, 0.67, - 4.5 + o ], [ 0, - 0.15, 0 ])
+
+    // gravy boat and cranberry bowl next to the platter
+    const sides = new Model()
+    sides.cylinder(0.9, 0.6, 0.7, C.snow, [ 0, 0, 0 ], 14)
+    sides.cylinder(0.8, 0.8, 0.05, C.wood, [ 0, 0.65, 0 ], 14)
+    sides.cone(0.3, 0.6, C.snow, [ 0.95, 0.45, 0 ], 6, [ 0, 0, - Math.PI / 2 ])
+    sides.cylinder(0.75, 0.55, 0.6, C.gold, [ 0, 0, 2.2 ], 14)
+    sides.cylinder(0.68, 0.68, 0.05, C.red, [ 0, 0.55, 2.2 ], 14)
+    for(let k = 0; k < 8; k++)
+        sides.sphere(0.13, C.red, [ (r() - 0.5) * 0.9, 0.6, 2.2 + (r() - 0.5) * 0.9 ], 0)
+
+    // pumpkin pie with a fluted crust, a missing slice and whipped cream
+    const pie = new Model()
+    pie.cylinder(2.25, 1.95, 0.6, C.khaki, [ 0, 0, 0 ], 24)
+    pie.cylinder(2.05, 2.05, 0.08, C.orange, [ 0, 0.6, 0 ], 24)
+    for(let i = 0; i < 24; i++)
+    {
+        const a = i / 24 * Math.PI * 2
+        pie.sphere(0.2, C.khaki, [ Math.cos(a) * 2.15, 0.65, Math.sin(a) * 2.15 ], 0)
+    }
+    for(let i = 0; i < 6; i++)
+    {
+        const a = i / 6 * Math.PI * 2 + 0.3
+        pie.sphere(0.28, C.snow, [ Math.cos(a) * 1.3, 0.75, Math.sin(a) * 1.3 ], 1, [ 1, 0.7, 1 ])
+        pie.cone(0.18, 0.3, C.snow, [ Math.cos(a) * 1.3, 0.9, Math.sin(a) * 1.3 ], 6)
+    }
+    // the slice, on its own plate
+    pie.cylinder(0.9, 0.8, 0.1, C.snow, [ 3.2, 0, 0.5 ], 14)
+    pie.box([ 1.1, 0.6, 0.7 ], C.orange, [ 3.2, 0.1, 0.5 ], [ 0, 0.4, 0 ])
+    pie.box([ 0.35, 0.65, 0.75 ], C.khaki, [ 3.65, 0.1, 0.65 ], [ 0, 0.4, 0 ])
+
+    sceneryNodes.push(scaleNode(fixedNode('turkeyDish', dish, [ x, y, z ], [
+        { shape: 'tube', position: [ 0, 0.35, 0 ], radius: 6.3, height: 0.7 },
+        { position: [ 0, 2.4, 0 ], size: [ 7.6, 3.6, 4.8 ] },
+    ]), S))
+    sceneryNodes.push(scaleNode(fixedNode('gravy', sides, [ x - 7.2 * S, ground(x - 7.2 * S, z - 1), z - 1 ], [ { shape: 'tube', position: [ 0, 0.35, 1.1 ], radius: 0.9, height: 0.7 } ]), S))
+    sceneryNodes.push(scaleNode(fixedNode('pumpkinPie', pie, [ x + 6.5 * S, ground(x + 6.5 * S, z + 2), z + 2 ], [ { shape: 'tube', position: [ 0, 0.3, 0 ], radius: 2.2, height: 0.7 } ]), S))
+    // sign
+    const sign = new Model()
+    sign.cylinder(0.12, 0.12, 2.4, C.wood, [ - 1.6, 0, 0 ], 6)
+    sign.cylinder(0.12, 0.12, 2.4, C.wood, [ 1.6, 0, 0 ], 6)
+    sign.box([ 4, 1.2, 0.2 ], C.orange, [ 0, 1.6, 0 ])
+    sign.box([ 3.2, 0.2, 0.22 ], C.snow, [ 0, 2.25, 0 ])
+    sign.box([ 2.4, 0.2, 0.22 ], C.snow, [ 0, 1.95, 0 ])
+    // JAY ♥ JESSICA in big knockable blocks, north of the dish between the two dog houses
+    sceneryNodes.push(...nameBlocks(ground, [ { text: 'JAY', color: C.sky }, { text: '♥', color: C.red }, { text: 'JESSICA', color: C.pink } ], x, z - 20))
+}
+
+// Dog houses: 小可's pink cottage and Dookie's Swiss chalet
+for(const dog of dogsData)
+{
+    const { x, z, rotation } = dog.home
+    const m = new Model()
+    if(dog.id === 'xiaoke')
+    {
+        // 小可 (boy): navy cabin with a sky-blue roof, a bone sign, a little basketball hoop and his ball
+        m.box([ 2.4, 1.6, 2.2 ], C.slate, [ 0, 0, 0 ])
+        m.box([ 2.6, 0.2, 2.4 ], C.snow, [ 0, 0, 0 ])
+        m.gable(2.8, 2.7, 1.2, C.sky, [ 0, 1.6, 0 ])
+        m.box([ 2.9, 0.12, 0.2 ], C.snow, [ 0, 1.6, - 1.2 ])
+        m.cbox([ 0.9, 1.0, 0.06 ], C.black, [ 0, 0.55, - 1.12 ]) // door hole
+        // bone sign over the door
+        m.cbox([ 0.9, 0.22, 0.08 ], C.snow, [ 0, 1.35, - 1.14 ])
+        for(const x of [ - 0.45, 0.45 ])
+            for(const y of [ - 0.08, 0.08 ])
+                m.sphere(0.1, C.snow, [ x, 1.35 + y, - 1.15 ], 0)
+        // basketball hoop on a pole beside the house, and a ball
+        m.cylinder(0.05, 0.05, 2.2, C.slate, [ 1.7, 0, 0.6 ], 6)
+        m.box([ 0.06, 0.5, 0.7 ], C.snow, [ 1.7, 2.0, 0.6 ])
+        m.add(new THREE.TorusGeometry(0.18, 0.03, 4, 10), C.orange, [ 1.5, 2.05, 0.6 ], [ Math.PI / 2, 0, 0 ])
+        m.sphere(0.22, C.orange, [ 1.5, 0.22, - 1.3 ], 1)
+        // food bowl
+        m.cylinder(0.35, 0.25, 0.2, C.sky, [ - 1.6, 0, - 1.2 ], 10)
+        m.cylinder(0.28, 0.28, 0.05, C.wood, [ - 1.6, 0.18, - 1.2 ], 10)
+    }
+    else
+    {
+        // Dookie (girl): big Swiss chalet with a pink roof, a bow, heart window and flower boxes
+        m.box([ 5, 3, 4.4 ], C.wood, [ 0, 0, 0 ])
+        for(let i = 0; i < 6; i++)
+            m.box([ 5.1, 0.12, 4.5 ], C.brick, [ 0, 0.3 + i * 0.48, 0 ])
+        m.gable(5.8, 5.6, 2.2, C.pink, [ 0, 3, 0 ])
+        m.cbox([ 2.0, 2.2, 0.08 ], C.black, [ 0, 1.1, - 2.21 ]) // arched door
+        m.cylinder(1.0, 1.0, 0.08, C.black, [ 0, 2.2, - 2.21 ], 10, [ Math.PI / 2, 0, 0 ])
+        // heart window in the gable
+        m.sphere(0.32, C.blush, [ - 0.22, 3.75, - 2.25 ], 0)
+        m.sphere(0.32, C.blush, [ 0.22, 3.75, - 2.25 ], 0)
+        m.cbox([ 0.45, 0.45, 0.08 ], C.blush, [ 0, 3.5, - 2.25 ], [ 0, 0, Math.PI / 4 ])
+        // big bow on the roof ridge
+        m.cone(0.5, 0.9, C.pink, [ - 0.45, 4.9, - 2.4 ], 4, [ 0, 0, Math.PI / 2 ])
+        m.cone(0.5, 0.9, C.pink, [ 0.45, 4.9, - 2.4 ], 4, [ 0, 0, - Math.PI / 2 ])
+        m.sphere(0.22, C.pink, [ 0, 4.9, - 2.4 ], 0)
+        // flower boxes under the side windows
+        for(const x of [ - 1.8, 1.8 ])
+        {
+            m.cbox([ 0.8, 0.7, 0.08 ], C.cream, [ x, 1.7, - 2.22 ])
+            m.box([ 1, 0.25, 0.35 ], C.brick, [ x, 1.15, - 2.35 ])
+            for(let k = 0; k < 4; k++)
+                m.sphere(0.13, [ C.pink, C.blush, C.snow, C.purple ][k], [ x - 0.35 + k * 0.23, 1.45, - 2.4 ], 0)
+        }
+        // giant pink bowl and a barrel
+        m.cylinder(0.7, 0.5, 0.35, C.pink, [ 2.8, 0, - 2.2 ], 12)
+        m.cylinder(0.6, 0.6, 0.06, C.wood, [ 2.8, 0.32, - 2.2 ], 12)
+        m.cylinder(0.5, 0.55, 1.2, C.brick, [ - 3.1, 0, - 1.4 ], 10)
+    }
+    const size = dog.id === 'xiaoke' ? [ 2.6, 2.8, 2.4 ] : [ 5.2, 5.2, 4.6 ]
+    sceneryNodes.push({ ...fixedNode(`dogHouse`, m, [ x, ground(x, z), z ], [ { position: [ 0, size[1] / 2, 0 ], size } ]), rotation: [ 0, rotation, 0 ] })
+}
+await writeGlb(out('static/scenery/scenery.glb'), sceneryNodes, { worldScale: W })
+console.log('scenery ok')
+
+/* ---------------- Respawns ---------------- */
+{
+    const nodes = Layout.stops.map(s => ({
+        name: `respawn${s.id.charAt(0).toUpperCase()}${s.id.slice(1)}`,
+        position: [ s.respawn.x, round(Math.max(ground(s.respawn.x, s.respawn.z), 0)), s.respawn.z ],
+        rotation: [ 0, s.respawn.rotation, 0 ],
+    }))
+    // extra teleport point: the giant Thanksgiving turkey (just north of the dish, facing it)
+    nodes.push({ name: 'respawnTurkey', position: [ - 52, round(Math.max(ground(- 52, 61.8), 0)), 61.8 ], rotation: [ 0, Math.PI, 0 ] }) // on the hilltop, by the dish
+    await writeGlb(out('static/respawns/respawnsReferences.glb'), nodes, { worldScale: W })
+}
+console.log('respawns ok')
+
+/* ---------------- Placements (vegetation + props) ---------------- */
+{
+    const r = rng(2026)
+    const placements = { redwoods: [], oakTrees: [], birchTrees: [], cherryTrees: [], bushes: [], flowers: [], benches: [], lanterns: [], poleLights: [], explosiveCrates: [], bricks: [], fences: [], tornado: [] }
+    // props keep their real size: world positions, offsets in world units
+    const push = (list, x, z, dy = 0, rotation = 0, scale = 1) => list.push([ round(x * W), round(groundWorld(x, z) + dy), round(z * W), round(rotation), round(scale) ])
+    const trees = []
+    const free = (x, z, d) => trees.every(([ tx, tz ]) => Math.hypot(tx - x, tz - z) > d)
+
+    for(let i = 0; i < 9000 && trees.length < 230; i++)
+    {
+        const x = (r() - 0.5) * 180, z = (r() - 0.5) * 184
+        const g = grassy(x, z)
+        if(g < 0.5 || paved(x, z) > 0.05 || !onLand(x, z) || excluded(x, z, 1) || !free(x, z, 3.2) || nearRoad(x, z, 1.8) || inSite(x, z, 2))
+            continue
+        trees.push([ x, z ])
+        const k = r()
+        const list = k < 0.3 ? placements.oakTrees : k < 0.65 ? placements.birchTrees : placements.cherryTrees
+        push(list, x, z, - 0.05, r() * Math.PI * 2, 0.8 + r() * 0.4)
+    }
+    for(let i = 0; i < 6000 && placements.bushes.length < 140; i++)
+    {
+        const x = (r() - 0.5) * 180, z = (r() - 0.5) * 184
+        if(grassy(x, z) < 0.25 || paved(x, z) > 0.1 || !onLand(x, z) || excluded(x, z, - 2) || !free(x, z, 2.2) || nearRoad(x, z, 1.5) || inSite(x, z, 1.5))
+            continue
+        trees.push([ x, z ])
+        push(placements.bushes, x, z, 1.1, r() * Math.PI * 2, 0.7 + r() * 0.5)
+    }
+    for(let i = 0; i < 4000 && placements.flowers.length < 70; i++)
+    {
+        const x = (r() - 0.5) * 180, z = (r() - 0.5) * 184
+        if(grassy(x, z) < 0.35 || paved(x, z) > 0.1 || !onLand(x, z) || !free(x, z, 1.5) || nearRoad(x, z, 0.8) || inSite(x, z, 1))
+            continue
+        push(placements.flowers, x, z, 0.38)
+    }
+    // Muir Woods: tall redwoods (Bruno's tree model, scaled up, dark green)
+    for(const [ dx, dz ] of [ [ - 5, - 3 ], [ - 1, - 5 ], [ 4, - 4 ], [ 6, 1 ], [ - 6, 2 ], [ 1, 4 ], [ - 3, 6 ], [ 7, 5 ], [ 9, - 1 ], [ - 8, - 2 ] ])
+    {
+        const muir = secrets.find(s => s.id === 'muirWoods').position
+        const x = muir.x + dx * 1.2, z = muir.z + dz * 1.1
+        if(onLand(x, z) && !nearRoad(x, z, 1.5))
+            push(placements.redwoods, x, z, - 0.05, (dx * 7 + dz) % 6, 1.9 + ((dx + dz + 20) % 4) * 0.15)
+    }
+
+    // benches [x, z, facing]
+    for(const [ x, z, ry ] of [ [ 6, 46, Math.PI * 0.8 ], [ 12, 47, Math.PI ], [ 2, 44, Math.PI * 0.7 ], [ - 27, 10, - Math.PI / 2 ], [ - 27, 17, - Math.PI / 2 ], [ - 60, - 91, 0 ], [ - 64, - 91, 0 ], [ 52, - 26, Math.PI / 2 ], [ 52, - 10, Math.PI / 2 ], [ - 36, - 28, Math.PI ] ])
+        if(!nearRoad(x, z, 1.4) && !inSite(x, z, 1.2))
+            push(placements.benches, x, z, 0.76, ry)
+
+    // lanterns hanging over Grant Ave
+    for(let z = - 9; z >= - 27; z -= 3)
+        for(const x of [ 18.6, 29.4 ]) // along the shop fronts, out of the way
+            push(placements.lanterns, x, z, 5.6)
+
+    // street lights along the Embarcadero and Market
+    for(const street of [ Layout.streets[0], Layout.streets[1] ])
+    {
+        const curve = new THREE.CatmullRomCurve3(street.points.map(([ x, z ]) => new THREE.Vector3(x, 0, z)))
+        const count = Math.floor(curve.getLength() / 11)
+        for(let i = 1; i < count; i++)
+        {
+            const p = curve.getPointAt(i / count)
+            const t = curve.getTangentAt(i / count)
+            const x = p.x + t.z * 4.2, z = p.z - t.x * 4.2
+            if(!excluded(x, z, - 4) && onLand(x, z) && !nearRoad(x, z, 1.2) && !inSite(x, z, 1.2))
+                push(placements.poleLights, x, z, 1.78)
+        }
+    }
+
+    // explosive crates: SFO cargo, Pier 39 dock, stadium lot
+    const stack = (x, z) =>
+    {
+        push(placements.explosiveCrates, x, z, 0.53)
+        push(placements.explosiveCrates, x + 1.15, z, 0.53)
+        push(placements.explosiveCrates, x + 0.57, z, 1.6)
+    }
+
+    // a brick wall at the stadium lot, made to be driven through
+    for(let row = 0; row < 3; row++)
+        for(let i = 0; i < 6; i++)
+            push(placements.bricks, 30 + i * 1.6 + (row % 2) * 0.8, 84, 0.38 + row * 0.75)
+
+    // fences along the Ferry Building waterfront
+    for(let z = - 30; z <= - 6; z += 2.2)
+        push(placements.fences, 65.5, z, 1.05, Math.PI / 2)
+
+    // tornado path: a loop around the city
+    for(let i = 0; i < 10; i++)
+    {
+        const a = i / 10 * Math.PI * 2
+        placements.tornado.push([ round(Math.cos(a) * 55 * W), 3.27, round(Math.sin(a) * 55 * W) ])
+    }
+
+    fs.writeFileSync(out('sources/data/placements.json'), JSON.stringify(placements))
+    console.log('placements', Object.fromEntries(Object.entries(placements).map(([ k, v ]) => [ k, v.length ])))
+}
+
+/* ---------------- Dogs (rigs) ---------------- */
+fs.mkdirSync(out('static/dogs'), { recursive: true })
+await writeGlb(out('static/dogs/dogs.glb'), dogNodes())
+console.log('dogs ok')
+
+/* ---------------- Map images (4096, vector) ---------------- */
+{
+    const size = 4096
+    const k = size / Layout.SIZE
+    const P = ([ x, z ]) => `${((x + Layout.HALF) * k).toFixed(1)},${((z + Layout.HALF) * k).toFixed(1)}`
+    const poly = (points) => `M${points.map(P).join('L')}Z`
+    const line = (points) => {
+        const curve = new THREE.CatmullRomCurve3(points.map(([ x, z ]) => new THREE.Vector3(x, 0, z)), false, 'centripetal')
+        return `M${curve.getSpacedPoints(Math.ceil(curve.getLength())).map(p => P([ p.x, p.z ])).join('L')}`
+    }
+    const shape = (s, fill, extra = '') =>
+    {
+        if(Array.isArray(s)) return `<path d="${poly(s)}" fill="${fill}" ${extra}/>`
+        if(s.ellipse) { const [ x, z, rx, rz ] = s.ellipse; const [ cx, cy ] = P([ x, z ]).split(','); return `<ellipse cx="${cx}" cy="${cy}" rx="${rx * k}" ry="${rz * k}" fill="${fill}" ${extra}/>` }
+        if(s.rect) { const [ x0, z0, x1, z1 ] = s.rect; const [ px, py ] = P([ x0, z0 ]).split(','); return `<rect x="${px}" y="${py}" width="${(x1 - x0) * k}" height="${(z1 - z0) * k}" rx="${2 * k}" fill="${fill}" ${extra}/>` }
+        return ''
+    }
+    const lands = [ Layout.land.city, Layout.land.marin, Layout.land.alcatraz ]
+
+    // hill shading layer from the height raster
+    const shadeSize = 1024
+    const shade = Buffer.alloc(shadeSize * shadeSize)
+    for(let py = 0; py < shadeSize; py++)
+        for(let px = 0; px < shadeSize; px++)
+        {
+            const x = (px + 0.5) / shadeSize * Layout.SIZE - Layout.HALF
+            const z = (py + 0.5) / shadeSize * Layout.SIZE - Layout.HALF
+            const e = 0.6
+            const dx = sample(R.height, x + e, z) - sample(R.height, x - e, z)
+            const dz = sample(R.height, x, z + e) - sample(R.height, x, z - e)
+            shade[py * shadeSize + px] = Math.max(0, Math.min(255, 128 + (- dx - dz) * 70 + sample(R.height, x, z) * 6))
+        }
+    const shadePng = await sharp(shade, { raw: { width: shadeSize, height: shadeSize, channels: 1 } }).resize(size, size, { kernel: 'cubic' }).png().toBuffer()
+
+    const themes = {
+        day: { deep: '#24304f', shore: '#5bc2b9', sand: '#86c24c', grass: '#5f9e35', paving: '#e6dccb', road: '#3a3140', mark: '#fff2e8', building: '#c98d6d', downtown: '#9a8aa3', landmark: '#ec8a5c', bridge: '#ec3f1c', label: '#ffffff', pin: '#ec3f1c' },
+        night: { deep: '#111733', shore: '#2b6a7a', sand: '#3f6a2c', grass: '#2f5222', paving: '#7d7468', road: '#221c2a', mark: '#ffd88a', building: '#6d4c48', downtown: '#5a5070', landmark: '#a85a3c', bridge: '#ff6a3a', label: '#ffe9c8', pin: '#ff6a3a' },
+    }
+    for(const [ name, t ] of Object.entries(themes))
+    {
+        let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}">`
+        svg += `<defs><filter id="blur" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="${3 * k}"/></filter><filter id="soft"><feGaussianBlur stdDeviation="${0.6 * k}"/></filter></defs>`
+        svg += `<rect width="100%" height="100%" fill="${t.deep}"/>`
+        svg += `<g filter="url(#blur)">${lands.map(l => shape(l, 'none', `stroke="${t.shore}" stroke-width="${7 * k}" stroke-linejoin="round"`)).join('')}</g>`
+        svg += lands.map(l => shape(l, t.sand, `stroke="${t.sand}" stroke-width="${1.5 * k}" stroke-linejoin="round"`)).join('')
+        svg += `<path d="${line(Layout.boardwalk.points)}" fill="none" stroke="#b8875a" stroke-width="${Layout.boardwalk.width * k}" stroke-linecap="butt"/>`
+        svg += Layout.sandbars.map(b => `<path d="${line(b.points)}" fill="none" stroke="${t.shore}" stroke-width="${b.width * k}" stroke-linecap="round"/>`).join('')
+        svg += `<g filter="url(#soft)">${Layout.parks.map(p => shape(p, t.grass)).join('')}</g>`
+        svg += Layout.ponds.map(p => shape(p, t.deep, `stroke="${t.shore}" stroke-width="${1 * k}"`)).join('')
+        svg += Layout.plazas.map(p => shape(p, t.paving)).join('')
+        // streets: paving, asphalt, markings
+        for(const street of Layout.streets)
+            svg += `<path d="${line(street.points)}" fill="none" stroke="${t.paving}" stroke-width="${street.width * k}" stroke-linecap="round" stroke-linejoin="round"/>`
+        for(const fillet of streetFillets)
+            svg += `<path d="M${fillet.points.map(p => P([ p.x, p.z ])).join('L')}" fill="none" stroke="${t.paving}" stroke-width="${fillet.width * k}" stroke-linecap="round" stroke-linejoin="round"/>`
+        for(const fillet of streetFillets)
+            svg += `<path d="M${fillet.points.map(p => P([ p.x, p.z ])).join('L')}" fill="none" stroke="${t.road}" stroke-width="${fillet.width * 0.8 * k}" stroke-linecap="round" stroke-linejoin="round"/>`
+        for(const street of Layout.streets)
+            svg += `<path d="${line(street.points)}" fill="none" stroke="${t.road}" stroke-width="${street.width * (street.highway ? 0.9 : 0.8) * k}" stroke-linecap="round" stroke-linejoin="round"/>`
+        for(const street of Layout.streets)
+            svg += street.highway
+                ? `<path d="${line(street.points)}" fill="none" stroke="#e4a90c" stroke-width="${0.3 * k}"/>`
+                : `<path d="${line(street.points)}" fill="none" stroke="${t.mark}" stroke-width="${0.16 * k}" stroke-dasharray="${1.1 * k},${1.3 * k}" opacity="0.8"/>`
+        // Lombard zigzag
+        svg += `<path d="M${lombardPoints().map(P).join('L')}" fill="none" stroke="${t.paving}" stroke-width="${(Layout.lombard.lane + 0.5) * k}" stroke-linejoin="round" stroke-linecap="round"/>`
+        svg += `<path d="M${lombardPoints().map(P).join('L')}" fill="none" stroke="${name === 'day' ? '#b4533a' : '#6e3428'}" stroke-width="${Layout.lombard.lane * k}" stroke-linejoin="round" stroke-linecap="round"/>`
+        // buildings
+        svg += footprints.map(([ x, z, w, d, dt ]) => { const [ px, py ] = P([ x - w / 2, z - d / 2 ]).split(','); return `<rect x="${px}" y="${py}" width="${w * k}" height="${d * k}" fill="${dt ? t.downtown : t.building}" stroke="rgba(0,0,0,0.25)" stroke-width="${0.15 * k}"/>` }).join('')
+        // Golden Gate Bridge + Bay Bridge
+        svg += `<path d="M${P([ - 62, - 46 ])}L${P([ - 62, - 78 ])}" stroke="${t.bridge}" stroke-width="${6.8 * k}"/>`
+        svg += `<path d="M${P([ - 62, - 46 ])}L${P([ - 62, - 78 ])}" stroke="${t.road}" stroke-width="${5 * k}"/>`
+        for(const z of [ - 57.5, - 69.5 ])
+            svg += `<rect x="${(- 66 + Layout.HALF) * k}" y="${(z - 0.9 + Layout.HALF) * k}" width="${8 * k}" height="${1.8 * k}" fill="${t.bridge}"/>`
+        svg += `<path d="M${P([ 64, - 6 ])}L${P([ 96, - 6 ])}" stroke="#b8b2b8" stroke-width="${3.6 * k}" opacity="0.8"/>`
+        // landmarks (solid parts of every site)
+        svg += siteFootprints.map(([ fx, fz, hx, hz, angle ]) =>
+        {
+            const [ px, py ] = P([ fx, fz ]).split(',').map(Number)
+            return `<rect x="${px - hx * k}" y="${py - hz * k}" width="${hx * 2 * k}" height="${hz * 2 * k}" fill="${t.landmark}" stroke="rgba(0,0,0,0.3)" stroke-width="${0.15 * k}" transform="rotate(${(- angle * 180 / Math.PI).toFixed(2)} ${px} ${py})"/>`
+        }).join('')
+        // turkey dish and dog houses
+        {
+            const [ tx, ty ] = P([ turkeyData.x, turkeyData.z ]).split(',').map(Number)
+            svg += `<circle cx="${tx}" cy="${ty}" r="${9.6 * k}" fill="#fff2e8" stroke="#e4a90c" stroke-width="${0.5 * k}"/>`
+            svg += `<ellipse cx="${tx}" cy="${ty}" rx="${5.7 * k}" ry="${4 * k}" fill="#b36d45"/>`
+            for(const dog of dogsData)
+            {
+                const [ hx, hy ] = P([ dog.home.x, dog.home.z ]).split(',').map(Number)
+                const s2 = (dog.id === 'xiaoke' ? 1.3 : 2.6) * k
+                svg += `<rect x="${hx - s2}" y="${hy - s2}" width="${s2 * 2}" height="${s2 * 2}" rx="${0.4 * k}" fill="${dog.id === 'xiaoke' ? '#2f7fe0' : '#ff6fae'}" stroke="#fff2e8" stroke-width="${0.3 * k}"/>`
+            }
+        }
+        // stop markers with numbers
+        for(const stop of Layout.stops)
+        {
+            const [ cx, cy ] = P([ stop.position.x, stop.position.z ]).split(',').map(Number)
+            svg += `<circle cx="${cx}" cy="${cy}" r="${stop.radius * k}" fill="${t.pin}" opacity="0.12" stroke="${t.pin}" stroke-width="${0.3 * k}" stroke-dasharray="${1 * k},${0.8 * k}"/>`
+        }
+        svg += `</svg>`
+
+        const base = await sharp(Buffer.from(svg), { limitInputPixels: false }).png().toBuffer()
+        const image = sharp(base).composite([ { input: shadePng, blend: 'overlay' } ])
+        const png = await image.png({ compressionLevel: 9 }).toBuffer()
+        await sharp(png).webp({ quality: 88 }).toFile(out(`static/ui/map/map-${name}.webp`))
+    }
+    console.log('map ok', size)
+}

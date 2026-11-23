@@ -1,4 +1,5 @@
 import { Game } from './Game.js'
+import trip from '../data/trip.js'
 
 export class Title
 {
@@ -45,7 +46,7 @@ export class Title
 
                 if((i - offsetRounded) % this.objectInterval === 0)
                 {
-                    line.push({ character: '🌳', size: 4, position: i })
+                    line.push({ character: '🌉', size: 4, position: i })
                 }
             }
 
@@ -85,7 +86,7 @@ export class Title
             }
 
             
-            document.title = 'Bruno' + title.join('')
+            document.title = trip.title + ' ' + title.join('')
         }
     }
 }

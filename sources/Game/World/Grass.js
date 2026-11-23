@@ -38,7 +38,7 @@ export class Grass
             
             this.sizeUniform.value = this.size
             this.bladeWidth.value = 0.1 * (1 + this.surfaceOverflow * 0.4)
-            this.bladeHeight.value = 0.6 * (1 + this.surfaceOverflow * 0.4)
+            this.bladeHeight.value = Math.min(0.55, 0.4 * (1 + this.surfaceOverflow * 0.4)) // shorter than Bruno's: never taller than the car's wheels
 
             this.geometry.dispose()
             this.setGeometry()
@@ -100,7 +100,7 @@ export class Grass
         const bladePosition = varying(vec2())
 
         this.bladeWidth = uniform(0.1 * (1 + this.surfaceOverflow * 0.5))
-        this.bladeHeight = uniform(0.6 * (1 + this.surfaceOverflow * 0.5))
+        this.bladeHeight = uniform(Math.min(0.55, 0.4 * (1 + this.surfaceOverflow * 0.4)))
         this.bladeHeightRandomness = uniform(0.6)
         this.sizeUniform = uniform(this.size)
 
@@ -149,9 +149,10 @@ export class Grass
             const position3 = vec3(loopPosition.x, 0, loopPosition.y).add(vec3(this.center.x, 0, this.center.y))
             const worldPosition = modelWorldMatrix.mul(position3)
             bladePosition.assign(worldPosition.xz)
+            const groundHeight = this.game.terrain.heightNode(bladePosition)
 
             // Height
-            const heightVariation = texture(this.game.noises.perlin, bladePosition.mul(0.0321)).r.add(0.5)
+            const heightVariation = texture(this.game.noises.perlin, bladePosition.mul(0.0321)).r.add(0.5).min(1.1)
             const height = this.bladeHeight
                 .mul(this.bladeHeightRandomness.mul(attribute('heightRandomness')).add(this.bladeHeightRandomness.oneMinus()))
                 .mul(heightVariation)
@@ -174,6 +175,9 @@ export class Grass
             // Wind
             wind.assign(this.game.wind.offsetNode(worldPosition.xz).mul(tipness).mul(height).mul(2))
             vertexPosition.addAssign(vec3(wind.x, 0, wind.y))
+
+            // Hills
+            vertexPosition.y.addAssign(groundHeight)
 
             // Hide (far above)
             vertexPosition.y.addAssign(hidden.mul(100))

@@ -5,6 +5,7 @@ import { remap, smoothstep } from '../utilities/maths.js'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import { MeshDefaultMaterial } from '../Materials/MeshDefaultMaterial.js'
 import { alea } from 'seedrandom'
+import { relocate, placements } from './placements.js'
 
 const rng = new alea('flowers')
 
@@ -49,7 +50,7 @@ export class Flowers
         this.transformMatrices = []
 
         let i = 0
-        for(const reference of this.game.resources.flowersReferencesModel.scene.children)
+        for(const reference of relocate(this.game.resources.flowersReferencesModel.scene.children, placements.flowers))
         {
             const clusterPosition = reference.position
 

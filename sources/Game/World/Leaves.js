@@ -14,7 +14,7 @@ export class Leaves
         // if(this.game.yearCycles.properties.leaves.value < 0.25)
         //     return
 
-        const power = Math.round(remap((this.game.yearCycles.properties.leaves.value), 0.25, 1, 7, 11))
+        const power = Math.max(10, Math.round(remap((this.game.yearCycles.properties.leaves.value), 0.25, 1, 7, 11))) // always autumn in SF
         this.count = Math.pow(2, power)
         // this.count = Math.pow(2, 12)
 
@@ -94,8 +94,8 @@ export class Leaves
         const weightBuffer = instancedArray(weightArray, 'float')
 
         // Color buffer
-        const colorA = uniform(color(0x95513a))// 0x999257
-        const colorB = uniform(color(0xf56a3a))// 0xcc8214
+        const colorA = uniform(color(0xc0392b)) // maple red// 0x999257
+        const colorB = uniform(color(0xffa62b)) // autumn gold// 0xcc8214
         const colorNode = Fn(() =>
         {
             const mixStrength = hash(instanceIndex.add(99))
@@ -243,7 +243,7 @@ export class Leaves
             position.addAssign(velocity.mul(this.game.ticker.deltaScaledUniform))
 
             // Clamp to floor / water
-            const floorY = terrainData.b.remapClamp(0.02, 0.13, 0, this.game.water.surfaceElevationUniform).add(0.02)
+            const floorY = terrainData.b.remapClamp(0.02, 0.13, 0, this.game.water.surfaceElevationUniform).add(0.02).add(this.game.terrain.heightNode(position.xz))
             position.y.assign(max(position.y, floorY))
 
             // Loop

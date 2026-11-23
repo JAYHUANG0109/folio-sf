@@ -2,6 +2,7 @@ import * as THREE from 'three/webgpu'
 import { color, uniform } from 'three/tsl'
 import { Foliage } from './Foliage.js'
 import { Game } from '../Game.js'
+import { relocate, placements } from './placements.js'
 
 export class Bushes
 {
@@ -9,9 +10,9 @@ export class Bushes
     {
         this.game = Game.getInstance()
 
-        this.colorANode = uniform(color('#b4b536'))
-        this.colorBNode = uniform(color('#d8cf3b'))
-        this.foliage = new Foliage(this.game.resources.bushesReferences.scene.children, this.colorANode, this.colorBNode)
+        this.colorANode = uniform(color('#6fa83a'))
+        this.colorBNode = uniform(color('#a8cf4f'))
+        this.foliage = new Foliage(relocate(this.game.resources.bushesReferences.scene.children, placements.bushes), this.colorANode, this.colorBNode)
 
         // Debug
         if(this.game.debug.active)

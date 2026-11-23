@@ -1,3 +1,4 @@
+import { paints } from '../../data/paints.js'
 import * as THREE from 'three/webgpu'
 import { Game } from '../Game.js'
 import { Track } from '../Tracks.js'
@@ -131,10 +132,10 @@ export class VisualVehicle
         this.paints = {}
 
         this.paints.choices = {}
-        this.paints.choices.red = this.game.materials.getFromName('redGradient')
-        this.paints.choices.orange = this.game.materials.createGradient('orangeGradient', '#ff940d', '#af0071', this.game.materials.debugPanel?.addFolder({ title: 'orangeGradient' }))
-        this.paints.choices.white = this.game.materials.createGradient('whiteGradient', '#ffffff', '#b5b5b5', this.game.materials.debugPanel?.addFolder({ title: 'whiteGradient' }))
-        this.paints.choices.black = this.game.materials.createGradient('blackGradient', '#626262', '#262526', this.game.materials.debugPanel?.addFolder({ title: 'blackGradient' }))
+        // SF trip: every plain paint is a two color gradient (sources/data/paints.js); 'red' is the light blue default slot
+        for(const paint of paints)
+            if(paint.colors)
+                this.paints.choices[paint.name] = this.game.materials.createGradient(`${paint.name}PaintGradient`, paint.colors[0], paint.colors[1])
         
         // Flames
         {

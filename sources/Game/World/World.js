@@ -6,11 +6,12 @@ import { Grass } from './Grass.js'
 import { color, float, Fn, instance, normalWorld, positionLocal, texture, vec3, vec4 } from 'three/tsl'
 import { WaterSurface } from './WaterSurface.js'
 import { Areas } from './Areas/Areas.js'
+import { Guide } from './Guide.js'
+import { Dogs } from './Dogs.js'
+import { Finale } from './Finale.js'
 import { WindLines } from './WindLines.js'
 import { Leaves } from './Leaves.js'
-import { Lightnings } from './Lightnings.js'
 import { Snow } from './Snow.js'
-import { Whispers } from './Whispers.js'
 import { VisualVehicle } from './VisualVehicle.js'
 import { VisualTornado } from './VisualTornado.js'
 import { Flowers } from './Flowers.js'
@@ -18,8 +19,6 @@ import { Bricks } from './Bricks.js'
 import { Trees } from './Trees.js'
 import { Bushes } from './Bushes.js'
 import { MeshDefaultMaterial } from '../Materials/MeshDefaultMaterial.js'
-import { Fireballs } from './Fireballs.js'
-import { ExplosiveCrates } from './ExplosiveCrates.js'
 import { RainLines } from './RainLines.js'
 import { Confetti } from './Confetti.js'
 import { Intro } from './Intro.js'
@@ -28,6 +27,7 @@ import { Lanterns } from './Lanterns.js'
 import { Fences } from './Fences.js'
 import { Benches } from './Benches.js'
 import { Scenery } from './Scenery.js'
+import { relocate, placements } from './placements.js'
 
 export class World
 {
@@ -61,27 +61,27 @@ export class World
             this.confetti = new Confetti()
             this.leaves = new Leaves()
             this.rain = new RainLines()
-            this.lightnings = new Lightnings()
-            this.fireballs = new Fireballs()
             this.snow = new Snow()
             this.visualTornado = new VisualTornado()
             this.bushes = new Bushes()
-            this.birchTrees = new Trees('Birch Tree', this.game.resources.birchTreesVisualModel.scene, this.game.resources.birchTreesReferencesModel.scene.children, '#ff4f2b', '#ff903f')
-            this.oakTrees = new Trees('Oak Tree', this.game.resources.oakTreesVisualModel.scene, this.game.resources.oakTreesReferencesModel.scene.children, '#b4b536', '#d8cf3b')
-            this.cherryTrees = new Trees('Cherry Tree', this.game.resources.cherryTreesVisualModel.scene, this.game.resources.cherryTreesReferencesModel.scene.children, '#ff6d6d', '#ff9990')
+            this.birchTrees = new Trees('Birch Tree', this.game.resources.birchTreesVisualModel.scene, relocate(this.game.resources.birchTreesReferencesModel.scene.children, placements.birchTrees), '#e8452c', '#ff8a3d')
+            this.oakTrees = new Trees('Oak Tree', this.game.resources.oakTreesVisualModel.scene, relocate(this.game.resources.oakTreesReferencesModel.scene.children, placements.oakTrees), '#e39b2d', '#f6c64a')
+            this.redwoods = new Trees('Redwood', this.game.resources.oakTreesVisualModel.scene, relocate(this.game.resources.oakTreesReferencesModel.scene.children, placements.redwoods), '#2b5a2c', '#4c8a3a')
+            this.cherryTrees = new Trees('Cherry Tree', this.game.resources.cherryTreesVisualModel.scene, relocate(this.game.resources.cherryTreesReferencesModel.scene.children, placements.cherryTrees), '#c4232b', '#f0553a')
             this.flowers = new Flowers()
             this.bricks = new Bricks()
             this.fences = new Fences()
             this.benches = new Benches()
-            this.explosiveCrates = new ExplosiveCrates()
             this.poleLights = new PoleLights()
             this.lanterns = new Lanterns()
             this.scenery = new Scenery()
             this.areas = new Areas()
+            this.guide = new Guide()
+            this.dogs = new Dogs()
+            this.finale = new Finale()
         }
         else if(step === 2)
         {
-            this.whispers = new Whispers()
         }
     }
 

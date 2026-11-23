@@ -2,7 +2,7 @@ import { Events } from './Events.js'
 import { Game } from './Game.js'
 import { Inputs } from './Inputs/Inputs.js'
 import { Tabs } from './Tabs.js'
-import { CircuitArea } from './World/Areas/CircuitArea.js'
+import trip from '../data/trip.js'
 
 export class Menu
 {
@@ -21,6 +21,7 @@ export class Menu
         this.default = null
         this.events = new Events()
 
+        this.setTrip()
         this.setTrigger()
         this.setClose()
         this.setItems()
@@ -50,6 +51,22 @@ export class Menu
         }
     }
 
+    setTrip()
+    {
+        // Names and credit from sources/data/trip.js
+        for(const element of this.element.querySelectorAll('.js-partner-name'))
+            element.textContent = trip.partnerName
+
+        for(const element of this.element.querySelectorAll('.js-author-name'))
+            element.textContent = trip.authorName
+
+        for(const element of this.element.querySelectorAll('.js-credit'))
+        {
+            element.textContent = trip.credit.text
+            element.href = trip.credit.url
+        }
+    }
+
     setTrigger()
     {
         const element = document.querySelector('.js-menu-trigger')
@@ -58,10 +75,7 @@ export class Menu
         {
             event.preventDefault()
 
-            if(this.game.world.areas?.circuit?.state === CircuitArea.STATE_RUNNING || this.game.world.areas?.circuit?.state === CircuitArea.STATE_STARTING)
-                this.open('circuit')
-            else
-                this.open()
+            this.open()
         })
         element.addEventListener('keydown', (event) =>
         {
@@ -109,6 +123,7 @@ export class Menu
             item.contentElement = contentElements.find(element => element.classList.contains(`${item.name}-content`))
             item.mainFocus = item.contentElement.querySelector('.js-main-focus')
             item.isOpen = false
+            item.isHidden = typeof item.navigationElement.dataset.hidden !== 'undefined' // Hidden items can't be opened (kept for legacy code)
             item.events = new Events()
 
             // Tabs
@@ -126,11 +141,11 @@ export class Menu
 
             this.items.set(item.name, item)
 
-            if(this.default === null)
+            if(this.default === null && !item.isHidden)
                 this.default = item
         }
 
-        const keys = [...this.items.keys()]
+        const keys = [...this.items.keys()].filter(key => !this.items.get(key).isHidden)
 
         for(let i = 0; i < keys.length; i++)
         {
@@ -182,8 +197,8 @@ export class Menu
 
         const item = this.items.get(_name)
 
-        // Not found
-        if(!item)
+        // Not found or hidden
+        if(!item || item.isHidden)
             return
 
         // Same

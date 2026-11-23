@@ -62,7 +62,7 @@ export class Server
             {
                 const html = /* html */`
                     <div class="top">
-                        <div class="title">Server connected</div>
+                        <div class="title">已連上伺服器</div>
                     </div>
                 `
 
@@ -85,7 +85,7 @@ export class Server
                 // Notification
                 const html = /* html */`
                     <div class="top">
-                        <div class="title">Server disconnected</div>
+                        <div class="title">伺服器已斷線</div>
                     </div>
                 `
 

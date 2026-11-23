@@ -99,23 +99,89 @@ export class Trees
 
     setPhysical()
     {
+        // Trees are light dynamic bodies: the car can knock them over (they sleep until hit)
+        this.trees = []
+        this.leavesPerTree = this.modelParts.leaves.length
+        const inverse = new THREE.Matrix4()
+        const leafWorld = new THREE.Vector3()
+        let i = 0
         for(const treeReference of this.references)
         {
-            this.game.objects.add(
+            treeReference.updateMatrix()
+            inverse.copy(treeReference.matrix).invert()
+            // leaf cluster centers in the tree's local space (to follow the trunk when it falls)
+            const leaves = []
+            for(let l = 0; l < this.leavesPerTree; l++)
+            {
+                const index = i * this.leavesPerTree + l
+                leafWorld.fromArray(this.leaves.instanceMatrix.array, index * 16 + 12)
+                leaves.push(leafWorld.clone().applyMatrix4(inverse))
+            }
+
+            const tree = { lastHit: 0 }
+            const object = this.game.objects.add(
                 null,
                 {
-                    type: 'fixed',
-                    position: treeReference.position.add(new THREE.Vector3(0, 2.5, 0)),
+                    type: 'dynamic',
+                    position: treeReference.position.clone().add(new THREE.Vector3(0, 2.5, 0)),
                     rotation: treeReference.quaternion,
                     friction: 0.7,
+                    mass: 0.6,
                     sleeping: true,
-                    colliders: [ { shape: 'cylinder', parameters: [ 2.5, 0.15 ], category: 'object' } ],
+                    contactThreshold: 10,
+                    colliders: [ { shape: 'cylinder', parameters: [ 2.5, 0.25 ], category: 'object' } ],
                     onCollision: (force, position) =>
                     {
+                        // only real hits, at most a few times per second per tree
+                        const now = this.game.ticker.elapsed
+                        if(force < 2 || now - (tree.lastHit || 0) < 0.4)
+                            return
+                        tree.lastHit = now
                         this.game.audio.groups.get('hitDefault').playRandomNext(force, position)
                     }
                 }
             )
+            tree.object = object
+            Object.assign(tree, { scale: treeReference.scale.clone(), leaves })
+            this.trees.push(tree)
+            i++
         }
+
+        this.leaves.instanceMatrix.setUsage(THREE.DynamicDrawUsage)
+        this.bodies.instanceMatrix.setUsage(THREE.DynamicDrawUsage)
+
+        const matrix = new THREE.Matrix4()
+        const offset = new THREE.Matrix4().makeTranslation(0, - 2.5, 0)
+        const scale = new THREE.Matrix4()
+        const position = new THREE.Vector3()
+        const quaternion = new THREE.Quaternion()
+        this.game.ticker.events.on('tick', () =>
+        {
+            let bodiesChanged = false
+            let leavesChanged = false
+            this.trees.forEach((tree, t) =>
+            {
+                const body = tree.object.physical.body
+                if(body.isSleeping())
+                    return
+                const p = body.translation()
+                const q = body.rotation()
+                position.set(p.x, p.y, p.z)
+                quaternion.set(q.x, q.y, q.z, q.w)
+                matrix.compose(position, quaternion, new THREE.Vector3(1, 1, 1)).multiply(offset).multiply(scale.makeScale(tree.scale.x, tree.scale.y, tree.scale.z))
+                this.bodies.setMatrixAt(t, matrix)
+                bodiesChanged = true
+                tree.leaves.forEach((local, l) =>
+                {
+                    leafWorld.copy(local).applyMatrix4(matrix)
+                    leafWorld.toArray(this.leaves.instanceMatrix.array, (t * this.leavesPerTree + l) * 16 + 12)
+                })
+                leavesChanged = true
+            })
+            if(bodiesChanged)
+                this.bodies.instanceMatrix.needsUpdate = true
+            if(leavesChanged)
+                this.leaves.instanceMatrix.needsUpdate = true
+        }, 10)
     }
 }

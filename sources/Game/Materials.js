@@ -31,6 +31,26 @@ export class Materials
         this.createEmissiveGradient('emissiveWhiteRadialGradient', '#ffffff', '#666666', 2.7, false, this.debugPanel?.addFolder({ title: 'emissiveWhiteRadialGradient' }))
         
         this.createGradient('redGradient', '#ff3a3a', '#721551', this.debugPanel?.addFolder({ title: 'redGradient' }))
+
+        this.createAuras()
+    }
+
+    /** Soft additive glows (Napa castle aura): a ground halo fading from the center, and vertical light beams fading upward */
+    createAuras()
+    {
+        const pulse = time.mul(1.4).sin().mul(0.15).add(0.85)
+
+        const halo = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide })
+        const haloStrength = float(1).sub(uv().sub(0.5).length().mul(2)).clamp(0, 1).pow(1.6)
+        halo.outputNode = vec4(color('#ffd27a').mul(haloStrength.mul(pulse).mul(0.9)), 1)
+        halo.fog = false
+        this.save('auraHalo', halo)
+
+        const beam = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide })
+        const beamStrength = float(1).sub(uv().y).clamp(0, 1).pow(1.5)
+        beam.outputNode = vec4(color('#ffe4a8').mul(beamStrength.mul(pulse).mul(0.55)), 1)
+        beam.fog = false
+        this.save('auraBeam', beam)
     }
 
     createPalette()

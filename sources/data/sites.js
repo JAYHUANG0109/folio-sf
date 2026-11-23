@@ -1,0 +1,24 @@
+/**
+ * How much bigger each stop's landmark is drawn (around the stop's position).
+ * Random houses, trees and props stay their normal size.
+ */
+export const siteScale = {
+    default: 1.5,
+    goldenGate: 1,         // the bridge spans the strait, already big
+    palaceOfFineArts: 1,   // modelled at 1.5x directly
+    lombard: 1,            // the zigzag is painted into the terrain
+    levis: 1.25,           // fits the peninsula
+    tennis: 2.25,          // 1.5x more than the other sites
+    napa: 2.2,             // castle, vineyard and lights at ~2x (fits west of the bridge)
+    muirWoods: 1.2,
+    alcatraz: 2.25,        // the cellhouse 1.5x bigger than the other sites, on a 2x island
+}
+
+export const scaleOf = (id) => siteScale[id] ?? siteScale.default
+
+/** Move a design point away from a site center by the site scale */
+export const aboutSite = (site, x, z) =>
+{
+    const s = scaleOf(site.id)
+    return [ site.position.x + (x - site.position.x) * s, site.position.z + (z - site.position.z) * s ]
+}

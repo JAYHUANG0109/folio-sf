@@ -5,6 +5,7 @@ import basicSsl from '@vitejs/plugin-basic-ssl'
 import { nodePolyfills } from 'vite-plugin-node-polyfills'
 
 export default {
+    define: { __BUILD_ID__: JSON.stringify(String(Date.now())) }, // cache buster for static assets, new on every build
     root: 'sources/', // Sources files (typically where index.html is)
     envDir: '../',  // Directory where the env file is located
     publicDir: '../static/', // Path from "root" to static assets (files that are served as they are)

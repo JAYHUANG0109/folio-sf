@@ -2,6 +2,10 @@ import * as THREE from 'three/webgpu'
 import { Game } from '../Game.js'
 import { Events } from '../Events.js'
 import { lerp, remap, remapClamp, smallestAngle } from '../utilities/maths.js'
+import { WORLD_SCALE } from '../../data/world.js'
+
+// Lombard St crooked block, world units (see scripts/sf/layout.mjs `lombard`)
+const lombardAssist = { x0: - 15 * WORLD_SCALE, x1: 28 * WORLD_SCALE, z0: - 43.5 * WORLD_SCALE, z1: - 28.5 * WORLD_SCALE, amplitude: 0.85 }
 
 export class PhysicsVehicle
 {
@@ -481,8 +485,10 @@ export class PhysicsVehicle
 
         brake *= this.brakeAmplitude * this.game.ticker.deltaScaled
 
-        // Steer
-        const steer = this.game.player.steering * this.steeringAmplitude
+        // Steer (sharper inside the Lombard crooked block so the hairpins can be taken in one go)
+        const inLombard = this.position.x > lombardAssist.x0 && this.position.x < lombardAssist.x1 && this.position.z > lombardAssist.z0 && this.position.z < lombardAssist.z1
+        this.lombardSteer = lerp(this.lombardSteer ?? 0, inLombard ? 1 : 0, Math.min(1, this.game.ticker.deltaScaled * 4))
+        const steer = this.game.player.steering * lerp(this.steeringAmplitude, lombardAssist.amplitude, this.lombardSteer)
 
         // Update wheels
         this.controller.setWheelSteering(0, steer)

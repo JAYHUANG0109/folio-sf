@@ -1,238 +1,155 @@
-import labData from './lab.js'
-import projectsData from './projects.js'
+/**
+ * Achievements
+ * Format: [ groupName, title, description, total, unique = false, requiredId = null ]
+ *
+ * - unique: the group progress is a Set of ids (setProgress(group, id) adds the id)
+ * - requiredId: the achievement is completed when this specific id is in the group Set
+ *
+ * Passport stamps are triggered from the World with:
+ * this.game.achievements.setProgress('stops', '<id>')
+ */
+
+import { stops } from './stops.js'
+
+// Short stamp descriptions (titles come from stops.js)
+const stampDescriptions = {
+    sfo:              '落地舊金山，旅程開始囉。',
+    ferryBuilding:    '在海灣邊吃點好吃的。',
+    unionSquare:      '在大聖誕樹下溜冰。',
+    chinatown:        '穿過龍門，逛逛燈籠街。',
+    alcatraz:         '登島探險，平安回來。',
+    pier39:           '去看海獅曬太陽。',
+    lombard:          '搭叮噹車，再開過九個彎。',
+    doloresPark:      '坐在草地上等夕陽。',
+    palaceOfFineArts: '在圓頂下拍張照。',
+    goldenGate:       '一起開過那座紅色的橋。',
+    levis:            '49ers 對海鷹，一起加油！',
+    paintedLadies:    '一排彩色的老房子。',
+    tennis:           '最後一起打場網球。',
+}
+
+const stamps = stops.map(stop => [
+    'stops',
+    `${stop.label} ${stop.name} ${stop.en}`,
+    stampDescriptions[stop.id] ?? `${stop.date}，到此一遊。`,
+    1,
+    true, // Unique
+    stop.id // Required id
+])
 
 export default
 [
+    // Passport
     [
-        'landingLeave',
-        'I’m going on an adventure!',
-        'Get out of the landing area.',
+        'stops',
+        '舊金山護照 Passport',
+        `蓋滿 <strong>${stops.length}</strong> 個章，旅程完成！`,
+        stops.length,
+        true // Unique
+    ],
+
+    // Stamps (one per stop)
+    ...stamps,
+
+    // Driving
+    [
+        'distanceDriven',
+        '出發囉',
+        '開 1 公里。',
         1
     ],
     [
-        'areas',
-        'Traveler',
-        'Vist every area.',
-        13,
-        true // Unique
-    ],
-    [
-        'projects',
-        'But can you fix the wifi?',
-        'Check every project in the <strong>projects</strong> area.',
-        projectsData.length,
-        true // Unique
-    ],
-    [
-        'lab',
-        'I\'m a bit of a scientist myself',
-        'Check every project in the <strong>lab</strong> area.',
-        labData.length,
-        true // Unique
-    ],
-    [
-        'cookie',
-        'Wake & bake',
-        'Accept <strong>1</strong> cookies.',
-        1
-    ],
-    [
-        'cookie',
-        'Making some dough',
-        'Accept <strong>10</strong> cookies.',
+        'distanceDriven',
+        '到了沒？',
+        '開 10 公里。',
         10
     ],
     [
-        'cookie',
-        'So baked right now',
-        'Accept <strong>100</strong> cookies.',
-        100
+        'distanceDriven',
+        '公路旅行',
+        '開 50 公里。',
+        50
     ],
     [
-        'cookie',
-        'Cookie Clicker',
-        'Accept <strong>1000</strong> cookies.',
-        1000
+        'goHigh',
+        '爬上山丘',
+        '爬到 <strong>15 公尺</strong> 高。',
+        15
     ],
     [
-        'whisper',
-        'It\'s About Sending A Message',
-        'Post a whisper.',
-        1
+        'honk',
+        '叭叭！',
+        '按 10 次喇叭。',
+        10
     ],
     [
-        'sea',
-        'Under the sea',
-        'Go make friend with the fishes.',
-        1
+        'suspensions',
+        '跳跳車',
+        '用用看車子的避震。',
+        4
     ],
     [
         'upsideDown',
-        'Turtle',
-        'Get upside down.',
+        '四腳朝天',
+        '把車子翻過來。',
         1
     ],
     [
         'frontFlip',
-        'Teeth first',
-        'Do a front flip and land on your 4 wheels.',
+        '前空翻',
+        '前空翻，四輪落地。',
         1
     ],
     [
         'backFlip',
-        'Flip of faith',
-        'Do a back flip and land on your 4 wheels.',
+        '後空翻',
+        '後空翻，四輪落地。',
         1
     ],
     [
-        'suspensions',
-        'Lowrider',
-        'Use the vehicle suspensions.',
-        4
-    ],
-    [
-        'honk',
-        'Honk',
-        'Honk me like one of your french driver.',
-        10
-    ],
-    [
-        'explosiveCrates',
-        'Great Explosion Murder God Dynamight',
-        'Blow up every explosive crate.',
-        20,
-        true // Unique
-    ],
-    [
-        'goHigh',
-        'Limit the sky',
-        'Reach <strong>15 meters</strong> high.',
-        15
-    ],
-    [
-        'strike',
-        'F*** it, dude. Let\'s go bowling',
-        'Accomplished a strike.',
+        'sea',
+        '跟海獅游泳',
+        '把車開進海裡。',
         1
     ],
-    [
-        'toiletDown',
-        'Do not disturb',
-        'Knock down the latrine.',
-        1
-    ],
-    [
-        'circuitFinish',
-        'Participation medal',
-        'Finish a race.',
-        1
-    ],
-    [
-        'circuitFinishFast',
-        'KA-CHOW!',
-        'Finish a race in less than <strong>30s</strong>.',
-        1
-    ],
-    [
-        'circuitLeaderboard',
-        'Early Bird gets the Worm',
-        'Make it to the leaderboard.',
-        1
-    ],
+
+    // Weather
     [
         'fullDay',
-        'Don’t you have work to do?',
-        'Spend a full day cycle here in one go.',
-        1
-    ],
-    [
-        'distanceDriven',
-        'Baby step',
-        'Drive 1km.',
-        1
-    ],
-    [
-        'distanceDriven',
-        'Are we there yet?',
-        'Drive 10km.',
-        10
-    ],
-    [
-        'distanceDriven',
-        'Honey, I’m home!',
-        'Drive 100km.',
-        100
-    ],
-    [
-        'sacrifice',
-        'One for the god of Chaos',
-        'Sacrifice yourself into the altar.',
-        1
-    ],
-    [
-        'cataclysm',
-        'Witness me!',
-        'Witness a cataclysm',
-        1
-    ],
-    [
-        'weatherSnow',
-        'Do you want to build a snowman?',
-        'Witness snowy weather.',
+        '從早玩到晚',
+        '一口氣待滿一整天。',
         1
     ],
     [
         'weatherRain',
-        'I’m singing in the rain',
-        'Witness a rainy weather.',
+        '雨中漫步',
+        '遇到下雨天。',
+        1
+    ],
+    [
+        'weatherSnow',
+        '舊金山下雪了？',
+        '遇到下雪天。',
         1
     ],
     [
         'lightning',
-        '1.21 Gigawatts!',
-        'Get hit by a lightning.',
+        '被雷打到',
+        '被閃電打中。',
         1
     ],
     [
-        'waterfall',
-        'Gamer instinct',
-        'What did you expect? A treasure?',
+        'cataclysm',
+        '龍捲風來了',
+        '親眼看到龍捲風。',
         1
     ],
-    [
-        'fan',
-        'You’re my only fan',
-        'Spawn a fan.',
-        1
-    ],
+
+    // Misc
     [
         'reset',
-        'Clean your room',
-        'Put back everything as it was.',
-        1
-    ],
-    [
-        'statueDown',
-        'Revolution!',
-        'Tear that statue down.',
-        1
-    ],
-    [
-        'konami',
-        'Up up down down…',
-        'You know the rest.',
-        1
-    ],
-    [
-        'debug',
-        'It\'s not a bug, it\'s a feature',
-        'Access the debug UI.',
-        1
-    ],
-    [
-        'hacker',
-        'Hacker',
-        'This one can’t be achieved.',
+        '收拾乾淨',
+        '把東西都放回原位。',
         1
     ],
 ]
