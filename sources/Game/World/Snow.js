@@ -102,6 +102,14 @@ export class Snow
             { label: 'elevation', min: -1, max: 1, step: 0.001 },
             () =>
             {
+                // the chosen season decides how deep the snow is (works even when the time of day is locked)
+                const target = this.game.environment?.snowTarget
+                if(target !== undefined)
+                {
+                    const step = this.game.ticker.delta * 0.35
+                    return this.elevation.value + clamp(target - this.elevation.value, - step, step)
+                }
+
                 const elevationStrength = this.game.weather.snow.value * Math.max(this.game.dayCycles.progressDelta, 0) * 10
 
                 let newElevation = this.elevation.value + elevationStrength

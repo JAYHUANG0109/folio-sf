@@ -113,6 +113,20 @@ export class Environment
             weather.override.end(duration)
 
         this.applySeasonColors(seasonId, duration)
+        this.applySeasonCover(seasonId, duration)
+    }
+
+    /* snow on the ground and on every roof in winter (melts away otherwise), fallen leaves on the tops in fall */
+    applySeasonCover(seasonId, duration)
+    {
+        this.snowTarget = seasonId === 'winter' ? 0.15 : - 1
+        const materials = this.game.materials
+        if(!materials?.snowCover)
+            return
+        const snow = seasonId === 'winter' ? 1 : 0
+        const leaves = seasonId === 'fall' ? 1 : 0
+        gsap.to(materials.snowCover, { value: snow, duration: duration ? Math.max(duration, 4) : 0, overwrite: true })
+        gsap.to(materials.leafCover, { value: leaves, duration: duration ? Math.max(duration, 4) : 0, overwrite: true })
     }
 
     applySeasonColors(seasonId, duration)
@@ -217,7 +231,10 @@ export class Environment
     {
         // automatic season: follow the calendar (changes only across months)
         if(this.state.season === 'auto' && this.seasonId() !== this.currentSeason)
+        {
             this.applySeasonColors(this.seasonId(), 3)
+            this.applySeasonCover(this.seasonId(), 3)
+        }
         if(this.currentSeason === null && this.game.world)
             this.applySeasonColors(this.seasonId(), 0)
 

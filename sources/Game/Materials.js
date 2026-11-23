@@ -67,8 +67,25 @@ export class Materials
         const isLampGlobe = sub.sub(0.5).abs().lessThan(0.05)
         const lampGlow = isLampGlobe.select(color('#fff1c4').mul(2.4), fairyColor.mul(1.7).mul(twinkle))
         const glow = slot.equal(30).select(color('#ffcf7a').mul(1.45), slot.equal(31).select(lampGlow, vec3(0)))
+        // seasons on every top surface: snow settles on roofs, towers, the turkey... in winter, fallen leaves in fall
+        // (0..1, tweened by Environment). Lights and windows stay uncovered.
+        this.snowCover = uniform(0)
+        this.leafCover = uniform(0)
+        const paletteColor = texture(this.game.resources.paletteTexture).rgb
+        const up = normalWorld.y
+        const uncovered = slot.lessThan(30)
+        const hash2 = (x, z) => x.mul(127.1).add(z.mul(311.7)).sin().mul(43758.5453).fract()
+        const edge = hash2(positionWorld.x.mul(0.9).floor(), positionWorld.z.mul(0.9).floor()).mul(0.25)
+        const snowMask = smoothstep(0.5, 0.78, up.sub(edge.mul(0.5))).mul(this.snowCover).mul(0.92).mul(uncovered.select(1, 0))
+        const snowColor = mix(color('#eaf2f8'), color('#ffffff'), up)
+        const cellX = positionWorld.x.mul(2.6).floor(), cellZ = positionWorld.z.mul(2.6).floor()
+        const leafHash = hash2(cellX, cellZ)
+        const leafMask = leafHash.lessThan(this.leafCover.mul(0.14)).select(1, 0).mul(smoothstep(0.45, 0.7, up)).mul(uncovered.select(1, 0))
+        const leafPick = hash2(cellZ.add(17), cellX.sub(5))
+        const leafColor = leafPick.lessThan(0.33).select(color('#c0392b'), leafPick.lessThan(0.7).select(color('#f0802a'), color('#f6c445')))
+        const seasonal = mix(mix(paletteColor, leafColor, leafMask), snowColor, snowMask)
         const material = new MeshDefaultMaterial({
-            colorNode: texture(this.game.resources.paletteTexture).rgb,
+            colorNode: seasonal,
             emissiveNode: glow.mul(this.nightUniform)
         })
         const toggle = (night) => gsap.to(this.nightUniform, { value: night ? 1 : 0, duration: 3, overwrite: true })
