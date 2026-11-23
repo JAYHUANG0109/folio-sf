@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app'
-import { getAuth, deleteUser, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signInWithRedirect, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, signOut } from 'firebase/auth'
+import { getAuth, deleteUser, onAuthStateChanged, EmailAuthProvider, linkWithCredential, sendEmailVerification, GoogleAuthProvider, signInWithPopup, signInWithRedirect, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, signOut } from 'firebase/auth'
 import { getFirestore, doc, getDoc, setDoc, deleteDoc, serverTimestamp } from 'firebase/firestore'
 
 /**
@@ -158,9 +158,20 @@ class AccountService
     async signInGoogle()
     {
         const provider = new GoogleAuthProvider()
+        const pending = this.pendingLink
+        if(pending)
+            provider.setCustomParameters({ login_hint: pending.email })
         try
         {
-            await signInWithPopup(this.auth, provider)
+            const result = await signInWithPopup(this.auth, provider)
+            // same email typed with a password just before: attach that password to this account too,
+            // so both "Google" and "email + password" open the same account (and the same progress)
+            if(pending && result.user.email?.toLowerCase() === pending.email.toLowerCase())
+            {
+                try { await linkWithCredential(result.user, EmailAuthProvider.credential(pending.email, pending.password)) }
+                catch(error) { if(!/provider-already-linked|credential-already-in-use|email-already-in-use/.test(error.code || '')) console.warn('Account: link failed', error) }
+            }
+            this.pendingLink = null
         }
         catch(error)
         {
@@ -174,10 +185,30 @@ class AccountService
 
     async signInEmail(email, password, create = false)
     {
-        if(create)
-            await createUserWithEmailAndPassword(this.auth, email, password)
-        else
-            await signInWithEmailAndPassword(this.auth, email, password)
+        this.pendingLink = null
+        try
+        {
+            if(create)
+            {
+                const result = await createUserWithEmailAndPassword(this.auth, email, password)
+                // a verified email keeps its password when the same address later signs in with Google
+                await sendEmailVerification(result.user).catch(() => {})
+            }
+            else
+                await signInWithEmailAndPassword(this.auth, email, password)
+        }
+        catch(error)
+        {
+            // the address probably belongs to a Google account: offer to sign in with Google and link this password to it
+            if(/email-already-in-use|invalid-credential|wrong-password/.test(error.code || ''))
+            {
+                this.pendingLink = { email, password }
+                const linkable = new Error(error.message)
+                linkable.code = create ? 'link/google-exists' : 'link/maybe-google'
+                throw linkable
+            }
+            throw error
+        }
         await this.afterSignIn()
     }
 
@@ -240,13 +271,16 @@ if(import.meta.env.VITE_GAME_PUBLIC)
 export const authErrorText = (error) =>
 {
     const code = error?.code || ''
-    if(code.includes('invalid-credential') || code.includes('wrong-password') || code.includes('user-not-found')) return '帳號或密碼不對'
-    if(code.includes('email-already-in-use')) return '這個 Email 已經註冊過了，直接登入就好'
-    if(code.includes('weak-password')) return '密碼至少要 6 個字'
-    if(code.includes('invalid-email')) return 'Email 格式不對'
-    if(code.includes('popup-closed')) return '登入視窗被關掉了'
-    if(code.includes('operation-not-allowed') || code.includes('configuration-not-found')) return '這個登入方式還沒開通'
-    if(code.includes('unauthorized-domain')) return '這個網址還不能用 Google 登入'
-    if(code.includes('network')) return '網路好像斷了'
-    return '登入失敗，再試一次'
+    if(code === 'link/google-exists') return '這個 Email 已用 Google 註冊。請點「使用 Google 帳號登入」，這組密碼會自動連結到同一個帳號。'
+    if(code === 'link/maybe-google') return 'Email 或密碼不正確。如果這個 Email 是用 Google 註冊的，請改用 Google 登入，密碼會自動連結上去。'
+    if(code.includes('invalid-credential') || code.includes('wrong-password') || code.includes('user-not-found')) return 'Email 或密碼不正確'
+    if(code.includes('email-already-in-use')) return '這個 Email 已經註冊過了，請直接登入'
+    if(code.includes('weak-password')) return '密碼至少需要 6 個字元'
+    if(code.includes('invalid-email')) return 'Email 格式不正確'
+    if(code.includes('too-many-requests')) return '嘗試次數太多，請稍後再試'
+    if(code.includes('popup-closed') || code.includes('cancelled-popup')) return '登入視窗已關閉'
+    if(code.includes('operation-not-allowed') || code.includes('configuration-not-found')) return '這個登入方式尚未開放'
+    if(code.includes('unauthorized-domain')) return '這個網址暫時無法使用 Google 登入'
+    if(code.includes('network')) return '連線失敗，請檢查網路'
+    return '登入失敗，請再試一次'
 }

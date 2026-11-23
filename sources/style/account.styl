@@ -6,11 +6,24 @@
         flex-direction column
         gap 12px
 
+    .account-intro
+        display flex
+        flex-direction column
+        gap 4px
+        margin-bottom 4px
+
+    .account-lead
+        font-size 17px
+        font-weight 700
+        color #ffd27a
+
     .account-hint
         font-size 14px
-        line-height 1.5
-        opacity 0.85
+        line-height 1.6
+        opacity 0.8
         margin 0
+        text-wrap pretty
+        word-break keep-all
 
     .account-card
         display flex
@@ -71,6 +84,10 @@
         &:hover
             background #f1f1f1
 
+        &.is-highlighted
+            box-shadow 0 0 0 3px #ffd27a
+            animation account-pulse 1.2s ease-in-out infinite
+
     .account-or
         display flex
         align-items center
@@ -105,6 +122,12 @@
     .account-button
         height 44px
         width 100%
+        display flex
+        align-items center
+        justify-content center
+        padding 0
+        line-height 1
+        font-size 17px
 
     .account-links
         display flex
@@ -124,3 +147,9 @@
         font-size 14px
         color #ffd27a
         text-align center
+
+@keyframes account-pulse
+    0%, 100%
+        box-shadow 0 0 0 3px rgba(255, 210, 122, 0.9)
+    50%
+        box-shadow 0 0 0 6px rgba(255, 210, 122, 0.3)
