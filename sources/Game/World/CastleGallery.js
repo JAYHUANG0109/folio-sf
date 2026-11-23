@@ -91,40 +91,32 @@ export class CastleGallery
         let photo = initial
         const canvas = document.createElement('canvas')
         canvas.width = 512
-        canvas.height = 600
+        canvas.height = 512
         const ctx = canvas.getContext('2d')
         const map = new THREE.CanvasTexture(canvas)
         map.colorSpace = THREE.SRGBColorSpace
         const draw = (image) =>
         {
-            ctx.fillStyle = '#fbf7ef'
-            ctx.fillRect(0, 0, 512, 600)
             if(image)
             {
-                // cover-fit into the square window
-                const s = Math.max(464 / image.width, 464 / image.height)
+                // cover-fit: the photo fills the whole frame
+                const s = Math.max(512 / image.width, 512 / image.height)
                 const w = image.width * s, h = image.height * s
-                ctx.save()
-                ctx.beginPath(); ctx.rect(24, 24, 464, 464); ctx.clip()
-                ctx.drawImage(image, 24 + (464 - w) / 2, 24 + (464 - h) / 2, w, h)
-                ctx.restore()
+                ctx.drawImage(image, (512 - w) / 2, (512 - h) / 2, w, h)
             }
             else
             {
-                const g = ctx.createLinearGradient(0, 24, 0, 488)
+                const g = ctx.createLinearGradient(0, 0, 0, 512)
                 g.addColorStop(0, photo.colors?.[0] || '#ffd6a0')
                 g.addColorStop(1, photo.colors?.[1] || '#ff8fa3')
                 ctx.fillStyle = g
-                ctx.fillRect(24, 24, 464, 464)
+                ctx.fillRect(0, 0, 512, 512)
                 ctx.fillStyle = 'rgba(255,255,255,0.9)'
-                ctx.font = '120px sans-serif'
+                ctx.font = '160px sans-serif'
                 ctx.textAlign = 'center'
-                ctx.fillText(photo.emoji || '♥', 256, 300)
+                ctx.textBaseline = 'middle'
+                ctx.fillText(photo.emoji || '♥', 256, 270)
             }
-            ctx.fillStyle = '#3a2a20'
-            ctx.font = '40px "LXGW WenKai TC", "PingFang TC", "Noto Sans TC", sans-serif'
-            ctx.textAlign = 'center'
-            ctx.fillText(photo.caption || '', 256, 560)
             map.needsUpdate = true
         }
         const show = (next) =>
@@ -139,8 +131,8 @@ export class CastleGallery
             }
         }
         show(photo)
-        this.frame(2.2, 2.55, x, y, z, ry, tilt, '#6b4423')
-        this.picture(map, 2.2, 2.58, x, y, z, ry, tilt)
+        this.frame(2.4, 2.4, x, y, z, ry, tilt, '#6b4423')
+        this.picture(map, 2.4, 2.4, x, y, z, ry, tilt)
         return { show }
     }
 
