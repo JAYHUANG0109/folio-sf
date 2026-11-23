@@ -134,6 +134,11 @@ function victorian(width, height, depth, wall, trim, roof, seed, accent = C.red)
     m.box([ depth + 0.3, 0.22, width + 0.24 ], trim, [ 0, H - 0.22, 0 ])
     for(let k = 0; k < 7; k++)
         m.cbox([ 0.16, 0.26, 0.09 ], accent, [ F - 0.12, H - 0.36, - width / 2 + 0.18 + k * (width - 0.36) / 6 ])
+    for(let k = 0; k <= 12; k++)                                                                 // fairy lights along the gable
+    {
+        const t = k / 12, zz = - (width / 2 + 0.1) + t * (width + 0.2)
+        m.sphere(0.09, C.fairy, [ F - 0.24, H + (1 - Math.abs(t - 0.5) * 2) * 1.9 - 0.05, zz ], 0)
+    }
     // steep front gable: roof, a filled front triangle with fish-scale bands, attic window, finial
     const gh = 1.9
     m.gable(depth + 0.3, width + 0.24, gh, roof, [ 0.05, H, 0 ], [ 0, Math.PI / 2, 0 ])
@@ -634,7 +639,7 @@ export function christmasTree()
         const h = (1.6 + t * 9) * T
         const radius = (3.3 - t * 3) * 0.85 * T
         const a = r() * Math.PI * 2
-        tree.sphere(0.22 * T, [ C.red, C.gold, C.snow, C.sky ][i % 4], [ Math.cos(a) * radius, h, Math.sin(a) * radius ], 0)
+        tree.sphere(0.22 * T, i % 2 ? C.fairy : [ C.red, C.gold ][Math.floor(i / 2) % 2], [ Math.cos(a) * radius, h, Math.sin(a) * radius ], 0)
     }
     tree.cone(0.6 * T, 1.0 * T, C.gold, [ 0, 11.8 * T, 0 ], 5)
     tree.cone(0.6 * T, 1.0 * T, C.gold, [ 0, 13.8 * T, 0 ], 5, [ Math.PI, 0, 0 ])

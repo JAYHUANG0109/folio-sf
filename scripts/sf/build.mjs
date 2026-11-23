@@ -573,7 +573,7 @@ const footprints = [] // [x, z, w, d, isDowntown] for the map
     for(const street of Layout.streets.filter(st => st.asphalt))
     {
         const curve = new THREE.CatmullRomCurve3(street.points.map(([ x, z ]) => new THREE.Vector3(x, 0, z)), false, 'centripetal')
-        const count = Math.floor(curve.getLength() / 7)
+        const count = Math.floor(curve.getLength() / 4.5)
         for(let i = 1; i < count; i++)
         {
             const t = i / count
@@ -587,13 +587,17 @@ const footprints = [] // [x, z, w, d, isDowntown] for the map
             posts.cylinder(0.07, 0.1, 2.6, C.dark, [ x, y, z ], 6)
             posts.cylinder(0.14, 0.1, 0.18, C.dark, [ x, y + 2.6, z ], 6)
             posts.sphere(0.26, C.lamp, [ x, y + 2.95, z ], 1)
+            for(let k = 0; k < 7; k++)                                     // fairy lights spiralling up the post
+                posts.sphere(0.09, C.fairy, [ x + Math.cos(k * 1.9) * 0.13, y + 0.4 + k * 0.32, z + Math.sin(k * 1.9) * 0.13 ], 0)
+            posts.add(new THREE.TorusGeometry(0.28, 0.07, 5, 12), C.moss, [ x, y + 2.25, z ], [ 0, Math.atan2(d.x, d.z), 0 ])   // wreath
+            posts.cbox([ 0.2, 0.14, 0.06 ], C.red, [ x, y + 2.05, z ])
             pools.push([ x, y + 0.04, z ])
             colliders.push({ shape: 'tube', position: [ x, y + 1.3, z ], radius: 0.12, height: 2.6 })
         }
     }
     sceneryNodes.push(fixedNode('streetLamps', posts, [ 0, 0, 0 ], colliders))
     const g = new THREE.BufferGeometry()
-    const parts = pools.map(([ x, y, z ]) => new THREE.CircleGeometry(2.6, 20).rotateX(- Math.PI / 2).translate(x, y, z))
+    const parts = pools.map(([ x, y, z ]) => new THREE.CircleGeometry(3.4, 20).rotateX(- Math.PI / 2).translate(x, y, z))
     const merged = mergeGeometries(parts)
     sceneryNodes.push({ name: 'lampPools', position: [ 0, 0, 0 ], mesh: { geometry: merged, material: 'lampPool' } })
     console.log('street lamps', pools.length)
@@ -816,6 +820,9 @@ const footprints = [] // [x, z, w, d, isDowntown] for the map
                 for(let k = 1; k < height / 1.6; k++)
                     m.box([ w + 0.04, 0.35, d + 0.04 ], C.window, [ 0, k * 1.6 - 0.6, 0 ])
                 m.box([ w * 0.5, 0.8, d * 0.5 ], C.slate, [ 0, height, 0 ])
+                for(const [ cx2, cz2 ] of [ [ - 1, - 1 ], [ 1, - 1 ], [ - 1, 1 ], [ 1, 1 ] ])          // lights strung down the corners
+                    for(let ly = 0.6; ly < height; ly += 0.45)
+                        m.sphere(0.12, C.fairy, [ cx2 * (w / 2 + 0.04), ly, cz2 * (d / 2 + 0.04) ], 0)
             }
             else
             {
@@ -826,6 +833,12 @@ const footprints = [] // [x, z, w, d, isDowntown] for the map
                     m.cbox([ w * 0.3, 0.8, 0.05 ], C.window, [ sd * w * 0.22, height * 0.6, d / 2 + 0.01 ])
                 }
                 m.cbox([ 0.7, 1.2, 0.05 ], C.wood, [ 0, 0.6, - d / 2 - 0.02 ])
+                // Christmas: fairy lights swagging along both eaves, a wreath with a red bow on the door
+                for(const sz of [ - 1, 1 ])
+                    for(let lx = - w / 2 + 0.15; lx <= w / 2 - 0.1; lx += 0.32)
+                        m.sphere(0.11, C.fairy, [ lx, height + 0.02 - Math.abs(Math.sin((lx + w) * 4.9)) * 0.12, sz * (d / 2 + 0.08) ], 0)
+                m.add(new THREE.TorusGeometry(0.22, 0.08, 5, 12), C.moss, [ 0, 1.0, - d / 2 - 0.08 ])
+                m.cbox([ 0.18, 0.12, 0.06 ], C.red, [ 0, 0.8, - d / 2 - 0.1 ])
                 if(r() < 0.6)
                     m.gable(w + 0.1, d + 0.1, 1 + r() * 0.6, r() < 0.5 ? C.slate : C.brick, [ 0, height + 0.04, 0 ]) // ridge along x, spans the depth
             }

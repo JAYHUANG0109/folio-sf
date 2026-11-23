@@ -25,11 +25,13 @@ export const C = {
     bridge: 16, white: 17, peach: 18, red: 19, purple: 20, pink: 21, black: 22, snow: 23,
     broth: 24, beef: 25, noodle: 26, leaf: 27, scallion: 28, porcelain: 29,
     window: 30, lamp: 31,
+    fairy: 63,          // fairy light bulbs: cream by day, twinkling red / green / gold / blue at night
 }
 
 export function paletteUv(index)
 {
-    return [ (index * 4 + 2) / 128, 0.5 ]
+    // indices 32+ reuse a swatch but are flagged (v = 0.15) as multicolor Christmas fairy lights for the shader
+    return [ ((index % 32) * 4 + 2) / 128, index >= 32 ? 0.15 : 0.5 ]
 }
 
 /**

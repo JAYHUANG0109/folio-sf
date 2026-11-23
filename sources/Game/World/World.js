@@ -1,3 +1,4 @@
+import { Santa } from './Santa.js'
 import { GateSigns } from './GateSigns.js'
 import { Ferry } from './Ferry.js'
 import { CastleGallery } from './CastleGallery.js'
@@ -86,6 +87,7 @@ export class World
             this.castleGallery = new CastleGallery()
             this.ferry = new Ferry()
             this.gateSigns = new GateSigns()
+            this.santa = new Santa()
             this.finale = new Finale()
         }
         else if(step === 2)

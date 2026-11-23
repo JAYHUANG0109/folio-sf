@@ -59,7 +59,12 @@ export class Materials
         // night: 0 by day, 1 at night (tweened in update below). Window glass and lamp globes light up.
         this.nightUniform = uniform(0)
         const slot = uv().x.mul(32).floor()
-        const glow = slot.equal(30).select(color('#ffcf7a').mul(1.35), slot.equal(31).select(color('#fff1c4').mul(2.2), vec3(0)))
+        // fairy lights: each bulb picks a color from its position and twinkles
+        const bulbHash = positionWorld.x.mul(12.9898).add(positionWorld.z.mul(78.233)).add(positionWorld.y.mul(37.719)).sin().mul(43758.5453).fract()
+        const fairyColor = bulbHash.lessThan(0.25).select(color('#ff3040'), bulbHash.lessThan(0.5).select(color('#38ff6a'), bulbHash.lessThan(0.75).select(color('#ffd24a'), color('#5ab0ff'))))
+        const twinkle = time.mul(2.2).add(bulbHash.mul(30)).sin().mul(0.35).add(0.85)
+        const fairy = uv().y.lessThan(0.3).and(slot.equal(31))
+        const glow = fairy.select(fairyColor.mul(3.2).mul(twinkle), slot.equal(30).select(color('#ffcf7a').mul(1.45), slot.equal(31).select(color('#fff1c4').mul(2.4), vec3(0))))
         const material = new MeshDefaultMaterial({
             colorNode: texture(this.game.resources.paletteTexture).rgb,
             emissiveNode: glow.mul(this.nightUniform)
@@ -71,7 +76,7 @@ export class Materials
         // warm pools of light on the ground under the street lamps
         const pool = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })
         const fall = float(1).sub(uv().sub(0.5).length().mul(2)).clamp(0, 1).pow(1.8)
-        pool.outputNode = vec4(color('#ffb85c').mul(fall.mul(0.55).mul(this.nightUniform)), 1)
+        pool.outputNode = vec4(color('#ffb85c').mul(fall.mul(0.75).mul(this.nightUniform)), 1)
         pool.fog = false
         this.save('lampPool', pool)
         
