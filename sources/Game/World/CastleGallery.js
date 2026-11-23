@@ -331,7 +331,7 @@ export class CastleGallery
                 ' ': [ '.', '.', '.', '.', '.' ],
             }
             const text = [ [ 'J', '#e8c25a' ], [ ' ', '' ], [ '♥', '#e0203a' ], [ ' ', '' ], [ 'D', '#e8c25a' ], [ 'J', '#e8c25a' ] ]
-            const cell = 0.9
+            const cell = 0.72                         // leaves room at both ends of the wall
             const width = text.reduce((w, [ ch ]) => w + (glyphs[ch][0].length + 1) * cell, - cell)
             let zc = - width / 2
             for(const [ ch, hex ] of text)
@@ -364,11 +364,11 @@ export class CastleGallery
         const frameColors = [ '#c9a227', '#a7791c', '#d8b54a', '#8a5a1c' ]
         // slots: every bay between columns gets a large portrait plus smaller ones above / beside it
         const slots = []
-        for(let x = L / 2 - 7; x >= - L / 2 + 5; x -= 7.5)
+        for(let x = L / 2 - 6.5; x >= - L / 2 + 4.5; x -= 6.4)
             for(const side of [ - 1, 1 ])
             {
-                slots.push({ x, y: 5.4, side, max: [ 6.6, 8.2 ] })
-                slots.push({ x, y: 12.8, side, max: [ 6.6, 4.6 ] })
+                slots.push({ x, y: 5.7, side, max: [ 6.0, 9.6 ] })
+                slots.push({ x, y: 13.1, side, max: [ 6.0, 4.8 ] })
             }
         // order: big ones first so every photo gets a prominent spot before the small ones repeat
         const ordered = [ ...slots.filter(s => s.y < 8), ...slots.filter(s => s.y >= 8) ]
@@ -421,9 +421,9 @@ export class CastleGallery
             const mat = new THREE.MeshBasicNodeMaterial()
             mat.colorNode = texture(map)
             mat.fog = false
-            const screen = this.hallAdd(new THREE.PlaneGeometry(1, 1), mat, - L / 2 + 0.45, 8.5, 0, 0, Math.PI / 2)
-            const frame = this.hallAdd(new THREE.BoxGeometry(1, 1, 0.2), this.flat(null, '#c9a227'), - L / 2 + 0.2, 8.5, 0, 0, Math.PI / 2)
-            const fit = () => { const a = video.videoWidth / video.videoHeight || 16 / 9; let h = 14.5, w = h * a; if(w > W - 1.5) { w = W - 1.5; h = w / a } screen.scale.set(w, h, 1); frame.scale.set(w + 0.6, h + 0.6, 1) }
+            const screen = this.hallAdd(new THREE.PlaneGeometry(1, 1), mat, - L / 2 + 0.45, H / 2 + 0.2, 0, 0, Math.PI / 2)
+            const frame = this.hallAdd(new THREE.BoxGeometry(1, 1, 0.2), this.flat(null, '#c9a227'), - L / 2 + 0.2, H / 2 + 0.2, 0, 0, Math.PI / 2)
+            const fit = () => { const a = video.videoWidth / video.videoHeight || 16 / 9; let h = H - 0.9, w = h * a; if(w > W - 0.8) { w = W - 0.8; h = w / a } screen.scale.set(w, h, 1); frame.scale.set(w + 0.6, h + 0.6, 1) }
             fit()
             video.addEventListener('loadedmetadata', fit)
             this.hallVideo = { video, play }
@@ -437,7 +437,7 @@ export class CastleGallery
         el.className = 'castle-theatre'
         el.innerHTML = `
             <div class="ct-vignette"></div>
-            <div class="ct-title">Castello ♥ 我們的回憶</div>
+            <div class="ct-title">回憶城堡 <span>Memory Castle</span></div>
             <div class="ct-help">方向鍵 / WASD / 搖桿走動 · 拖曳或右搖桿環顧四周</div>
             <div class="ct-controls">
                 <button class="ct-sound">🔇 影片聲音</button>
