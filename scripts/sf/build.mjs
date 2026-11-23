@@ -239,6 +239,15 @@ for(const stop of [ ...Layout.stops, ...secrets ])
     }
 }
 console.log('site footprints', siteFootprints.length)
+// knockable trees and lamps inside the sites must not stand on a street either
+for(const area of areaNodes)
+    for(const node of area.children)
+        if(/^(palm|lombardLamp)/.test(node.name || '') && node.position)
+        {
+            const x = area.position[0] + node.position[0], z = area.position[2] + node.position[2]
+            if(streetSegments.some(([ ax, az, bx, bz, half ]) => { const dx = bx - ax, dz = bz - az, t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz || 1))); return Math.hypot(x - (ax + dx * t), z - (az + dz * t)) < half + 0.5 }))
+                console.log('ON A ROAD:', area.name, node.name, x.toFixed(1), z.toFixed(1))
+        }
 
 /** Is a design point inside (or within margin of) a site's solid parts? */
 const inSite = (x, z, margin = 0) => siteFootprints.some(([ fx, fz, hx, hz, angle ]) =>
@@ -262,7 +271,9 @@ const exclusions = [
     { rect: [ 48, 54, 80, 82 ] },                                   // SFO
     { rect: [ - 60, - 48, - 20, - 14 ] },                           // Palace
     { rect: [ - 78, 52, - 28, 86 ] },                               // turkey + dog houses
-    { rect: [ - 76, - 12, - 40, 36 ] },                              // tennis (2.25x)
+    { rect: [ - 73, - 8, - 43, 33 ] },                               // tennis (1.85x)
+    { x: - 31.5, z: 10, r: 9 },                                     // Alamo Square park
+    { rect: [ - 97, - 100, - 63, - 68 ] },                          // Napa vineyards
     { rect: [ 52, - 34, 70, - 2 ] },                                // Ferry Building
     ...secrets.map(s => ({ x: s.position.x, z: s.position.z, r: s.radius + 4 })),
     { x: 46, z: - 24, r: 5 }, { x: 41, z: - 15, r: 5 }, { x: TREE_SPOT[0], z: TREE_SPOT[1], r: 9 }, { x: 46, z: - 35, r: 5 }, { x: - 34, z: 50, r: 4 },
@@ -573,13 +584,107 @@ const footprints = [] // [x, z, w, d, isDowntown] for the map
         }
         sceneryNodes.push(scaleNode(fixedNode('christmasTree', christmasTree(), [ tx, ground(tx, tz), tz ], [ { shape: 'tube', position: [ 0, 4 * T, 0 ], radius: 2.2 * T, height: 8 * T } ]), k))
     }
+    // Napa: vineyards all around the castle (rows of vines on trellises, ripe purple and red grapes, autumn leaves),
+    // Italian cypresses along the edges and olive trees on the lawn. World units; each row is a low wall the car can't cross.
+    {
+        const r = rng(2026)
+        const leaves = [ C.leaf, C.leaf, C.moss, C.sage, C.gold, C.orange ]
+        const grapes = [ C.purple, C.purple, C.red, C.lavender ]
+        const blocks = [
+            [ - 77, - 98.5, - 66.5, - 88.8 ],   // north east, between the driveway and the hills
+            [ - 77, - 80.2, - 67.5, - 73.5 ],   // south east
+            [ - 89.4, - 99.6, - 81.8, - 96.2 ], // north of the castle, between its towers
+            [ - 89.4, - 72.0, - 81.8, - 70.0 ], // south of the castle
+        ]
+        for(const [ x0, z0, x1, z1 ] of blocks)
+        {
+            for(let z = z0 + 0.6; z < z1; z += 1.7)
+            {
+                const row = new Model()
+                const len = x1 - x0
+                const y = ground((x0 + x1) / 2, z)
+                for(let x = 0; x <= len; x += 2.4)
+                    row.cylinder(0.05, 0.06, 1.3, C.wood, [ x - len / 2, 0, 0 ], 4)
+                row.cbox([ len, 0.03, 0.03 ], C.dark, [ 0, 1.15, 0 ])
+                for(let x = 0.3; x < len - 0.2; x += 0.55)
+                {
+                    const px = x - len / 2
+                    row.sphere(0.36 + r() * 0.12, leaves[Math.floor(r() * leaves.length)], [ px, 0.95 + r() * 0.15, (r() - 0.5) * 0.15 ], 1, [ 1.2, 0.85, 0.9 ])
+                    if(r() < 0.55)
+                    {
+                        const g = grapes[Math.floor(r() * grapes.length)]
+                        const side = r() < 0.5 ? - 1 : 1
+                        row.sphere(0.11, g, [ px, 0.62, side * 0.3 ], 0)
+                        row.sphere(0.09, g, [ px + 0.08, 0.5, side * 0.32 ], 0)
+                        row.sphere(0.07, g, [ px - 0.03, 0.42, side * 0.3 ], 0)
+                    }
+                }
+                sceneryNodes.push(fixedNode('vineRow', row, [ (x0 + x1) / 2, y, z ], [ { position: [ 0, 0.55, 0 ], size: [ len, 1.1, 0.5 ] } ]))
+            }
+        }
+        // Italian cypresses: lining the driveway and framing the vineyards
+        const trees = new Model()
+        const cypress = (x, z, h = 4.5) =>
+        {
+            const y = ground(x, z)
+            trees.cylinder(0.12, 0.16, 0.8, C.wood, [ x, y, z ], 5)
+            trees.cone(0.75, h, C.moss, [ x, y + 0.6, z ], 7)
+            trees.cone(0.55, h * 0.7, C.olive, [ x, y + 0.6 + h * 0.35, z ], 7)
+        }
+        for(const x of [ - 76.5, - 74.5, - 72.5, - 70.5, - 68.5 ])
+            for(const z of [ - 88.2, - 79.6 ])
+                cypress(x, z, 4 + r())
+        for(let x = - 89; x < - 81; x += 2.6)
+            cypress(x, - 94.4, 4 + r() * 1.2)
+        for(let z = - 92; z > - 76; z -= 2.6)
+            if(Math.abs(z + 84) > 4.4)
+                cypress(- 94.6, z, 4 + r() * 1.2)
+        // olive trees on the lawn by the gate: twisted trunks, silvery round crowns
+        for(const [ x, z ] of [ [ - 77.6, - 90.8 ], [ - 77.8, - 77.2 ] ])
+        {
+            const y = ground(x, z)
+            trees.beam([ x, y, z ], [ x + 0.3, y + 1.2, z - 0.2 ], 0.22, C.wood)
+            trees.beam([ x + 0.3, y + 1.2, z - 0.2 ], [ x - 0.2, y + 1.9, z + 0.1 ], 0.16, C.wood)
+            trees.sphere(1.3, C.sage, [ x, y + 2.3, z ], 1, [ 1.3, 0.75, 1.2 ])
+            trees.sphere(0.9, C.stone, [ x + 0.6, y + 2.6, z + 0.4 ], 1, [ 1.2, 0.7, 1.1 ])
+        }
+        sceneryNodes.push(meshNode('napaTrees', trees, [ 0, 0, 0 ]))
+    }
+
     // Transamerica Pyramid
     const pyramid = new Model()
-    pyramid.add(new THREE.CylinderGeometry(0.3, 3.2, 20, 4).translate(0, 10, 0), C.snow, [ 0, 0, 0 ], [ 0, Math.PI / 4, 0 ])
-    pyramid.box([ 1.2, 3, 0.4 ], C.snow, [ - 1.8, 9, 0 ])
-    pyramid.box([ 1.2, 3, 0.4 ], C.snow, [ 1.8, 9, 0 ])
-    pyramid.cylinder(0.05, 0.25, 3, C.snow, [ 0, 20, 0 ], 4)
-    sceneryNodes.push(fixedNode('transamerica', pyramid, [ 46, ground(46, - 24), - 24 ], [ { position: [ 0, 5, 0 ], size: [ 4.2, 10, 4.2 ] } ]))
+    {
+        // a slim four sided pyramid of white precast panels with dark window bands, two "wings" (elevator
+        // shafts) running up its sides, a tall glass topped spire, and the A-frame legs at its base
+        const H = 17, R0 = 2.6, R1 = 0.75
+        const radius = (y) => R0 + (R1 - R0) * (y / H)
+        const square = (r0, r1, h, color, y) => pyramid.add(new THREE.CylinderGeometry(r1, r0, h, 4, 1).translate(0, h / 2, 0), color, [ 0, y, 0 ], [ 0, Math.PI / 4, 0 ])
+        square(R0, R1, H, C.snow, 1.4)
+        for(let y = 2; y < H + 1.2; y += 0.42)
+            square(radius(y - 1.4) * 1.012 + 0.01, radius(y - 1.25) * 1.012 + 0.01, 0.14, C.slate, y)
+        for(const side of [ - 1, 1 ])
+        {
+            const tilt = Math.atan2(R0 - R1, H)
+            pyramid.add(new THREE.BoxGeometry(0.9, 15.6, 1.1).translate(0, 7.8, 0), C.snow, [ side * (R0 * 0.71), 1.4, 0 ], [ 0, 0, side * tilt ])
+        }
+        // the spire
+        square(R1, 0.02, 6.5, C.snow, H + 1.4)
+        square(R1 * 0.9, R1 * 0.5, 1.6, C.sky, H + 1.4)
+        // A-frame legs around the base
+        for(let k = 0; k < 4; k++)
+        {
+            const a = k / 4 * Math.PI * 2
+            const ux = Math.cos(a), uz = Math.sin(a), vx = - uz, vz = ux
+            for(const o of [ - 1.2, 0, 1.2 ])
+            {
+                const base = [ ux * (R0 + 0.3) + vx * o, 0, uz * (R0 + 0.3) + vz * o ]
+                pyramid.beam(base, [ ux * R0 * 0.95 + vx * (o - 0.6), 1.45, uz * R0 * 0.95 + vz * (o - 0.6) ], 0.12, C.snow)
+                pyramid.beam(base, [ ux * R0 * 0.95 + vx * (o + 0.6), 1.45, uz * R0 * 0.95 + vz * (o + 0.6) ], 0.12, C.snow)
+            }
+        }
+        pyramid.add(new THREE.BoxGeometry(R0 * 1.4, 1.4, R0 * 1.4).translate(0, 0.7, 0), C.dark, [ 0, 0, 0 ])   // glass lobby
+    }
+    sceneryNodes.push(fixedNode('transamerica', pyramid, [ 46, ground(46, - 24), - 24 ], [ { position: [ 0, 5, 0 ], size: [ 4.6, 10, 4.6 ] } ]))
 
     // Salesforce Tower
     const sf = new Model()
@@ -1000,6 +1105,14 @@ console.log('respawns ok')
         placements.tornado.push([ round(Math.cos(a) * 55 * W), 3.27, round(Math.sin(a) * 55 * W) ])
     }
 
+    // nothing may stand on a street: drop any tree, bush or prop whose trunk ends up on one
+    for(const key of [ 'redwoods', 'oakTrees', 'birchTrees', 'cherryTrees', 'bushes', 'benches', 'lanterns', 'poleLights' ])
+    {
+        const before = placements[key].length
+        placements[key] = placements[key].filter(p => !nearRoad(p[0] ?? p.position?.[0] ?? p.x, p[2] ?? p.position?.[2] ?? p.z, key === 'lanterns' ? - 10 : 0.6))
+        if(placements[key].length !== before)
+            console.log('removed from roads:', key, before - placements[key].length)
+    }
     fs.writeFileSync(out('sources/data/placements.json'), JSON.stringify(placements))
     console.log('placements', Object.fromEntries(Object.entries(placements).map(([ k, v ]) => [ k, v.length ])))
 }

@@ -39,7 +39,7 @@ export const boardwalk = { points: [[7, -51.6], [7.4, -56.5], [9, -61.5], [8.8, 
 
 /** Ponds and lagoons (water inside land, always at sea level) */
 export const ponds = [
-    { ellipse: [-40, -20, 7, 3.6], depth: 0.32 }, // Palace of Fine Arts lagoon (shallow, easy to drive out)
+    { ellipse: [-40, -19, 14, 6], depth: 0.32 }, // Palace of Fine Arts lagoon: big, in front of the rotunda (shallow, easy to drive out)
     { ellipse: [-68, 47, 4, 2.2], depth: 0.32 },  // Stow Lake
 ]
 
@@ -56,7 +56,7 @@ export const hills = [
     [6, -18, 4.0, 8],      // Nob Hill (west of Chinatown, under California St)
     [42, -40, 3.5, 6],     // Telegraph Hill
     [-24, -22, 2.5, 12],   // Pacific Heights
-    [-28, 14, 3.0, 6],     // Alamo Square
+    [-31, 10, 3.0, 6.5],   // Alamo Square: the park on its hill, across the street from the Painted Ladies
     [-24, 46, 7.0, 8],     // Twin Peaks
     [-14, 54, 6.0, 7],
     [-44, 40, 4.0, 8],     // Mount Sutro
@@ -79,7 +79,7 @@ export const pads = [
     [24, -13, 9, 14, 0.3],    // Chinatown: flat street level under the shops and the gate
     [36, -54, 4, 7, 0],       // Pier 39 shore
     [-40, -32, 11, 16, 0],    // Palace of Fine Arts (1.5x)
-    [-58, 16, 16, 21, 0],     // tennis (2.25x)
+    [-58, 16, 13, 17.5, 0],   // tennis (1.85x)
     [-52, 72, 10.5, 13.5, 1.5], // Thanksgiving turkey (1.5x) on top of a little flat-topped hill
     [-79, -84, 15, 22, 3.2],  // secret: Napa castle (west of the bridge), at bridge deck level: flat, smooth drive
     [-34, -92, 5, 8, 0.8],    // secret: Muir Woods
@@ -96,7 +96,7 @@ export const pads = [
 export const parks = [
     { rect: [-84, -2, -34, 40] },         // Golden Gate Park (tennis center inside)
     { rect: [-34, 13, -24, 18] },         // Panhandle
-    { ellipse: [-28, 14, 6, 5] },         // Alamo Square
+    { ellipse: [-31.5, 10, 9.5, 8] },     // Alamo Square park
     { ellipse: [9, 43.5, 13, 9.5] },      // Dolores Park: the big sloping lawn
     { ellipse: [-22, 48, 11, 10] },       // Twin Peaks
     { ellipse: [-44, 40, 8, 7] },         // Mount Sutro
@@ -158,7 +158,7 @@ export const plazas = [
     { ellipse: [-62, -86.5, 4, 5] }, // Vista Point, straight ahead off the bridge
     { rect: [18, -29, 30, 1] },      // Chinatown: Grant Ave as a wide pedestrian street
     { ellipse: [-40, -38, 6, 4] },   // Palace
-    { rect: [-74, -1, -42, 35] },    // tennis courts surround
+    { rect: [-71, 1, -45, 31] },     // tennis courts surround
     { ellipse: [36, -53, 5, 2.5] },  // Pier 39 entrance
     { ellipse: [12, 79, 15, 12] },   // stadium lot
 ]

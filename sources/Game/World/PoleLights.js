@@ -62,7 +62,7 @@ export class PoleLights
                     mass: 0.35,
                     sleeping: true,
                     contactThreshold: 15,
-                    colliders: [ { shape: 'cuboid', parameters: [ 0.2, 1.7, 0.2 ], position: { x: 0, y: 1.7, z: 0 }, category: 'object' } ],
+                    colliders: [ { shape: 'cuboid', parameters: [ 0.2, 1.7, 0.2 ], category: 'object' } ],
                     onCollision: (force, position) =>
                     {
                         this.game.audio.groups.get('hitDefault').playRandomNext(force, position)

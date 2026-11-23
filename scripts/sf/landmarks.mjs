@@ -76,26 +76,47 @@ export function palmTree(height = 6, lean = 0.12)
     return m
 }
 
-function victorian(width, height, depth, wall, trim, roof, seed)
+function victorian(width, height, depth, wall, trim, roof, seed, accent = C.red)
 {
+    // Queen Anne row house (front faces -x): raised on a garage storey, a two storey angled bay window,
+    // a steep front gable with gingerbread trim and a finial, white trim bands, a stoop with stairs
     const r = rng(seed)
     const m = new Model()
-    m.box([ width, height, depth ], wall)
-    // bay window (front is -x)
-    m.box([ 0.7, height * 0.55, width * 0.45 ], wall, [ - depth / 2 - 0.3, height * 0.2, 0 ])
-    m.box([ 0.8, 0.12, width * 0.5 ], trim, [ - depth / 2 - 0.3, height * 0.75, 0 ])
-    // windows
-    for(const fy of [ 0.35, 0.68 ])
-        for(const fz of [ - 0.28, 0.28 ])
-            m.cbox([ 0.06, height * 0.18, width * 0.16 ], C.black, [ - depth / 2 - 0.66, height * fy, fz * width ])
-    // trim bands
-    m.box([ depth + 0.1, 0.15, width + 0.1 ], trim, [ 0, height - 0.15, 0 ])
-    m.box([ depth + 0.1, 0.2, width + 0.1 ], trim, [ 0, 0, 0 ])
-    // door + stairs
-    m.box([ 0.1, 1.1, 0.6 ], trim, [ - depth / 2 - 0.05, 0.4, width * 0.32 ])
-    m.box([ 0.6, 0.4, 0.8 ], C.stone, [ - depth / 2 - 0.3, 0, width * 0.32 ])
-    // pointy gable roof, ridge front to back
-    m.gable(depth + 0.2, width + 0.2, 1.4 + r() * 0.8, roof, [ 0, height, 0 ], [ 0, Math.PI / 2, 0 ])
+    const front = - depth / 2
+    m.box([ depth, height, width ], wall)
+    m.box([ depth + 0.06, 0.6, width + 0.06 ], trim, [ 0, 0, 0 ])                     // ground floor / garage band
+    m.cbox([ 0.06, 0.45, width * 0.35 ], C.dark, [ front - 0.03, 0.3, - width * 0.2 ])  // garage door
+    // the bay window: three faces, two storeys
+    const bayW = width * 0.5, bayD = 0.55, bayY = 0.6, bayH = height * 0.62
+    m.box([ bayD, bayH, bayW * 0.6 ], wall, [ front - bayD / 2, bayY, - width * 0.15 ])
+    for(const sgn of [ - 1, 1 ])
+        m.box([ 0.05, bayH, bayD * 1.1 ], wall, [ front - bayD / 2, bayY, - width * 0.15 + sgn * bayW * 0.38 ], [ 0, sgn * 0.6, 0 ])
+    for(const fy of [ 0.32, 0.68 ])
+    {
+        m.cbox([ 0.06, height * 0.2, bayW * 0.4 ], C.black, [ front - bayD - 0.03, bayY + bayH * fy, - width * 0.15 ])
+        m.box([ bayD + 0.15, 0.08, bayW * 0.7 ], trim, [ front - bayD / 2, bayY + bayH * fy + height * 0.12, - width * 0.15 ])
+    }
+    m.box([ bayD + 0.2, 0.15, bayW * 0.75 ], trim, [ front - bayD / 2, bayY + bayH, - width * 0.15 ])
+    // windows beside the bay, and the front door at the top of the stoop
+    for(const fy of [ 0.45, 0.75 ])
+        m.cbox([ 0.06, height * 0.18, width * 0.16 ], C.black, [ front - 0.03, height * fy, width * 0.28 ])
+    m.box([ 0.08, 1.1, 0.55 ], accent, [ front - 0.04, 0.75, width * 0.3 ])
+    for(let k = 0; k < 4; k++)
+        m.box([ 0.35 + k * 0.25, 0.18, 0.7 ], C.stone, [ front - 0.2 - k * 0.12, 0.6 - k * 0.18, width * 0.3 ])
+    // trim bands and a bracketed cornice
+    m.box([ depth + 0.12, 0.14, width + 0.12 ], trim, [ 0, height * 0.55, 0 ])
+    m.box([ depth + 0.18, 0.2, width + 0.18 ], trim, [ 0, height - 0.2, 0 ])
+    for(let k = 0; k < 5; k++)
+        m.cbox([ 0.12, 0.25, 0.1 ], accent, [ front - 0.08, height - 0.32, - width / 2 + 0.2 + k * (width - 0.4) / 4 ])
+    // steep front gable with gingerbread, an attic window and a finial
+    const gh = 1.6 + r() * 0.6
+    m.gable(depth + 0.2, width + 0.2, gh, roof, [ 0, height, 0 ], [ 0, Math.PI / 2, 0 ])
+    m.cbox([ 0.05, gh * 0.75, width * 0.62 ], trim, [ front - 0.11, height + gh * 0.3, 0 ])
+    m.cbox([ 0.06, gh * 0.35, width * 0.18 ], C.black, [ front - 0.14, height + gh * 0.32, 0 ])
+    for(const sgn of [ - 1, 1 ])
+        m.cbox([ 0.06, 0.1, (width + 0.2) * 0.58 ], trim, [ front - 0.13, height + gh * 0.5 - 0.05, sgn * (width + 0.2) * 0.24 ], [ - sgn * Math.atan2(gh, (width + 0.2) / 2), 0, 0 ])
+    m.cylinder(0.04, 0.07, 0.55, trim, [ front - 0.05, height + gh, 0 ], 5)
+    m.sphere(0.07, C.gold, [ front - 0.05, height + gh + 0.58, 0 ], 0)
     return m
 }
 
@@ -289,36 +310,93 @@ builders.ferryBuilding = (ctx) =>
 {
     const nodes = []
     const cx = 61, cz = - 18
+    // The Ferry Building: a long two storey hall of arched windows in grey-white stone, a three arch entrance
+    // pavilion, flags along the roof, the red PORT OF SAN FRANCISCO sign, and the tall clock tower with its
+    // stacked belfry stages, lit gold at night
     const hall = new Model()
-    hall.box([ 6, 3.6, 26 ], C.cream)
-    hall.box([ 6.2, 0.3, 26.2 ], C.snow, [ 0, 3.6, 0 ])
-    hall.gable(26.4, 6.6, 1.4, C.slate, [ 0, 3.9, 0 ], [ 0, Math.PI / 2, 0 ])
-    // arcade arches on the city side (-x)
-    for(let i = - 5; i <= 5; i++)
+    const stone = C.snow, trim = C.stone
+    const L = 26
+    hall.box([ 6, 3.8, L ], stone)
+    hall.box([ 6.2, 0.25, L + 0.2 ], trim, [ 0, 1.7, 0 ])                          // string course between floors
+    hall.box([ 6.3, 0.3, L + 0.3 ], trim, [ 0, 3.8, 0 ])                           // cornice
+    hall.box([ 5.2, 0.7, L - 0.6 ], C.slate, [ 0.3, 4.1, 0 ])                      // low slate roof / skylight
+    // arcade: tall arched windows on the city side (-x), two rows
+    const arch = (x, y, z, w, h, color) =>
     {
-        hall.cbox([ 0.1, 1.8, 1.4 ], C.black, [ - 3.02, 1.1, i * 2.3 ])
-        hall.cbox([ 0.1, 0.6, 1.1 ], C.black, [ - 3.02, 2.6, i * 2.3 ])
+        hall.cbox([ 0.08, h - w / 2, w ], color, [ x, y + (h - w / 2) / 2, z ])
+        hall.cylinder(w / 2, w / 2, 0.08, color, [ x, y + h - w / 2, z ], 10, [ 0, 0, Math.PI / 2 ])
     }
-    // clock tower in the middle
-    hall.box([ 3.2, 6, 3.2 ], C.cream, [ 0, 3.6, 0 ])
-    hall.box([ 3.6, 0.3, 3.6 ], C.snow, [ 0, 9.6, 0 ])
-    hall.box([ 2.6, 2.4, 2.6 ], C.cream, [ 0, 9.9, 0 ])
-    for(const [ x, z, ry ] of [ [ - 1.31, 0, 0 ], [ 1.31, 0, 0 ], [ 0, - 1.31, Math.PI / 2 ], [ 0, 1.31, Math.PI / 2 ] ])
+    for(let i = 0; i < 22; i++)
     {
-        hall.cylinder(0.85, 0.85, 0.05, C.snow, [ x, 11.1, z ], 12, [ 0, ry, Math.PI / 2 ])
-        hall.cbox([ 0.08, 0.6, 0.08 ], C.black, [ x * 1.03, 11.35, z * 1.03 ])
-        hall.cbox([ 0.08, 0.08, 0.5 ], C.black, [ x * 1.03, 11.1, z * 1.03 ], [ 0, ry, 0 ])
+        const z = - L / 2 + 0.9 + i * ((L - 1.8) / 21)
+        if(Math.abs(z) < 2.4)
+            continue
+        arch(- 3.02, 0.2, z, 0.7, 1.3, C.dark)
+        arch(- 3.02, 2.0, z, 0.6, 1.4, C.dark)
     }
-    hall.box([ 2.8, 0.3, 2.8 ], C.snow, [ 0, 12.3, 0 ])
-    hall.box([ 2, 1.6, 2 ], C.cream, [ 0, 12.6, 0 ])
-    hall.cylinder(0.9, 1.2, 1, C.cream, [ 0, 14.2, 0 ], 8)
-    hall.cone(0.9, 2.2, C.slate, [ 0, 15.2, 0 ], 8)
-    hall.cylinder(0.04, 0.04, 1.4, C.dark, [ 0, 17.3, 0 ], 4)
-    hall.cbox([ 0.05, 0.4, 0.7 ], C.bridge, [ 0, 18.4, 0.35 ])
+    // entrance pavilion with three big arches
+    hall.box([ 1, 4.4, 4.8 ], stone, [ - 3.4, 0, 0 ])
+    hall.box([ 1.1, 0.25, 5 ], trim, [ - 3.4, 4.4, 0 ])
+    for(const z of [ - 1.45, 0, 1.45 ])
+        arch(- 3.92, 0.1, z, 1.1, 2.9, C.dark)
+    // flags along the roof line
+    for(let i = 0; i < 8; i++)
+    {
+        const z = - L / 2 + 2 + i * ((L - 4) / 7)
+        if(Math.abs(z) < 3)
+            continue
+        hall.cylinder(0.03, 0.03, 1.4, C.dark, [ - 2.6, 4.1, z ], 4)
+        hall.cbox([ 0.02, 0.35, 0.55 ], [ C.red, C.gold, C.sky, C.red ][i % 4], [ - 2.6, 5.3, z + 0.28 ])
+    }
+    // PORT OF SAN FRANCISCO, red letters on a steel frame on the roof (facing the city)
+    hall.box([ 0.1, 0.1, 9 ], C.dark, [ - 0.6, 4.8, 7.5 ])
+    for(const z of [ 3.4, 7.5, 11.6 ])
+        hall.box([ 0.1, 1, 0.1 ], C.dark, [ - 0.6, 4.1, z ])
+    {
+        const sign = new Model()
+        pixelText(sign, 'PORT OF SAN FRANCISCO', C.red, [ 0, 0, 0 ], 0.1, { depth: 0.05 })
+        hall.merge(sign, [ - 0.7, 4.9, 7.5 ], [ 0, - Math.PI / 2, 0 ])
+    }
+    // the clock tower
+    hall.box([ 2.6, 9.5, 2.6 ], stone, [ 0, 3.8, 0 ])
+    for(const x of [ - 1.3, 1.3 ])
+        for(const z of [ - 1.3, 1.3 ])
+            hall.box([ 0.25, 9.5, 0.25 ], trim, [ x, 3.8, z ])                     // corner pilasters
+    for(let k = 0; k < 4; k++)
+        for(const z of [ - 0.5, 0.5 ])
+            hall.cbox([ 0.06, 0.5, 0.25 ], C.dark, [ - 1.32, 5 + k * 1.5, z ])     // slit windows
+    hall.box([ 3, 0.3, 3 ], trim, [ 0, 13.3, 0 ])
+    for(const [ x, z, ry ] of [ [ - 1.32, 0, 0 ], [ 1.32, 0, 0 ], [ 0, - 1.32, Math.PI / 2 ], [ 0, 1.32, Math.PI / 2 ] ])
+    {
+        hall.cylinder(0.95, 0.95, 0.06, C.cream, [ x, 11.9, z ], 16, [ 0, ry, Math.PI / 2 ])
+        hall.cylinder(1.02, 1.02, 0.05, C.dark, [ x * 0.995, 11.9, z * 0.995 ], 16, [ 0, ry, Math.PI / 2 ])
+        hall.cbox([ 0.08, 0.6, 0.08 ], C.black, [ x * 1.035, 12.15, z * 1.035 ])
+        hall.cbox([ 0.08, 0.08, 0.45 ], C.black, [ x * 1.035, 11.9, z * 1.035 ], [ 0, ry, 0 ])
+    }
+    // belfry stages: arched openings that glow at night, then a colonnade and the little cupola
+    const glow = new Model()
+    hall.box([ 2.4, 1.8, 2.4 ], stone, [ 0, 13.6, 0 ])
+    for(const [ x, z, ry ] of [ [ - 1.22, 0, 0 ], [ 1.22, 0, 0 ], [ 0, - 1.22, Math.PI / 2 ], [ 0, 1.22, Math.PI / 2 ] ])
+        for(const o of [ - 0.6, 0, 0.6 ])
+            glow.cbox([ 0.05, 1.1, 0.35 ], C.gold, [ x + (ry ? o : 0), 14.4, z + (ry ? 0 : o) ], [ 0, ry, 0 ])
+    hall.box([ 2.7, 0.25, 2.7 ], trim, [ 0, 15.4, 0 ])
+    hall.box([ 1.8, 1.3, 1.8 ], stone, [ 0, 15.65, 0 ])
+    for(const [ x, z, ry ] of [ [ - 0.92, 0, 0 ], [ 0.92, 0, 0 ], [ 0, - 0.92, Math.PI / 2 ], [ 0, 0.92, Math.PI / 2 ] ])
+        for(const o of [ - 0.35, 0.35 ])
+            glow.cbox([ 0.05, 0.8, 0.25 ], C.gold, [ x + (ry ? o : 0), 16.3, z + (ry ? 0 : o) ], [ 0, ry, 0 ])
+    hall.box([ 2.1, 0.2, 2.1 ], trim, [ 0, 16.95, 0 ])
+    hall.cylinder(0.55, 0.7, 1, stone, [ 0, 17.15, 0 ], 8)
+    hall.cylinder(0.7, 0.7, 0.15, trim, [ 0, 18.15, 0 ], 8)
+    hall.sphere(0.55, C.slate, [ 0, 18.4, 0 ], 1, [ 1, 0.9, 1 ])
+    hall.cylinder(0.03, 0.03, 1.6, C.dark, [ 0, 18.9, 0 ], 4)
+    hall.cbox([ 0.02, 0.4, 0.7 ], C.red, [ 0, 20.2, 0.35 ])                       // the flag
+    hall.cbox([ 0.03, 0.18, 0.3 ], C.sky, [ 0, 20.3, 0.15 ])
     nodes.push(fixedNode('hall', hall, ctx.at(cx, cz), [
-        { position: [ 0, 2, 0 ], size: [ 6.2, 4, 26.2 ] },
-        { position: [ 0, 8, 0 ], size: [ 3.4, 16, 3.4 ] },
+        { position: [ 0, 2, 0 ], size: [ 6.2, 4, L + 0.2 ] },
+        { position: [ - 3.4, 2.2, 0 ], size: [ 1, 4.4, 4.8 ] },
+        { position: [ 0, 9, 0 ], size: [ 2.8, 18, 2.8 ] },
     ]))
+    nodes.push({ ...meshNode('towerGlow', glow, ctx.at(cx, cz)), mesh: { geometry: glow.geometry(), material: 'emissiveOrangeRadialGradient' } })
 
     // Hog Island oyster stand
     const stand = new Model()
@@ -459,7 +537,7 @@ builders.unionSquare = (ctx) =>
     }
 
     // palms only on the outer corners, the middle stays open for driving
-    for(const [ x, z ] of [ [ cx + 8.5, cz + 7.5 ], [ cx - 10.5, cz + 8.5 ] ])
+    for(const [ x, z ] of [ [ cx + 8.5, cz + 7.5 ], [ cx - 8, cz + 4.5 ] ])
         nodes.push(dynamicNode('palm', palmTree(5.5), ctx.at(x, z), [ { shape: 'tube', position: [ 0, 2, 0 ], radius: 0.3, height: 4 } ], 0.5))
 
     return nodes
@@ -470,40 +548,86 @@ builders.chinatown = (ctx) =>
 {
     const nodes = []
     const cx = 24, cz = - 6
+    // The Dragon Gate (like the real one at Bush & Grant): four white stone pillars, a tall center roof over the street and
+    // two lower side roofs, green glazed tiles with upturned eaves on orange brackets, dragons chasing a pearl on the ridge,
+    // the blue 天下為公 board, white plaques over the side passages, stone lions guarding it
     const gate = new Model()
-    // gate spans x (Grant Ave runs north south)
     const pillars = [ - 5.6, - 4.0, 4.0, 5.6 ]
     for(const x of pillars)
     {
-        gate.box([ 0.6, 4.2, 0.6 ], C.red, [ x, 0, 0 ])
-        gate.box([ 0.9, 0.5, 0.9 ], C.stone, [ x, 0, 0 ])
+        gate.box([ 1.2, 0.35, 1.2 ], C.stone, [ x, 0, 0 ])                       // stepped base
+        gate.box([ 0.95, 0.3, 0.95 ], C.snow, [ x, 0.35, 0 ])
+        gate.box([ 0.7, 3.7, 0.7 ], C.snow, [ x, 0.65, 0 ])                      // white stone pillar
+        for(const y of [ 1.5, 2.5, 3.5 ])
+            gate.box([ 0.74, 0.06, 0.74 ], C.stone, [ x, y, 0 ])                 // carved panel lines
+        gate.box([ 0.85, 0.25, 0.85 ], C.stone, [ x, 4.35, 0 ])
     }
-    // side roofs
-    for(const x of [ - 4.8, 4.8 ])
+    // a glazed tile roof: green ribs, a darker ridge, upturned eave tips, orange brackets underneath
+    const roof = (cxr, y, w, d, h) =>
     {
-        gate.box([ 2.6, 0.6, 1.0 ], C.gold, [ x, 3.6, 0 ])
-        gate.gable(3.6, 2, 0.8, C.sage, [ x, 4.2, 0 ])
+        gate.box([ w - 0.6, 0.35, d - 0.3 ], C.orange, [ cxr, y - 0.35, 0 ])     // bracket band (dougong)
+        for(let k = 0; k < Math.floor(w / 0.45); k++)
+            gate.cbox([ 0.18, 0.25, 0.22 ], C.red, [ cxr - w / 2 + 0.5 + k * 0.45, y - 0.25, d / 2 - 0.1 ])
+        gate.box([ w, 0.12, d ], C.red, [ cxr, y, 0 ])
+        gate.gable(w, d + 0.3, h, C.sage, [ cxr, y + 0.12, 0 ])
+        const ribs = Math.floor(w / 0.32)
+        for(const side of [ - 1, 1 ])
+            for(let k = 0; k <= ribs; k++)
+                gate.cbox([ 0.12, 0.08, (d + 0.3) / 2 * 1.08 ], C.moss, [ cxr - w / 2 + k * w / ribs, y + 0.12 + h / 2, side * (d + 0.3) / 4 ], [ side * Math.atan2(h, (d + 0.3) / 2), 0, 0 ])
+        gate.box([ w + 0.1, 0.22, 0.3 ], C.olive, [ cxr, y + 0.12 + h - 0.05, 0 ])   // ridge
+        for(const sx of [ - 1, 1 ])
+            for(const sz of [ - 1, 1 ])
+                gate.cbox([ 0.25, 0.14, 0.7 ], C.sage, [ cxr + sx * (w / 2 - 0.05), y + 0.25, sz * (d / 2 + 0.1) ], [ sz * 0.5, sx * 0.6, sx * 0.4 ]) // upturned eaves
     }
-    // main roof
-    gate.box([ 8.4, 0.9, 1.1 ], C.red, [ 0, 4.6, 0 ])
-    gate.box([ 1.6, 0.6, 0.2 ], C.gold, [ 0, 4.75, - 0.6 ])
-    gate.gable(9.6, 2.4, 1.1, C.sage, [ 0, 5.5, 0 ])
-    gate.cbox([ 10, 0.2, 0.4 ], C.moss, [ 0, 5.55, 1.1 ], [ 0.2, 0, 0 ])
-    gate.cbox([ 10, 0.2, 0.4 ], C.moss, [ 0, 5.55, - 1.1 ], [ - 0.2, 0, 0 ])
-    gate.sphere(0.25, C.gold, [ 0, 6.7, 0 ], 0)
-    // dragons on the ridge ends
-    gate.cbox([ 0.3, 0.6, 0.3 ], C.moss, [ - 4.6, 6.7, 0 ], [ 0, 0, 0.4 ])
-    gate.cbox([ 0.3, 0.6, 0.3 ], C.moss, [ 4.6, 6.7, 0 ], [ 0, 0, - 0.4 ])
-    nodes.push(fixedNode('dragonGate', gate, ctx.at(cx, cz + 4), pillars.map(x => ({ position: [ x, 2.1, 0 ], size: [ 0.7, 4.2, 0.7 ] }))))
+    roof(0, 5.1, 9.6, 2.6, 1.05)
+    roof(- 4.8, 4.4, 3.3, 2.0, 0.75)
+    roof(4.8, 4.4, 3.3, 2.0, 0.75)
+    gate.box([ 8.2, 0.45, 0.9 ], C.red, [ 0, 4.35, 0 ])                          // main beam
+    // the blue 天下為公 board with its gold frame and characters
+    for(const z of [ - 0.48, 0.48 ])
+    {
+        const f = z > 0 ? 1 : - 1
+        gate.cbox([ 2.4, 1.0, 0.1 ], C.gold, [ 0, 3.9, z ])
+        gate.cbox([ 2.15, 0.78, 0.12 ], C.sky, [ 0, 3.9, z + f * 0.01 ])
+        for(let k = 0; k < 4; k++)
+            gate.cbox([ 0.3, 0.42, 0.13 ], C.gold, [ - 0.72 + k * 0.48, 3.9, z + f * 0.02 ])
+    }
+    // white plaques with black characters over the side passages
+    for(const x of [ - 4.8, 4.8 ])
+        for(const z of [ - 0.42, 0.42 ])
+        {
+            gate.cbox([ 1.3, 0.4, 0.08 ], C.snow, [ x, 3.75, z ])
+            for(let k = 0; k < 4; k++)
+                gate.cbox([ 0.18, 0.22, 0.09 ], C.black, [ x - 0.42 + k * 0.28, 3.75, z + (z > 0 ? 0.01 : - 0.01) ])
+        }
+    // dragons on the ridge, chasing the flaming pearl, fish finials at the ends
+    for(const side of [ - 1, 1 ])
+    {
+        for(let k = 0; k < 8; k++)
+        {
+            const t = k / 7
+            gate.sphere(0.16 - t * 0.05, C.gold, [ side * (0.55 + t * 2.4), 6.45 + Math.sin(t * Math.PI * 2) * 0.25, 0 ], 1)
+        }
+        gate.cbox([ 0.35, 0.3, 0.28 ], C.gold, [ side * 0.45, 6.6, 0 ])               // head
+        gate.cbox([ 0.18, 0.4, 0.06 ], C.gold, [ side * 0.4, 6.95, 0 ], [ 0, 0, - side * 0.4 ]) // horns
+        gate.cbox([ 0.3, 0.6, 0.2 ], C.sage, [ side * 4.75, 6.55, 0 ], [ 0, 0, side * 0.35 ]) // fish finial
+        gate.cbox([ 0.35, 0.25, 0.15 ], C.sage, [ side * 4.95, 6.95, 0 ], [ 0, 0, side * 0.9 ])
+    }
+    gate.sphere(0.2, C.orange, [ 0, 6.7, 0 ], 1)                                    // the pearl
+    gate.cone(0.12, 0.35, C.red, [ 0, 6.85, 0 ], 5)
+    nodes.push(fixedNode('dragonGate', gate, ctx.at(cx, cz + 4), pillars.map(x => ({ position: [ x, 2.2, 0 ], size: [ 0.8, 4.4, 0.8 ] }))))
 
-    // foo dog statues
-    for(const x of [ - 4.8, 4.8 ])
+    // stone guardian lions on pedestals, either side of the gate
+    for(const x of [ - 6.9, 6.9 ])
     {
-        const dog = new Model()
-        dog.box([ 0.8, 0.6, 0.8 ], C.stone)
-        dog.box([ 0.5, 0.6, 0.6 ], C.stone, [ 0, 0.6, 0 ])
-        dog.sphere(0.35, C.stone, [ 0, 1.45, - 0.1 ], 0)
-        nodes.push(fixedNode('fooDog', dog, ctx.at(cx + x, cz + 5.3), [ { position: [ 0, 0.8, 0 ], size: [ 0.8, 1.6, 0.8 ] } ]))
+        const lion = new Model()
+        lion.box([ 1, 0.9, 1 ], C.stone)
+        lion.box([ 1.1, 0.12, 1.1 ], C.slate, [ 0, 0.9, 0 ])
+        lion.sphere(0.4, C.stone, [ 0, 1.35, 0.05 ], 1, [ 0.9, 1.1, 1.1 ])         // body, sitting up
+        lion.sphere(0.32, C.stone, [ 0, 1.95, 0.25 ], 1)                            // head
+        lion.sphere(0.22, C.slate, [ 0, 2.05, 0.18 ], 1, [ 1.6, 1.2, 1 ])          // curly mane
+        lion.sphere(0.13, C.stone, [ x < 0 ? 0.2 : - 0.2, 1.25, 0.45 ], 1)         // paw on the ball
+        nodes.push(fixedNode('fooDog', lion, ctx.at(cx + x, cz + 4.6), [ { position: [ 0, 1.1, 0 ], size: [ 1, 2.2, 1 ] } ]))
     }
 
     // shop houses along Grant Ave
@@ -889,33 +1013,60 @@ builders.pier39 = (ctx) =>
     nodes.push(meshNode('pierDecor', decor, local(cx, deckY, (z0 + z1) / 2)))
     nodes.push({ ...meshNode('pierLights', bulbs, local(cx, deckY, (z0 + z1) / 2)), mesh: { geometry: bulbs.geometry(), material: 'emissiveOrangeRadialGradient' } })
 
-    // the famous crab statue on its red planter, just inside the entrance
+    // the famous crab statue: a bronze crab whose back is a planter of yellow succulents, huge raised claws,
+    // jointed legs gripping the red planter box full of flowers
     {
         const crab = new Model()
-        crab.box([ 1.6, 0.5, 1.6 ], C.red)
-        crab.box([ 1.7, 0.08, 1.7 ], C.brick, [ 0, 0.5, 0 ])
-        crab.sphere(0.7, C.olive, [ 0, 1.2, 0 ], 1, [ 1.3, 0.75, 1 ])                  // body, planted with yellow flowers
+        const bronze = C.olive, dark = C.dark
+        crab.box([ 2.2, 0.55, 2.2 ], C.red)                                          // red planter
+        crab.box([ 2.3, 0.1, 2.3 ], C.brick, [ 0, 0.55, 0 ])
         const rr = rng(390)
-        for(let k = 0; k < 26; k++)
+        for(let k = 0; k < 24; k++)                                                  // flowers around the base
+            crab.sphere(0.1, [ C.gold, C.pink, C.snow, C.purple ][k % 4], [ - 1 + rr() * 2, 0.68, (k % 2 ? 1 : - 1) * (0.8 + rr() * 0.25) ], 0)
+        // carapace: a wide bronze shell, its top a mound of succulents and yellow blooms
+        crab.sphere(0.85, bronze, [ 0, 1.3, 0 ], 2, [ 1.35, 0.55, 1.05 ])
+        crab.sphere(0.8, C.moss, [ 0, 1.5, 0 ], 1, [ 1.25, 0.5, 0.95 ])
+        for(let k = 0; k < 40; k++)
         {
-            const a = rr() * Math.PI * 2, e = rr() * 0.9
-            crab.sphere(0.09, k % 3 ? C.gold : C.sage, [ Math.cos(a) * 0.85 * Math.cos(e), 1.2 + Math.sin(e) * 0.5, Math.sin(a) * 0.65 * Math.cos(e) ], 0)
+            const a = rr() * Math.PI * 2, d = Math.sqrt(rr()) * 0.85
+            crab.sphere(0.07 + rr() * 0.06, k % 3 ? C.gold : C.sage, [ Math.cos(a) * d * 1.15, 1.72 + (0.9 - d) * 0.2, Math.sin(a) * d * 0.85 ], 0)
         }
+        // bronze spots on the rim of the shell
+        for(let k = 0; k < 14; k++)
+        {
+            const a = k / 14 * Math.PI * 2
+            crab.sphere(0.07, dark, [ Math.cos(a) * 1.12, 1.3, Math.sin(a) * 0.86 ], 0)
+        }
+        // eyes on stalks
         for(const side of [ - 1, 1 ])
         {
-            for(let l = 0; l < 3; l++)
-            {
-                const z = - 0.35 + l * 0.35
-                crab.beam([ side * 0.75, 1.1, z ], [ side * 1.3, 1.35, z * 1.3 ], 0.08, C.dark)
-                crab.beam([ side * 1.3, 1.35, z * 1.3 ], [ side * 1.55, 0.55, z * 1.5 ], 0.07, C.dark)
-            }
-            crab.beam([ side * 0.6, 1.4, - 0.5 ], [ side * 1.0, 2.3, - 0.8 ], 0.12, C.dark)             // arm up
-            crab.sphere(0.32, C.dark, [ side * 1.05, 2.7, - 0.85 ], 1, [ 0.7, 1.3, 0.5 ])               // claw
-            crab.cbox([ 0.12, 0.5, 0.18 ], C.dark, [ side * 0.92, 3.05, - 0.85 ], [ 0, 0, side * 0.4 ])
-            crab.cylinder(0.03, 0.03, 0.5, C.dark, [ side * 0.2, 1.6, - 0.55 ], 4)                      // eye stalks
-            crab.sphere(0.07, C.dark, [ side * 0.2, 2.1, - 0.55 ], 0)
+            crab.cylinder(0.035, 0.035, 0.55, bronze, [ side * 0.22, 1.55, - 0.75 ], 4)
+            crab.sphere(0.08, dark, [ side * 0.22, 2.12, - 0.75 ], 1)
         }
-        nodes.push(fixedNode('crabStatue', crab, local(cx - 3.4, deckY, - 53.3), [ { position: [ 0, 0.8, 0 ], size: [ 1.6, 1.6, 1.6 ] } ]))
+        // four jointed legs a side, splayed out and gripping the planter
+        for(const side of [ - 1, 1 ])
+            for(let l = 0; l < 4; l++)
+            {
+                const z = - 0.45 + l * 0.32
+                const hip = [ side * 0.95, 1.2, z ], knee = [ side * 1.6, 1.65, z * 1.35 ], foot = [ side * 1.95, 0.6, z * 1.6 ]
+                crab.beam(hip, knee, 0.11, bronze)
+                crab.beam(knee, foot, 0.08, bronze)
+                crab.sphere(0.08, dark, knee, 0)
+            }
+        // the big claws, raised high: arm segments up to wide, toothed pincers
+        for(const side of [ - 1, 1 ])
+        {
+            const shoulder = [ side * 0.7, 1.45, - 0.7 ], elbow = [ side * 1.25, 2.3, - 1.05 ], wrist = [ side * 1.15, 3.05, - 1.0 ]
+            crab.beam(shoulder, elbow, 0.16, bronze)
+            crab.beam(elbow, wrist, 0.14, bronze)
+            crab.sphere(0.13, dark, elbow, 0)
+            crab.sphere(0.42, bronze, [ side * 1.12, 3.45, - 0.98 ], 1, [ 0.75, 1.15, 0.45 ])        // the palm of the claw
+            for(let k = 0; k < 6; k++)
+                crab.sphere(0.05, dark, [ side * (1.12 + (k % 2 ? 0.18 : - 0.18)), 3.2 + k * 0.12, - 1.18 ], 0)
+            crab.cbox([ 0.16, 0.9, 0.22 ], bronze, [ side * 1.3, 4.1, - 0.98 ], [ 0, 0, side * 0.25 ])  // fixed finger
+            crab.cbox([ 0.14, 0.75, 0.2 ], bronze, [ side * 0.88, 4.0, - 0.98 ], [ 0, 0, - side * 0.45 ]) // moving finger (open)
+        }
+        nodes.push(fixedNode('crabStatue', crab, local(cx - 3.4, deckY, - 53.3), [ { position: [ 0, 1, 0 ], size: [ 2.2, 2, 2.2 ] } ]))
     }
 
     // carousel
@@ -1253,7 +1404,7 @@ builders.doloresPark = (ctx) =>
     nodes.push(meshNode('parkPath', path, [ 0, 0, 0 ]))
 
     // tall palms around the edges (knockable)
-    for(const [ x, z, h ] of [ [ cx - 8, cz - 3, 7 ], [ cx - 8.5, cz + 2, 6 ], [ cx - 6, cz + 7, 7.5 ], [ cx + 4, cz + 7.5, 6.5 ], [ cx + 7.5, cz + 4.5, 7 ], [ cx + 2, cz - 6.5, 6 ], [ cx - 3, cz - 6.8, 6.8 ] ])
+    for(const [ x, z, h ] of [ [ cx - 6.5, cz + 1, 7 ], [ cx - 6.8, cz + 4.2, 6 ], [ cx - 6, cz + 7, 7.5 ], [ cx + 4, cz + 7.5, 6.5 ], [ cx + 7.5, cz + 4.5, 7 ], [ cx + 6.5, cz + 7, 6 ], [ cx - 3, cz - 6.8, 6.8 ] ])
         nodes.push(dynamicNode('palm', palmTree(h), ctx.at(x, z), [ { shape: 'tube', position: [ 0, 2, 0 ], radius: 0.3, height: 4 } ], 0.5))
 
     // playground at the south west corner
@@ -1265,7 +1416,7 @@ builders.doloresPark = (ctx) =>
     play.cone(0.8, 0.6, C.gold, [ - 0.3, 1.4, - 0.1 ], 4, [ 0, Math.PI / 4, 0 ])
     play.cbox([ 0.5, 0.06, 1.4 ], C.red, [ 0.75, 0.5, - 0.1 ], [ 0.6, 0, 0 ])             // slide
     play.cbox([ 0.5, 0.06, 1.4 ], C.red, [ 0.6, 0.45, - 0.1 ], [ 0, 0, 0.6 ])
-    nodes.push(fixedNode('playground', play, ctx.at(cx - 6.5, cz + 4.5), [ { position: [ - 0.3, 0.7, - 0.1 ], size: [ 1.3, 1.4, 1.3 ] } ]))
+    nodes.push(fixedNode('playground', play, ctx.at(cx - 3, cz + 6.4), [ { position: [ - 0.3, 0.7, - 0.1 ], size: [ 1.3, 1.4, 1.3 ] } ]))
 
     // Mission High School on the east side: white walls, orange tile roofs, the ornate white tower with a dome
     {
@@ -1303,68 +1454,137 @@ builders.doloresPark = (ctx) =>
 /** 9. Palace of Fine Arts (1.5x: the car fits between the pillars) */
 builders.palaceOfFineArts = (ctx) =>
 {
+    // Like the real Palace: an open octagonal rotunda of paired Corinthian columns with arches, a deep entablature
+    // with relief panels and the "weeping women" boxes on top, a ribbed ochre dome; a long curving colonnade of
+    // columns topped by planter boxes wrapping behind it; and a big lagoon in front with a fountain and swans
     const nodes = []
     const cx = - 40, cz = - 32
     const S = 1.5
+    const stoneA = C.salmon, stoneB = C.blush, stoneC = C.peach
     const rot = new Model()
-    const pillars = 8
     const radius = 4 * S + 0.5
-    for(let i = 0; i < pillars; i++)
+    const colH = 6 * S
+    const colliders = []
+    rot.cylinder(radius + 1.6, radius + 1.9, 0.35, C.stone, [ 0, 0, 0 ], 8)         // stepped plinth
+    for(let i = 0; i < 8; i++)
     {
-        const a = i / pillars * Math.PI * 2 + Math.PI / 8
-        const px = Math.cos(a) * radius, pz = Math.sin(a) * radius
-        rot.cylinder(0.5, 0.6, 6 * S, C.salmon, [ px, 0, pz ], 8)
-        rot.box([ 1.3, 0.6, 1.3 ], C.salmon, [ px, 6 * S, pz ])
-        rot.box([ 1.4, 0.6, 1.4 ], C.salmon, [ px, 0, pz ])
+        const a = i / 8 * Math.PI * 2 + Math.PI / 8
+        const ux = Math.cos(a), uz = Math.sin(a), tx = - uz, tz = ux
+        const px = ux * radius, pz = uz * radius
+        // a pair of fluted columns at every corner of the octagon
+        for(const o of [ - 0.55, 0.55 ])
+        {
+            const x = px + tx * o, z = pz + tz * o
+            rot.box([ 0.85, 0.5, 0.85 ], stoneB, [ x, 0.35, z ])                     // base
+            rot.cylinder(0.32, 0.38, colH - 1.2, stoneA, [ x, 0.85, z ], 10)
+            rot.cylinder(0.5, 0.34, 0.5, stoneC, [ x, colH - 0.35, z ], 8)            // capital
+        }
+        colliders.push({ shape: 'tube', position: [ px, colH / 2, pz ], radius: 0.95, height: colH })
+        // arch over the opening to the next corner
+        const b = (i + 1) / 8 * Math.PI * 2 + Math.PI / 8
+        const mx = (Math.cos(a) + Math.cos(b)) / 2 * radius, mz = (Math.sin(a) + Math.sin(b)) / 2 * radius
+        const span = 2 * radius * Math.sin(Math.PI / 8) - 1.6
+        rot.add(new THREE.TorusGeometry(span / 2, 0.28, 6, 14, Math.PI), stoneA, [ mx, colH - 1.0 - span / 2 + 0.6, mz ], [ 0, - (a + b) / 2 + Math.PI / 2, 0 ])
     }
-    rot.cylinder(radius + 1.1, radius + 1.1, 1.8, C.salmon, [ 0, 6 * S + 0.5, 0 ], 8)
-    rot.cylinder(radius + 0.8, radius + 1.1, 0.8, C.blush, [ 0, 6 * S + 2.3, 0 ], 8)
-    rot.dome(radius + 0.5, C.peach, [ 0, 6 * S + 3.0, 0 ], 12)
-    rot.cylinder(0.5, 0.8, 0.8, C.blush, [ 0, 6 * S + 3.0 + radius + 0.3, 0 ], 8)
-    // statues on the entablature corners
-    for(let i = 0; i < 4; i++)
+    // entablature: a thick octagonal band with relief panels
+    rot.cylinder(radius + 1.0, radius + 1.0, 1.6, stoneB, [ 0, colH, 0 ], 8)
+    rot.cylinder(radius + 1.2, radius + 1.2, 0.25, stoneC, [ 0, colH + 1.6, 0 ], 8)
+    for(let i = 0; i < 8; i++)
     {
-        const a = i / 4 * Math.PI * 2
-        rot.box([ 0.8, 1.4, 0.8 ], C.cream, [ Math.cos(a) * (radius + 0.6), 6 * S + 2.3, Math.sin(a) * (radius + 0.6) ])
+        const a = i / 8 * Math.PI * 2
+        rot.cbox([ 2.2, 0.9, 0.1 ], stoneA, [ Math.cos(a) * (radius + 0.95), colH + 0.8, Math.sin(a) * (radius + 0.95) ], [ 0, - a + Math.PI / 2, 0 ])
+        // the weeping women boxes over each corner
+        const c = a + Math.PI / 8
+        rot.box([ 0.9, 1.3, 0.9 ], stoneB, [ Math.cos(c) * (radius + 0.7), colH + 1.85, Math.sin(c) * (radius + 0.7) ])
+        rot.sphere(0.22, stoneC, [ Math.cos(c) * (radius + 0.7), colH + 3.25, Math.sin(c) * (radius + 0.7) ], 0)
     }
-    nodes.push(fixedNode('rotunda', rot, ctx.at(cx, cz), Array.from({ length: pillars }, (_, i) =>
+    // drum and the ribbed dome
+    rot.cylinder(radius - 0.2, radius - 0.2, 1.4, stoneA, [ 0, colH + 1.85, 0 ], 16)
+    rot.cylinder(radius + 0.1, radius + 0.1, 0.25, stoneC, [ 0, colH + 3.25, 0 ], 16)
+    rot.dome(radius - 0.3, C.cream, [ 0, colH + 3.5, 0 ], 16)
+    for(let k = 0; k < 16; k++)
     {
-        const a = i / pillars * Math.PI * 2 + Math.PI / 8
-        return { shape: 'tube', position: [ Math.cos(a) * radius, 3 * S, Math.sin(a) * radius ], radius: 0.65, height: 6 * S }
-    })))
+        const a = k / 16 * Math.PI * 2
+        for(let j = 0; j < 6; j++)
+        {
+            const e = j / 6 * Math.PI / 2
+            rot.cbox([ 0.12, 0.12, 0.12 ], C.khaki, [ Math.cos(a) * Math.cos(e) * (radius - 0.25), colH + 3.5 + Math.sin(e) * (radius - 0.25), Math.sin(a) * Math.cos(e) * (radius - 0.25) ])
+        }
+    }
+    // an altar-like urn in the middle
+    rot.cylinder(0.6, 0.8, 1.2, stoneB, [ 0, 0.35, 0 ], 8)
+    rot.sphere(0.5, stoneC, [ 0, 1.9, 0 ], 1)
+    nodes.push(fixedNode('rotunda', rot, ctx.at(cx, cz), colliders))
 
-    // colonnade arcs (north of the rotunda), columns wide apart
-    const arcRadius = 11 * S
-    const arcCenter = 6 * S
+    // the colonnade: a long arc of columns, each pair topped by a planter box, wrapping behind the rotunda
+    const arcRadius = 12 * S
+    const arcCenter = 7 * S
     for(const side of [ - 1, 1 ])
     {
         const col = new Model()
         const cols = []
-        const steps = 6
+        const steps = 9
         let prev = null
         for(let i = 0; i < steps; i++)
         {
-            const a = side * (0.5 + i * 0.24)
+            const a = side * (0.42 + i * 0.16)
             const x = Math.sin(a) * arcRadius, z = - Math.cos(a) * arcRadius + arcCenter
-            col.cylinder(0.4, 0.45, 4.5 * S, C.salmon, [ x, 0, z ], 6)
-            col.box([ 1, 0.6, 1 ], C.salmon, [ x, 4.5 * S, z ])
-            cols.push({ shape: 'tube', position: [ x, 2.25 * S, z ], radius: 0.5, height: 4.5 * S })
+            col.box([ 0.9, 0.45, 0.9 ], stoneB, [ x, 0, z ])
+            col.cylinder(0.33, 0.38, 4.5 * S - 0.6, stoneA, [ x, 0.45, z ], 10)
+            col.cylinder(0.48, 0.34, 0.45, stoneC, [ x, 4.5 * S - 0.15, z ], 8)
+            cols.push({ shape: 'tube', position: [ x, 2.25 * S, z ], radius: 0.45, height: 4.5 * S })
             if(prev)
-                col.beam([ prev[0], 4.5 * S + 0.8, prev[1] ], [ x, 4.5 * S + 0.8, z ], 0.9, C.blush)
+                col.beam([ prev[0], 4.5 * S + 0.55, prev[1] ], [ x, 4.5 * S + 0.55, z ], 0.85, stoneB)
+            if(i % 2 === 0)
+            {
+                col.box([ 1.3, 1.6, 1.3 ], stoneB, [ x, 4.5 * S + 0.9, z ])         // planter box
+                col.box([ 1.45, 0.2, 1.45 ], stoneC, [ x, 4.5 * S + 2.5, z ])
+                col.sphere(0.55, C.moss, [ x, 4.5 * S + 2.8, z ], 1, [ 1, 0.6, 1 ])
+            }
             prev = [ x, z ]
         }
         nodes.push(fixedNode('colonnade', col, ctx.at(cx, cz), cols))
     }
 
+    // the lagoon: a fountain jet, cypress and willow trees on the banks, a path around it
+    {
+        const fountain = new Model()
+        fountain.cylinder(0.35, 0.45, 0.3, C.stone, [ 0, 0, 0 ], 8)
+        fountain.cylinder(0.08, 0.2, 2.2, C.snow, [ 0, 0.3, 0 ], 6)
+        fountain.sphere(0.3, C.snow, [ 0, 2.5, 0 ], 1, [ 1, 0.6, 1 ])
+        nodes.push(meshNode('fountain', fountain, [ - 38 - ctx.cx, - 0.35 - ctx.y, - 16 - ctx.cz ]))
+        const banks = new Model()
+        const rb = rng(1915)
+        for(let k = 0; k < 22; k++)
+        {
+            const a = 0.15 + k / 22 * (Math.PI * 2 - 0.3)
+            const x = - 40 + Math.cos(a) * 15.5, z = - 19 + Math.sin(a) * 7.4
+            if(z < - 25 && Math.abs(x + 40) < 9)
+                continue                                                        // leave the rotunda side open
+            const [ wx, wy, wz ] = ctx.at(x, z)
+            if(k % 3 === 0)
+            {
+                banks.cylinder(0.14, 0.2, 1.2, C.wood, [ wx, wy, wz ], 5)
+                banks.cone(0.9, 3.4, C.moss, [ wx, wy + 1, wz ], 7)               // cypress
+            }
+            else
+            {
+                banks.cylinder(0.12, 0.18, 1, C.wood, [ wx, wy, wz ], 5)
+                banks.sphere(1.1 + rb() * 0.4, k % 2 ? C.sage : C.olive, [ wx, wy + 1.7, wz ], 1, [ 1.1, 0.8, 1.1 ]) // willow
+            }
+        }
+        nodes.push(meshNode('lagoonTrees', banks, [ 0, 0, 0 ]))
+    }
+
     // swans in the lagoon
-    for(let i = 0; i < 3; i++)
+    for(let i = 0; i < 4; i++)
     {
         const swan = new Model()
         swan.sphere(0.35, C.snow, [ 0, 0, 0 ], 1, [ 1, 0.7, 1.4 ])
         swan.cylinder(0.08, 0.1, 0.6, C.snow, [ 0, 0.1, - 0.35 ], 5, [ - 0.3, 0, 0 ])
         swan.sphere(0.12, C.snow, [ 0, 0.68, - 0.55 ], 0)
         swan.cone(0.06, 0.2, C.orange, [ 0, 0.66, - 0.65 ], 4, [ - Math.PI / 2, 0, 0 ])
-        nodes.push(meshNode('swan', swan, [ cx - 3 + i * 2.6 - ctx.cx, - 0.2 - ctx.y, - 20 + (i % 2) - ctx.cz ])) // water surface (-0.3 world) in design units
+        nodes.push(meshNode('swan', swan, [ cx - 6 + i * 4.5 - ctx.cx, - 0.2 - ctx.y, - 18 + (i % 2) * 2 - ctx.cz ])) // water surface (-0.3 world) in design units
     }
     return nodes
 }
@@ -1393,6 +1613,22 @@ builders.goldenGate = (ctx) =>
         deck.cbox([ halfWidth * 2 - 1.2, 0.03, 0.4 ], C.snow, [ 0, 0.02, z ])
     // truss under the deck
     deck.box([ halfWidth * 2, 1.2, length ], C.bridge, [ 0, - 1.8, 0 ])
+    // the stiffening truss: a lattice of diagonals along both sides of the deck, and lamp posts along the rails
+    for(const side of [ - 1, 1 ])
+    {
+        deck.box([ 0.15, 0.15, length ], C.bridge, [ side * (halfWidth + 0.05), - 2.4, 0 ])
+        for(let z = - length / 2; z < length / 2 - 1; z += 1.5)
+        {
+            deck.beam([ side * (halfWidth + 0.05), - 2.4, z ], [ side * (halfWidth + 0.05), - 0.6, z + 0.75 ], 0.09, C.bridge)
+            deck.beam([ side * (halfWidth + 0.05), - 0.6, z + 0.75 ], [ side * (halfWidth + 0.05), - 2.4, z + 1.5 ], 0.09, C.bridge)
+        }
+        for(let z = - length / 2 + 2; z < length / 2 - 3; z += 4)
+        {
+            deck.cylinder(0.05, 0.05, 1.8, C.bridge, [ side * (halfWidth - 0.1), 0, z ], 4)
+            deck.cbox([ 0.4, 0.08, 0.12 ], C.bridge, [ side * (halfWidth - 0.3), 1.8, z ])
+            deck.cbox([ 0.18, 0.06, 0.16 ], C.gold, [ side * (halfWidth - 0.45), 1.74, z ])
+        }
+    }
     nodes.push(fixedNode('bridgeDeck', deck, local(x, deckY, midZ), [
         { position: [ 0, - 0.3, 0 ], size: [ halfWidth * 2, 0.6, length ], friction: 0.4 },
         { position: [ - halfWidth, 0.45, railCut / 2 ], size: [ 0.3, 0.9, length - railCut ] },
@@ -1404,26 +1640,43 @@ builders.goldenGate = (ctx) =>
     const towerHeight = 20
     for(const tz of towerZ)
     {
+        // Art Deco tower: two stepped legs (slimmer at each setback), portal openings framed by
+        // portal struts that get shorter toward the top, X bracing under the deck, a concrete pier in the water
         const tower = new Model()
+        const legX = halfWidth + 0.55
         for(const side of [ - 1, 1 ])
         {
-            tower.box([ 1.2, towerHeight + 4, 1.6 ], C.bridge, [ side * (halfWidth + 0.5), - 4, 0 ])
-            tower.box([ 1.0, towerHeight * 0.45, 1.3 ], C.bridge, [ side * (halfWidth + 0.6), towerHeight * 0.55, 0 ])
+            tower.box([ 1.3, 9, 1.8 ], C.bridge, [ side * legX, - 5, 0 ])
+            tower.box([ 1.15, 7, 1.6 ], C.bridge, [ side * legX, 4, 0 ])
+            tower.box([ 1.0, 5.5, 1.4 ], C.bridge, [ side * legX, 11, 0 ])
+            tower.box([ 0.85, 4, 1.2 ], C.bridge, [ side * legX, 16.5, 0 ])
+            for(const y of [ 4, 11, 16.5 ])
+                tower.box([ 1.35, 0.2, 1.85 ], C.red, [ side * legX, y - 0.1, 0 ])          // setback ledges
+            for(const z of [ - 0.9, 0.9 ])
+                tower.box([ 0.12, towerHeight + 4, 0.12 ], C.red, [ side * (legX + 0.6), - 4, z ]) // vertical fluting
         }
-        for(const h of [ 3.5, 8, 12.5, 17 ])
+        // portal struts (with the openings between them shrinking upward), heaviest at the top
+        for(const [ y, h ] of [ [ 7.6, 0.9 ], [ 13, 0.9 ], [ 17.2, 0.8 ], [ 20, 1.2 ] ])
         {
-            tower.box([ halfWidth * 2 + 2, 1.0, 1.2 ], C.bridge, [ 0, h, 0 ])
-            tower.box([ halfWidth * 2 - 1, 0.6, 1.3 ], C.black, [ 0, h - 1.4, 0 ])
+            tower.box([ legX * 2, h, 1.3 ], C.bridge, [ 0, y, 0 ])
+            tower.box([ legX * 2, 0.15, 1.35 ], C.red, [ 0, y - 0.15, 0 ])
         }
-        tower.box([ halfWidth * 2 + 2.2, 0.8, 1.6 ], C.bridge, [ 0, towerHeight, 0 ])
+        // X bracing below the deck
+        for(const z of [ - 0.6, 0.6 ])
+        {
+            tower.beam([ - legX, - 5.5, z ], [ legX, - 1.6, z ], 0.35, C.bridge)
+            tower.beam([ legX, - 5.5, z ], [ - legX, - 1.6, z ], 0.35, C.bridge)
+        }
+        tower.box([ legX * 2, 0.6, 1.3 ], C.bridge, [ 0, - 1.6, 0 ])
         // red aircraft lights
-        tower.sphere(0.25, C.red, [ - halfWidth - 0.5, towerHeight + 0.9, 0 ], 0)
-        tower.sphere(0.25, C.red, [ halfWidth + 0.5, towerHeight + 0.9, 0 ], 0)
-        // pier in the water
-        tower.box([ halfWidth * 2 + 4, 3.5, 4 ], C.stone, [ 0, - 6.5, 0 ])
+        tower.sphere(0.25, C.red, [ - legX, towerHeight + 1.4, 0 ], 0)
+        tower.sphere(0.25, C.red, [ legX, towerHeight + 1.4, 0 ], 0)
+        // concrete pier in the water with its fender
+        tower.box([ halfWidth * 2 + 4.5, 3.5, 4.4 ], C.stone, [ 0, - 6.5, 0 ])
+        tower.box([ halfWidth * 2 + 5, 0.4, 4.9 ], C.snow, [ 0, - 3.1, 0 ])
         nodes.push(fixedNode('bridgeTower', tower, local(x, deckY, tz), [
-            { position: [ - halfWidth - 0.5, towerHeight / 2 - 2, 0 ], size: [ 1.2, towerHeight + 4, 1.6 ] },
-            { position: [ halfWidth + 0.5, towerHeight / 2 - 2, 0 ], size: [ 1.2, towerHeight + 4, 1.6 ] },
+            { position: [ - halfWidth - 0.55, towerHeight / 2 - 2, 0 ], size: [ 1.3, towerHeight + 4, 1.8 ] },
+            { position: [ halfWidth + 0.55, towerHeight / 2 - 2, 0 ], size: [ 1.3, towerHeight + 4, 1.8 ] },
         ]))
     }
 
@@ -1478,11 +1731,18 @@ builders.levis = (ctx) =>
     const cx = 12, cz = 79
     // field (runs along x)
     const field = new Model()
-    field.box([ 24, 0.05, 11 ], C.moss)
+    field.box([ 24, 0.05, 11 ], C.leaf)
     for(let i = 0; i <= 10; i++)
         field.box([ 0.12, 0.06, 11 ], C.snow, [ - 10 + i * 2, 0, 0 ])
     field.box([ 2, 0.055, 11 ], C.red, [ - 11, 0, 0 ])
     field.box([ 2, 0.055, 11 ], C.red, [ 11, 0, 0 ])
+    // 49ERS painted in gold in both end zones, reading along the end line
+    for(const side of [ - 1, 1 ])
+    {
+        const t = new Model()
+        pixelText(t, '49ERS', C.gold, [ 0, - 0.45, 0 ], 0.18, { depth: 0.03 })
+        field.merge(t, [ side * 11, 0.075, 0 ], [ - Math.PI / 2, 0, side * Math.PI / 2 ], 1)
+    }
     // midfield logo: the red SF oval with a gold ring
     field.cylinder(1.6, 1.6, 0.07, C.gold, [ 0, 0, 0 ], 20, undefined)
     field.add(new THREE.CylinderGeometry(1.45, 1.45, 0.08, 20).translate(0, 0.04, 0), C.red, [ 0, 0, 0 ], [ 0, 0, 0 ], [ 1.35, 1, 0.85 ])
@@ -1511,26 +1771,46 @@ builders.levis = (ctx) =>
         nodes.push(fixedNode('goalPost', post, ctx.at(cx + side * 12.6, cz), [ { shape: 'tube', position: [ 0, 1.1, 0 ], radius: 0.15, height: 2.2 } ]))
     }
 
-    // stands: four sides, gaps at the corners to drive in
-    const standColor = [ C.red, C.stone ]
-    const addStand = (name, px, pz, length, rotationY) =>
+    // the bowl: steep tiers of red seats packed with fans (49ers red and gold, a corner of Seahawks blue and green),
+    // concourse ring and light towers on top, gaps at the corners to drive in
+    const addStand = (name, px, pz, length, rotationY, seahawks = false) =>
     {
         const s = new Model()
-        for(let t = 0; t < 4; t++)
+        const rr = rng(Math.round(px * 7 + pz * 13))
+        for(let t = 0; t < 6; t++)
         {
-            s.box([ length, 1 + t * 1.1, 1.3 ], standColor[t % 2], [ 0, 0, t * 1.3 ])
-            // fans
-            for(let k = 0; k < length / 1.4; k++)
-                if((k + t) % 3 !== 0)
-                    s.sphere(0.2, [ C.red, C.gold, C.snow, C.red ][(k + t) % 4], [ - length / 2 + 0.7 + k * 1.4, 1.25 + t * 1.1, t * 1.3 ], 0)
+            s.box([ length - t * 0.3, 0.75 + t * 0.85, 0.95 ], t % 2 ? C.red : C.brick, [ 0, 0, t * 0.95 ])
+            s.box([ length - t * 0.3, 0.06, 0.95 ], C.stone, [ 0, 0.75 + t * 0.85, t * 0.95 ])       // aisle step
+            for(let k = 0; k < (length - t * 0.3) / 0.55; k++)
+            {
+                const x = - (length - t * 0.3) / 2 + 0.3 + k * 0.55
+                if(rr() < 0.12)
+                    continue
+                const away = seahawks && x > length * 0.15
+                const c = away ? (rr() < 0.6 ? C.dark : C.sage) : [ C.red, C.red, C.gold, C.snow, C.red ][Math.floor(rr() * 5)]
+                s.cbox([ 0.28, 0.32, 0.22 ], c, [ x, 0.95 + t * 0.85, t * 0.95 - 0.05 ])
+                s.sphere(0.11, [ C.peach, C.wood, C.khaki, C.blush ][Math.floor(rr() * 4)], [ x, 1.22 + t * 0.85, t * 0.95 - 0.05 ], 0)
+            }
         }
-        s.box([ length, 0.4, 5.6 ], C.slate, [ 0, 5.6, 2.2 ])
-        nodes.push({ ...fixedNode(name, s, ctx.at(px, pz), [ { position: [ 0, 2.5, 2 ], size: [ length, 5, 5.2 ] } ]), rotation: [ 0, rotationY, 0 ] })
+        s.box([ length + 0.4, 0.5, 1.2 ], C.snow, [ 0, 5.9, 5.3 ])                                   // concourse rim
+        s.box([ length + 0.4, 6, 0.3 ], C.stone, [ 0, 0, 6 ])                                        // back wall (white frame)
+        for(let k = 0; k <= length / 3; k++)
+            s.box([ 0.25, 6.6, 0.3 ], C.snow, [ - length / 2 + k * 3, 0, 6.2 ])                     // the white steel columns
+        nodes.push({ ...fixedNode(name, s, ctx.at(px, pz), [ { position: [ 0, 3, 3 ], size: [ length, 6, 6.2 ] } ]), rotation: [ 0, rotationY, 0 ] })
     }
-    addStand('standNorth', cx, cz - 7.5, 22, Math.PI)
     addStand('standSouth', cx, cz + 7.5, 22, 0)
-    addStand('standWest', cx - 15.5, cz, 9, - Math.PI / 2)
+    addStand('standWest', cx - 15.5, cz, 9, - Math.PI / 2, true)
     addStand('standEast', cx + 15.5, cz, 9, Math.PI / 2)
+    // light towers on the corners
+    for(const [ x, z ] of [ [ - 15, - 9 ], [ 15, - 9 ], [ - 15, 12 ], [ 15, 12 ] ])
+    {
+        const l = new Model()
+        l.cylinder(0.15, 0.2, 9, C.snow, [ 0, 0, 0 ], 6)
+        l.box([ 2, 1, 0.3 ], C.snow, [ 0, 9, 0 ])
+        for(let k = 0; k < 6; k++)
+            l.cbox([ 0.25, 0.25, 0.1 ], C.gold, [ - 0.8 + (k % 3) * 0.8, 9.3 + Math.floor(k / 3) * 0.4, 0.17 ])
+        nodes.push({ ...fixedNode('lightTower', l, ctx.at(cx + x, cz + z), [ { shape: 'tube', position: [ 0, 4.5, 0 ], radius: 0.25, height: 9 } ]), rotation: [ 0, Math.atan2(- x, - z), 0 ] })
+    }
 
     // the suite tower on the north side: stacked glass decks, a green roof, LEVI'S STADIUM in red letters
     {
@@ -1562,6 +1842,8 @@ builders.levis = (ctx) =>
         b.box([ 8, 3, 0.1 ], C.black, [ 0, 6.4, 0.25 ])
         b.box([ 8, 0.5, 0.11 ], C.red, [ 0, 6.4, 0.26 ])
         pixelText(b, '49ERS', C.gold, [ 0, 7.25, 0.33 ], 0.26, { depth: 0.06 })
+        pixelText(b, 'SF 24  SEA 17', C.snow, [ 0, 5.35, 0.33 ], 0.13, { depth: 0.06 })
+        b.box([ 8, 0.5, 0.11 ], C.dark, [ 0, 5.2, 0.26 ])
         nodes.push({ ...fixedNode('videoBoard', b, ctx.at(cx + side * 20.5, cz), [ { position: [ - 2.6, 3.25, 0 ], size: [ 0.5, 6.5, 0.5 ] }, { position: [ 2.6, 3.25, 0 ], size: [ 0.5, 6.5, 0.5 ] } ]), rotation: [ 0, - side * Math.PI / 2, 0 ] })
     }
 
@@ -1582,21 +1864,93 @@ builders.levis = (ctx) =>
 builders.paintedLadies = (ctx) =>
 {
     const nodes = []
-    const colors = [ C.sky, C.blush, C.sage, C.lavender, C.cream, C.peach, C.pink ]
-    const roofs = [ C.slate, C.salmon, C.slate, C.olive, C.slate, C.brick, C.slate ]
+    // the seven "Postcard Row" houses, shoulder to shoulder, each in its own colors
+    const colors = [ C.sage, C.cream, C.sage, C.peach, C.blush, C.sky, C.cream ]
+    const trims = [ C.snow, C.snow, C.cream, C.snow, C.snow, C.snow, C.snow ]
+    const accents = [ C.red, C.gold, C.olive, C.red, C.brick, C.sky, C.gold ]
+    const roofs = [ C.slate, C.dark, C.slate, C.khaki, C.wood, C.dark, C.slate ]
     for(let i = 0; i < 7; i++)
     {
         const z = 6.5 + i * 2.9
-        const house = victorian(2.8, 3.6, 4, colors[i], C.snow, roofs[i], i + 12)
-        nodes.push(fixedNode('lady', house, ctx.at(- 15, z), [ { position: [ 0, 1.8, 0 ], size: [ 4, 3.6, 2.8 ] } ]))
+        const house = victorian(2.85, 3.6, 4, colors[i], trims[i], roofs[i], i + 12, accents[i])
+        nodes.push(fixedNode('lady', house, ctx.at(- 15, z), [ { position: [ 0, 1.8, 0 ], size: [ 4, 3.6, 2.85 ] } ]))
     }
-    // bench and a dog on the Alamo Square lawn
+    // clipped round trees along the sidewalk in front of them
+    for(let i = 0; i < 4; i++)
+    {
+        const t = new Model()
+        t.cylinder(0.08, 0.1, 0.9, C.wood, [ 0, 0, 0 ], 5)
+        t.sphere(0.55, C.moss, [ 0, 1.2, 0 ], 1, [ 1, 0.85, 1 ])
+        nodes.push(meshNode('streetTree', t, ctx.at(- 17.8, 7.9 + i * 5.3)))
+    }
+
+    // Alamo Square park, on its hill across the street: lawns cut by curving paths, a grove of cypress and pines
+    // in the middle, people on blankets looking at the houses and the skyline
+    const pcx = - 29, pcz = 11.3
+    const park = new Model()
+    const r = rng(1894)
+    const local = (x, z, dy = 0) => { const [ wx, wy, wz ] = ctx.at(x, z, dy); return [ wx / ctx.S, wy / ctx.S, wz / ctx.S ] }
+    // curving paths: an oval loop and two diagonals
+    for(let i = 0; i < 40; i++)
+    {
+        const a = i / 40 * Math.PI * 2
+        park.cbox([ 0.55, 0.03, 0.85 ], C.stone, local(pcx + Math.cos(a) * 4.6, pcz + Math.sin(a) * 3.8, 0.015), [ 0, - a, 0 ])
+    }
+    for(const [ ax, az, bx, bz ] of [ [ - 6, - 5, 6, 5 ], [ - 6, 5, 6, - 5 ] ])
+        for(let k = 0; k <= 14; k++)
+        {
+            const t = k / 14
+            if(Math.hypot(ax + (bx - ax) * t, (az + (bz - az) * t) * 1.2) < 2.2)
+                continue
+            park.cbox([ 0.5, 0.03, 0.9 ], C.stone, local(pcx + ax + (bx - ax) * t, pcz + az + (bz - az) * t, 0.015), [ 0, Math.atan2(bx - ax, bz - az), 0 ])
+        }
+    // the grove at the top of the hill
+    for(let i = 0; i < 9; i++)
+    {
+        const a = i / 9 * Math.PI * 2 + r()
+        const d = 0.6 + r() * 1.6
+        const [ x, y, z ] = local(pcx + Math.cos(a) * d, pcz + Math.sin(a) * d)
+        park.cylinder(0.1, 0.15, 1.6, C.wood, [ x, y, z ], 5)
+        if(i % 2)
+            park.cone(0.9, 2.6, C.moss, [ x, y + 1.2, z ], 7)
+        else
+            park.sphere(1.1, C.olive, [ x, y + 2.2, z ], 1, [ 1.2, 0.6, 1.2 ])
+    }
+    // a playground and benches on the edge
+    {
+        const [ x, y, z ] = local(pcx - 4.2, pcz - 3.2)
+        park.box([ 1.6, 0.05, 1.4 ], C.khaki, [ x, y, z ])
+        park.box([ 0.8, 0.08, 0.8 ], C.sky, [ x, y + 0.7, z ])
+        for(const [ dx, dz ] of [ [ - 0.35, - 0.35 ], [ 0.35, - 0.35 ], [ - 0.35, 0.35 ], [ 0.35, 0.35 ] ])
+            park.cylinder(0.04, 0.04, 0.7, C.red, [ x + dx, y, z + dz ], 4)
+        park.cone(0.6, 0.45, C.gold, [ x, y + 0.78, z ], 4, [ 0, Math.PI / 4, 0 ])
+    }
+    // picnickers on the east slope, facing the houses (east, +x)
+    const skins = [ C.peach, C.blush, C.khaki, C.wood ]
+    const clothes = [ C.red, C.sky, C.snow, C.dark, C.gold, C.sage, C.pink, C.lavender ]
+    for(let i = 0; i < 9; i++)
+    {
+        const x = pcx + 2.5 + r() * 3, z = pcz - 4 + i * 1.0 + (r() - 0.5) * 0.4
+        const [ bx, by, bz ] = local(x, z, 0.02)
+        park.box([ 0.9, 0.03, 0.7 ], [ C.red, C.sky, C.gold, C.pink, C.snow ][i % 5], [ bx, by, bz ], [ 0, r() * 0.6, 0 ])
+        const n = 1 + (i % 2)
+        for(let k = 0; k < n; k++)
+        {
+            const px = bx + 0.1, pz = bz - 0.15 + k * 0.35
+            park.cbox([ 0.22, 0.28, 0.18 ], clothes[Math.floor(r() * clothes.length)], [ px, by + 0.17, pz ])
+            park.cbox([ 0.2, 0.09, 0.3 ], C.slate, [ px + 0.15, by + 0.05, pz ])
+            park.sphere(0.1, skins[Math.floor(r() * skins.length)], [ px, by + 0.42, pz ], 1)
+        }
+    }
+    nodes.push(meshNode('alamoPark', park, [ 0, 0, 0 ]))
+
+    // a dog on the lawn
     const dog = new Model()
     dog.box([ 0.8, 0.4, 0.35 ], C.gold, [ 0, 0.3, 0 ])
     dog.box([ 0.3, 0.3, 0.3 ], C.gold, [ 0.45, 0.6, 0 ])
     for(const [ x, z ] of [ [ - 0.3, - 0.12 ], [ 0.3, - 0.12 ], [ - 0.3, 0.12 ], [ 0.3, 0.12 ] ])
         dog.box([ 0.1, 0.3, 0.1 ], C.gold, [ x, 0, z ])
-    nodes.push(dynamicNode('dog', dog, ctx.at(- 25, 12, 0.1), [ { position: [ 0, 0.4, 0 ], size: [ 0.9, 0.8, 0.4 ] } ], 0.3))
+    nodes.push(dynamicNode('dog', dog, ctx.at(pcx + 3, pcz + 5, 0.1), [ { position: [ 0, 0.4, 0 ], size: [ 0.9, 0.8, 0.4 ] } ], 0.3))
     return nodes
 }
 
@@ -1671,26 +2025,47 @@ builders.napa = (ctx) =>
     const driveZ = cz             // the driveway runs east -> west, from the bridge to the castle gate
     const castleX = cx - 3        // castle center, west of the driveway; its gate faces east (toward the bridge)
 
-    /* Castle: crenellated curtain wall, four corner towers, a tall keep, gatehouse with a glowing arch */
-    const castle = new Model()
+    /* Castle (like Castello di Amorosa): stone curtain walls with crenellations, round corner towers with conical roofs,
+       a tall square keep at the back, and a great hall inside you can drive into through the gate.
+       'castleUpper' (upper walls, roof, battlements) hides while the car is inside, so the hall and its photos show. */
+    const castle = new Model()      // lower walls, towers, keep, the hall's floor and furniture (always visible)
+    const upper = new Model()       // upper walls, the roof over the hall, battlements
     const stoneA = C.khaki, stoneB = C.cream, roofC = C.brick
-    const crenels = (x0, z0, x1, z1, y) =>
+    const crenels = (m, x0, z0, x1, z1, y) =>
     {
         const length = Math.hypot(x1 - x0, z1 - z0)
         const count = Math.floor(length / 0.9)
         for(let i = 0; i <= count; i++)
         {
             const t = i / count
-            castle.box([ 0.5, 0.55, 0.5 ], stoneB, [ x0 + (x1 - x0) * t, y, z0 + (z1 - z0) * t ])
+            m.box([ 0.5, 0.55, 0.5 ], stoneB, [ x0 + (x1 - x0) * t, y, z0 + (z1 - z0) * t ])
         }
     }
-    // curtain walls (local: x = depth toward the gate is -x... front faces +x)
-    const hw = 3.2, hd = 4.0 // half depth (x), half width (z)
-    castle.box([ hw * 2, 4.4, hd * 2 ], stoneA)
-    castle.box([ hw * 2 + 0.2, 0.3, hd * 2 + 0.2 ], stoneB, [ 0, 4.4, 0 ])
-    crenels(hw, - hd, hw, hd, 4.7); crenels(- hw, - hd, - hw, hd, 4.7)
-    crenels(- hw, - hd, hw, - hd, 4.7); crenels(- hw, hd, hw, hd, 4.7)
-    // corner towers with tall conical roofs and pennants
+    const hw = 3.2, hd = 4.0, t = 0.3, H = 4.4, low = 1.75, gate = 1.05 // half depth (x), half width (z), wall thickness, heights, half gate width
+    const wall = (sx, sz, px, pz, y0, y1, m) => m.box([ sx, y1 - y0, sz ], stoneA, [ px, y0, pz ])
+    const walls = [
+        [ t, 2 * hd, - hw, 0 ],                                   // back
+        [ 2 * hw, t, 0, - hd ], [ 2 * hw, t, 0, hd ],             // sides
+        [ t, hd - gate, hw, - (hd + gate) / 2 ], [ t, hd - gate, hw, (hd + gate) / 2 ], // front, either side of the gate
+    ]
+    for(const [ sx, sz, px, pz ] of walls)
+    {
+        wall(sx, sz, px, pz, 0, low, castle)
+        wall(sx, sz, px, pz, low, H, upper)
+    }
+    upper.box([ t, H - 2.7, 2 * gate ], stoneA, [ hw, 2.7, 0 ])                 // over the gate
+    upper.box([ 2 * hw - 0.2, 0.25, 2 * hd - 0.2 ], C.wood, [ 0, H - 0.25, 0 ])   // roof over the hall
+    upper.box([ 2 * hw + 0.2, 0.3, 2 * hd + 0.2 ], stoneB, [ 0, H, 0 ])
+    crenels(upper, hw, - hd, hw, hd, H + 0.3); crenels(upper, - hw, - hd, - hw, hd, H + 0.3)
+    crenels(upper, - hw, - hd, hw, - hd, H + 0.3); crenels(upper, - hw, hd, hw, hd, H + 0.3)
+    // stone texture: a few darker courses on the outside
+    for(const y of [ 0.9, 2.2, 3.4 ])
+    {
+        const m = y < low ? castle : upper
+        m.box([ 2 * hw + t + 0.02, 0.08, 0.02 ], C.wood, [ 0, y, - hd - t / 2 - 0.01 ])
+        m.box([ 2 * hw + t + 0.02, 0.08, 0.02 ], C.wood, [ 0, y, hd + t / 2 + 0.01 ])
+    }
+    // round corner towers with tall conical roofs and pennants
     for(const [ x, z ] of [ [ hw, hd ], [ hw, - hd ], [ - hw, hd ], [ - hw, - hd ] ])
     {
         castle.cylinder(1.25, 1.4, 7, stoneA, [ x, 0, z ], 12)
@@ -1703,48 +2078,70 @@ builders.napa = (ctx) =>
         castle.cone(1.55, 3.4, roofC, [ x, 7.4, z ], 12)
         castle.cylinder(0.04, 0.04, 1.2, C.dark, [ x, 10.7, z ], 4)
         castle.cbox([ 0.05, 0.45, 0.8 ], C.red, [ x, 11.6, z + 0.4 ])
-        // arrow slit windows, lit at night
         for(const y of [ 2.4, 4.6 ])
-            castle.cbox([ 0.1, 0.8, 0.3 ], C.gold, [ x + 1.36, y, z ])
+            castle.cbox([ 0.1, 0.8, 0.3 ], C.gold, [ x + Math.sign(x) * 1.36, y, z ])
     }
-    // the keep, rising behind the wall
-    castle.box([ 3.4, 9.5, 3.4 ], stoneB, [ - 1, 0, 0 ])
-    castle.box([ 3.7, 0.3, 3.7 ], stoneA, [ - 1, 9.5, 0 ])
-    crenels(0.75, - 1.75, 0.75, 1.75, 9.85); crenels(- 2.75, - 1.75, - 2.75, 1.75, 9.85)
-    crenels(- 2.75, - 1.75, 0.75, - 1.75, 9.85); crenels(- 2.75, 1.75, 0.75, 1.75, 9.85)
-    castle.cylinder(0.9, 1, 3, stoneA, [ - 1, 9.5, 0 ], 10)
-    castle.cone(1.15, 3.2, roofC, [ - 1, 12.5, 0 ], 10)
-    castle.cylinder(0.05, 0.05, 1.6, C.dark, [ - 1, 15.6, 0 ], 4)
-    castle.cbox([ 0.06, 0.6, 1.2 ], C.gold, [ - 1, 16.8, 0.6 ])
+    // the keep, tall and square, rising from the back wall (its front face holds the big screen inside)
+    const keepX = - hw - 0.2
+    castle.box([ 3.4, 9.5, 3.4 ], stoneB, [ keepX, 0, 0 ])
+    castle.box([ 3.7, 0.3, 3.7 ], stoneA, [ keepX, 9.5, 0 ])
+    crenels(castle, keepX + 1.75, - 1.75, keepX + 1.75, 1.75, 9.85); crenels(castle, keepX - 1.75, - 1.75, keepX - 1.75, 1.75, 9.85)
+    crenels(castle, keepX - 1.75, - 1.75, keepX + 1.75, - 1.75, 9.85); crenels(castle, keepX - 1.75, 1.75, keepX + 1.75, 1.75, 9.85)
+    for(let k = 0; k < 6; k++)
+        castle.box([ 0.35, 0.3, 0.2 ], stoneA, [ keepX + 1.7, 9.2, - 1.5 + k * 0.6 ])   // machicolations
+    castle.cylinder(0.05, 0.05, 1.6, C.dark, [ keepX, 10.1, 0 ], 4)
+    castle.cbox([ 0.06, 0.6, 1.2 ], C.gold, [ keepX, 11.3, 0.6 ])
     for(const z of [ - 1, 0, 1 ])
-        castle.cbox([ 0.1, 1, 0.45 ], C.gold, [ 0.72, 6.5, z ])
-    // gatehouse: two small towers around a tall arched door
+        castle.cbox([ 0.1, 1, 0.45 ], C.gold, [ keepX + 1.72, 6.5, z ])
+    // gatehouse: two small towers around the arched gate, a wooden portcullis raised up, a name plate
     for(const z of [ - 1.6, 1.6 ])
     {
         castle.cylinder(0.8, 0.9, 6, stoneB, [ hw + 0.4, 0, z ], 10)
         castle.cone(1, 2.2, roofC, [ hw + 0.4, 6, z ], 10)
     }
-    castle.box([ 0.8, 5.2, 2.4 ], stoneB, [ hw + 0.4, 0, 0 ])
-    crenels(hw + 0.4, - 0.9, hw + 0.4, 0.9, 5.5)
-    castle.cbox([ 0.1, 2.6, 1.6 ], C.wood, [ hw + 0.82, 1.3, 0 ])
-    castle.cylinder(0.8, 0.8, 0.1, C.wood, [ hw + 0.82, 2.6, 0 ], 12, [ 0, 0, Math.PI / 2 ])
-    castle.cbox([ 0.12, 0.3, 2 ], C.gold, [ hw + 0.85, 3.7, 0 ])               // name plate
-    // rows of lit windows on the front wall
+    upper.add(new THREE.TorusGeometry(gate, 0.18, 6, 14, Math.PI), stoneB, [ hw + 0.16, 2.6, 0 ], [ 0, Math.PI / 2, 0 ])
+    upper.cbox([ 0.12, 0.3, 2 ], C.gold, [ hw + 0.2, 3.8, 0 ])
+    for(let k = 0; k < 5; k++)
+        upper.cbox([ 0.06, 0.5, 0.06 ], C.dark, [ hw + 0.05, 3.25, - 0.8 + k * 0.4 ])        // portcullis teeth
+    // windows on the outer walls, lit at night
     for(const z of [ - 3.3, - 2.5, 2.5, 3.3 ])
-        for(const y of [ 1.6, 3.2 ])
-            castle.cbox([ 0.1, 0.7, 0.4 ], C.gold, [ hw + 0.02, y, z ])
-    // stone steps up to the gate
-    castle.box([ 1.6, 0.25, 3 ], stoneB, [ hw + 1.6, 0, 0 ])
-    castle.box([ 1, 0.25, 3 ], stoneB, [ hw + 1.3, 0.25, 0 ])
+        for(const y of [ 1.0, 3.2 ])
+            (y < low ? castle : upper).cbox([ 0.1, 0.7, 0.4 ], C.gold, [ hw + 0.17, y, z ])
+
+    /* The great hall inside: stone floor, a red carpet from the gate to the keep, wine barrels and a long tasting table,
+       iron candle stands (the photos and the video screen are added in code, see CastleGallery.js) */
+    castle.box([ 2 * hw - t, 0.06, 2 * hd - t ], C.stone, [ 0, 0, 0 ])
+    castle.box([ 2 * hw - t - 1.6, 0.07, 1.0 ], C.red, [ 0.6, 0, 0 ])
+    castle.box([ 2 * hw - t - 1.6, 0.075, 0.1 ], C.gold, [ 0.6, 0, 0.5 ])
+    castle.box([ 2 * hw - t - 1.6, 0.075, 0.1 ], C.gold, [ 0.6, 0, - 0.5 ])
+    for(const z of [ - 3.3, 3.3 ])
+        for(let k = 0; k < 4; k++)
+        {
+            const x = - 2.2 + k * 1.3
+            castle.cylinder(0.32, 0.32, 0.7, C.wood, [ x, 0.35, z ], 10, [ Math.PI / 2, 0, 0 ])   // barrels on their side
+            castle.cylinder(0.34, 0.34, 0.06, C.dark, [ x, 0.35, z - 0.25 ], 10, [ Math.PI / 2, 0, 0 ])
+            castle.cylinder(0.34, 0.34, 0.06, C.dark, [ x, 0.35, z + 0.25 ], 10, [ Math.PI / 2, 0, 0 ])
+        }
+    for(const [ x, z ] of [ [ - 1.2, - 1.6 ], [ 1.6, - 1.6 ], [ - 1.2, 1.6 ], [ 1.6, 1.6 ] ])
+    {
+        castle.cylinder(0.04, 0.08, 1.1, C.dark, [ x, 0, z ], 5)
+        castle.cylinder(0.18, 0.1, 0.1, C.dark, [ x, 1.1, z ], 6)
+        castle.cylinder(0.04, 0.04, 0.18, C.snow, [ x, 1.2, z ], 5)
+        castle.sphere(0.06, C.gold, [ x, 1.42, z ], 0)
+    }
     nodes.push({ ...fixedNode('castle', castle, ctx.at(castleX, driveZ), [
-        { position: [ 0, 2.2, 0 ], size: [ hw * 2 + 0.6, 4.4, hd * 2 + 0.6 ] },
-        { position: [ - 1, 6, 0 ], size: [ 3.4, 12, 3.4 ] },
-        { position: [ hw + 0.4, 2.6, 0 ], size: [ 1.8, 5.2, 4.6 ] },
+        ...walls.map(([ sx, sz, px, pz ]) => ({ position: [ px, H / 2, pz ], size: [ sx, H, sz ] })),
+        { position: [ hw, 2.7 + (H - 2.7) / 2, 0 ], size: [ t, H - 2.7, 2 * gate ] },
+        { position: [ keepX, 4.75, 0 ], size: [ 3.4, 9.5, 3.4 ] },
+        ...[ [ hw, hd ], [ hw, - hd ], [ - hw, hd ], [ - hw, - hd ] ].map(([ x, z ]) => ({ shape: 'tube', position: [ x, 3.5, z ], radius: 1.35, height: 7 })),
+        ...[ - 1.6, 1.6 ].map(z => ({ shape: 'tube', position: [ hw + 0.4, 3, z ], radius: 0.85, height: 6 })),
+        ...[ - 3.3, 3.3 ].map(z => ({ position: [ - 0.25, 0.35, z ], size: [ 4.6, 0.7, 0.7 ] })),
     ]) })
+    nodes.push(meshNode('castleUpper', upper, ctx.at(castleX, driveZ)))
 
     // Aura: a warm halo on the ground and soft light beams rising from the towers
-    nodes.push({ name: 'castleHalo', position: ctx.at(castleX + 1, driveZ, 0.06), mesh: { geometry: new THREE.CircleGeometry(7, 48).rotateX(- Math.PI / 2), material: 'auraHalo' } })
-    for(const [ x, z, h, r ] of [ [ hw, hd, 14, 1.3 ], [ hw, - hd, 14, 1.3 ], [ - hw, hd, 14, 1.3 ], [ - hw, - hd, 14, 1.3 ], [ - 1, 0, 22, 1.6 ] ])
+    nodes.push({ name: 'castleHalo', position: ctx.at(castleX + 3.2 + 3.2, driveZ, 0.06), mesh: { geometry: new THREE.CircleGeometry(3.6, 48).rotateX(- Math.PI / 2), material: 'auraHalo' } })
+    for(const [ x, z, h, r ] of [ [ hw, hd, 14, 1.3 ], [ hw, - hd, 14, 1.3 ], [ - hw, hd, 14, 1.3 ], [ - hw, - hd, 14, 1.3 ], [ keepX, 0, 22, 1.6 ] ])
     {
         const geometry = new THREE.CylinderGeometry(r * 0.35, r, h, 16, 1, true).translate(0, h / 2, 0)
         nodes.push({ name: 'castleBeam', position: ctx.at(castleX + x, driveZ + z, 0.2), mesh: { geometry, material: 'auraBeam' } })
@@ -1758,23 +2155,6 @@ builders.napa = (ctx) =>
         sparkles.sphere(0.08 + rs() * 0.08, C.gold, [ Math.cos(a) * d, 1 + rs() * 9, Math.sin(a) * d ], 0)
     }
     nodes.push({ ...meshNode('castleSparkles', sparkles, ctx.at(castleX, driveZ)), mesh: { geometry: sparkles.geometry(), material: 'emissiveOrangeRadialGradient' } })
-
-    // vine rows lining both sides of the driveway (rows run east-west, the car drives between them)
-    for(const [ side, offset ] of [ [ - 1, 2.6 ], [ - 1, 4.3 ], [ 1, 2.6 ] ])
-    {
-        {
-            const vines = new Model()
-            for(let i = 0; i < 3; i++)
-            {
-                vines.cylinder(0.06, 0.06, 1.1, C.wood, [ i * 1.2 - 1.2, 0, 0 ], 4)
-                vines.sphere(0.45, C.moss, [ i * 1.2 - 1.2, 1.1, 0 ], 1, [ 1.2, 0.8, 0.7 ])
-                vines.sphere(0.16, C.purple, [ i * 1.2 - 1.0, 0.75, 0.3 ], 0)
-                vines.sphere(0.16, C.purple, [ i * 1.2 - 1.4, 0.8, - 0.3 ], 0)
-            }
-            vines.beam([ - 1.4, 1.0, 0 ], [ 1.4, 1.0, 0 ], 0.04, C.dark)
-            nodes.push(fixedNode('vines', vines, ctx.at(cx + 3.6, driveZ + side * offset), [ { position: [ 0, 0.6, 0 ], size: [ 3, 1.2, 0.6 ] } ]))
-        }
-    }
 
     // wine barrels you can knock over, stacked by the gate
     for(let i = 0; i < 6; i++)

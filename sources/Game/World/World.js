@@ -1,3 +1,5 @@
+import { CastleGallery } from './CastleGallery.js'
+import { GameDay } from './GameDay.js'
 import * as THREE from 'three/webgpu'
 import { Game } from '../Game.js'
 import { Floor } from './Floor.js'
@@ -78,6 +80,8 @@ export class World
             this.areas = new Areas()
             this.guide = new Guide()
             this.dogs = new Dogs()
+            this.gameDay = new GameDay()
+            this.castleGallery = new CastleGallery()
             this.finale = new Finale()
         }
         else if(step === 2)

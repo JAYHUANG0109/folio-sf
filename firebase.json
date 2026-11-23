@@ -1,20 +1,43 @@
 {
-    "hosting": {
-        "public": "dist",
-        "ignore": [ "firebase.json", "**/.*", "**/*.blend", "**/*.blend1" ],
+  "hosting": {
+    "public": "dist",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/*.blend",
+      "**/*.blend1"
+    ],
+    "headers": [
+      {
+        "source": "**/*.@(html)",
         "headers": [
-            {
-                "source": "**/*.@(html)",
-                "headers": [ { "key": "Cache-Control", "value": "no-cache" } ]
-            },
-            {
-                "source": "assets/**",
-                "headers": [ { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" } ]
-            },
-            {
-                "source": "**/*.@(glb|png|webp|ktx|jpg|svg|mp3|woff|woff2|wasm)",
-                "headers": [ { "key": "Cache-Control", "value": "no-cache" } ]
-            }
+          {
+            "key": "Cache-Control",
+            "value": "no-cache"
+          }
         ]
-    }
+      },
+      {
+        "source": "assets/**",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=31536000, immutable"
+          }
+        ]
+      },
+      {
+        "source": "**/*.@(glb|png|webp|ktx|jpg|svg|mp3|woff|woff2|wasm)",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache"
+          }
+        ]
+      }
+    ]
+  },
+  "firestore": {
+    "rules": "firestore.rules"
+  }
 }

@@ -1,3 +1,4 @@
+import { AccountPanel } from './AccountPanel.js'
 import { VirtualPad } from './Inputs/VirtualPad.js'
 import * as THREE from 'three/webgpu'
 
@@ -212,6 +213,7 @@ export class Game
         this.zones = new Zones()
         this.player = new Player()
         this.virtualPad = new VirtualPad()
+        this.accountPanel = new AccountPanel()
         this.closingManager = new ClosingManager()
         this.interactivePoints = new InteractivePoints()
         this.konamiCode = new KonamiCode()

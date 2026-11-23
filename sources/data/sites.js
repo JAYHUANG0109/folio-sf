@@ -8,7 +8,7 @@ export const siteScale = {
     palaceOfFineArts: 1,   // modelled at 1.5x directly
     lombard: 1,            // the zigzag is painted into the terrain
     levis: 1.25,           // fits the peninsula
-    tennis: 2.25,          // 1.5x more than the other sites
+    tennis: 1.85,          // a bit smaller, to fit Alamo Square park next to it
     napa: 2.2,             // castle, vineyard and lights at ~2x (fits west of the bridge)
     muirWoods: 1.2,
     alcatraz: 2.25,        // the cellhouse 1.5x bigger than the other sites, on a 2x island
