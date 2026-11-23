@@ -106,7 +106,7 @@ export class Snow
                 const target = this.game.environment?.snowTarget
                 if(target !== undefined)
                 {
-                    const step = this.game.ticker.delta * 0.35
+                    const step = this.game.ticker.delta * (this.game.environment.snowRate ?? 0.35)
                     return this.elevation.value + clamp(target - this.elevation.value, - step, step)
                 }
 

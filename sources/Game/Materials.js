@@ -76,7 +76,18 @@ export class Materials
         const uncovered = slot.lessThan(30)
         const hash2 = (x, z) => x.mul(127.1).add(z.mul(311.7)).sin().mul(43758.5453).fract()
         const edge = hash2(positionWorld.x.mul(0.9).floor(), positionWorld.z.mul(0.9).floor()).mul(0.25)
-        const snowMask = smoothstep(0.5, 0.78, up.sub(edge.mul(0.5))).mul(this.snowCover).mul(0.92).mul(uncovered.select(1, 0))
+        // it settles in patches first, then fills in (and melts the other way)
+        const valueNoise = (px, pz) =>
+        {
+            const ix = px.floor(), iz = pz.floor()
+            const fx = px.fract(), fz = pz.fract()
+            const ux = fx.mul(fx).mul(float(3).sub(fx.mul(2))), uz = fz.mul(fz).mul(float(3).sub(fz.mul(2)))
+            const a = hash2(ix, iz), b = hash2(ix.add(1), iz), c = hash2(ix, iz.add(1)), d = hash2(ix.add(1), iz.add(1))
+            return mix(mix(a, b, ux), mix(c, d, ux), uz)
+        }
+        const patch = valueNoise(positionWorld.x.mul(0.45), positionWorld.z.mul(0.45)).mul(0.65).add(valueNoise(positionWorld.x.mul(1.3).add(7.3), positionWorld.z.mul(1.3).sub(2.1)).mul(0.35))
+        const settle = smoothstep(patch.mul(0.8).sub(0.05), patch.mul(0.8).add(0.2), this.snowCover)
+        const snowMask = smoothstep(0.5, 0.78, up.sub(edge.mul(0.5))).mul(settle).mul(0.92).mul(uncovered.select(1, 0))
         const snowColor = mix(color('#eaf2f8'), color('#ffffff'), up)
         const cellX = positionWorld.x.mul(2.6).floor(), cellZ = positionWorld.z.mul(2.6).floor()
         const leafHash = hash2(cellX, cellZ)

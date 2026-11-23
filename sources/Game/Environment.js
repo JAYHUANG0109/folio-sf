@@ -97,7 +97,7 @@ export class Environment
         const values = { ...(preset?.values || {}) }
         if(this.state.season !== 'auto')
             values.temperature = season.temperature
-        if(seasonId === 'winter' && this.state.season !== 'auto')
+        if(seasonId === 'winter' && (this.state.season !== 'auto' || this.state.weather === 'auto'))
         {
             values.temperature = - 8
             if(values.rain === undefined || values.rain < 0.45)
@@ -112,21 +112,29 @@ export class Environment
         else
             weather.override.end(duration)
 
+        const seasonChanged = seasonId !== this.currentSeason
         this.applySeasonColors(seasonId, duration)
-        this.applySeasonCover(seasonId, duration)
+        if(seasonChanged || duration === 0)
+            this.applySeasonCover(seasonId, duration)
     }
 
-    /* snow on the ground and on every roof in winter (melts away otherwise), fallen leaves on the tops in fall */
-    applySeasonCover(seasonId, duration)
+    /* snow on the ground and on every roof in winter (melts away otherwise), fallen leaves on the tops in fall.
+       Auto season (the calendar turning): a slow, natural change (snow builds up over ~3 min, melts over ~2 min).
+       Picking a season by hand: a sped up version (~8 s) you can still watch happen. Page load: instant. */
+    applySeasonCover(seasonId, duration, auto = this.state.season === 'auto')
     {
-        this.snowTarget = seasonId === 'winter' ? 0.15 : - 1
+        const winter = seasonId === 'winter'
+        const instant = duration === 0
+        const seconds = instant ? 0 : auto ? (winter ? 180 : 120) : 8
+        this.snowTarget = winter ? 0.15 : - 1
+        this.snowRate = instant ? 1e4 : 1.15 / seconds          // elevation units per second (-1 bare .. 0.15 deep)
         const materials = this.game.materials
         if(!materials?.snowCover)
             return
-        const snow = seasonId === 'winter' ? 1 : 0
-        const leaves = seasonId === 'fall' ? 1 : 0
-        gsap.to(materials.snowCover, { value: snow, duration: duration ? Math.max(duration, 4) : 0, overwrite: true })
-        gsap.to(materials.leafCover, { value: leaves, duration: duration ? Math.max(duration, 4) : 0, overwrite: true })
+        const tween = (uniform, value, delay = 0) => instant
+            ? (gsap.killTweensOf(uniform), uniform.value = value)
+            : gsap.to(uniform, { value, duration: seconds, delay, ease: 'sine.inOut', overwrite: true })
+        tween(materials.leafCover, seasonId === 'fall' ? 1 : 0)
     }
 
     applySeasonColors(seasonId, duration)
@@ -232,11 +240,15 @@ export class Environment
         // automatic season: follow the calendar (changes only across months)
         if(this.state.season === 'auto' && this.seasonId() !== this.currentSeason)
         {
-            this.applySeasonColors(this.seasonId(), 3)
-            this.applySeasonCover(this.seasonId(), 3)
+            this.apply(20)      // the weather turns too (snow starts falling); colors and cover change slowly
         }
         if(this.currentSeason === null && this.game.world)
             this.applySeasonColors(this.seasonId(), 0)
+
+        // the snow on the roofs follows the snow on the ground (same clock: they build up and melt together)
+        const elevation = this.game.world?.snow?.elevation?.value
+        if(elevation !== undefined && this.game.materials?.snowCover && Number.isFinite(elevation))
+            this.game.materials.snowCover.value = Math.min(Math.max((elevation + 0.85) / 0.95, 0), 1)
 
         if(this.state.weather === 'storm')
         {
