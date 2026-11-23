@@ -693,6 +693,27 @@ builders.unionSquare = (ctx) =>
     macys.box([ 14.2, 0.5, 0.6 ], C.red, [ 0, 1.0, - 2.8 ])                         // red awnings over the doors
     nodes.push(fixedNode('macys', macys, ctx.at(cx, cz + 13), [ { position: [ 0, 3.5, 0 ], size: [ 14, 7, 5 ] } ]))
 
+    // Saks Fifth Avenue: rounded white corners, rows of deep square windows, the name across the top.
+    // It stands on the open east side of the square (facing west, onto the plaza), clear of every street and of Chinatown.
+    {
+        const m = new Model()
+        const w = 6, d = 2.6, h = 4.6
+        m.box([ w, h, d ], C.snow)
+        m.cylinder(d / 2, d / 2, h, C.snow, [ w / 2, 0, 0 ], 16)
+        m.cylinder(d / 2, d / 2, h, C.snow, [ - w / 2, 0, 0 ], 16)
+        for(const y of [ 1.1, 2.15, 3.2 ])
+        {
+            m.box([ w + d + 0.06, 0.12, d + 0.06 ], C.stone, [ 0, y - 0.55, 0 ])
+            for(let i = 0; i < 7; i++)
+                m.cbox([ 0.5, 0.62, 0.06 ], C.dark, [ - 2.7 + i * 0.9, y, d / 2 + 0.01 ])
+        }
+        m.box([ w + d + 0.12, 0.3, d + 0.12 ], C.stone, [ 0, h, 0 ])
+        m.box([ w, 0.55, 0.06 ], C.snow, [ 0, h - 0.62, d / 2 + 0.02 ])
+        pixelText(m, 'SAKS FIFTH AVENUE', C.dark, [ 0, h - 0.82, d / 2 + 0.06 ], 0.08, { depth: 0.03 })
+        m.box([ w, 0.45, 0.4 ], C.dark, [ 0, 0, d / 2 + 0.2 ])                     // shop windows at street level
+        nodes.push({ ...fixedNode('saks', m, ctx.at(cx + 11.6, cz + 3), [ { position: [ 0, h / 2, 0 ], size: [ w + d, h, d ] } ]), rotation: [ 0, - Math.PI / 2, 0 ] })
+    }
+
     // the painted Union Square hearts, on their pedestals
     const heartShape = new THREE.Shape()
     heartShape.moveTo(0, - 1)

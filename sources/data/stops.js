@@ -38,7 +38,7 @@ export const stops = [
         note: '大聖誕樹下面溜冰，跌倒了要拉我一把。',
         position: { x: 34, z: 13 },
         radius: 10,
-        respawn: { x: 45, z: 18, rotation: - Math.PI * 0.5 },
+        respawn: { x: 40, z: 22, rotation: Math.PI * 0.75 },
         task: { type: 'ice', text: '在溜冰場上滑 3 秒', rink: { x: 30, z: 16.5, halfX: 6, halfZ: 4 }, seconds: 3 },
     },
     {
