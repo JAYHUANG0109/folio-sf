@@ -236,78 +236,111 @@ export class CastleGallery
 
     buildHall()
     {
+        // A Hogwarts-like great hall: long stone nave, pointed arches on clustered columns, a ribbed vaulted ceiling,
+        // hundreds of floating candles, two long feast tables, banners, and a tall gothic window at the far end
         const hall = new THREE.Group()
-        const W = 14, H = 9, Lh = 80                  // hall width (z), height, length (x)
+        const W = 18, H = 16, Lh = 90
         this.hallSize = { W, H, L: Lh }
-        this.hallOrigin = new THREE.Vector3(this.center.x, - 160, this.center.z)
+        this.hallOrigin = new THREE.Vector3(this.center.x, - 200, this.center.z)
         hall.position.copy(this.hallOrigin)
-        const add = (geometry, material, x, y, z, rx = 0, ry = 0) => { const m = new THREE.Mesh(geometry, material); m.position.set(x, y, z); m.rotation.set(rx, ry, 0); m.frustumCulled = false; hall.add(m); return m }
+        const add = (geometry, material, x, y, z, rx = 0, ry = 0, rz = 0) => { const m = new THREE.Mesh(geometry, material); m.position.set(x, y, z); m.rotation.set(rx, ry, rz); m.frustumCulled = false; hall.add(m); return m }
+        const rnd = (() => { let a = 7; return () => (a = (a * 16807) % 2147483647) / 2147483647 })()
 
-        // warm sandstone blocks with mortar lines and a soft vertical light falloff
         const stone = this.canvasTexture(512, 512, (c, w, h) =>
         {
-            const g = c.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#6e4f3a'); g.addColorStop(1, '#a5815d')
-            c.fillStyle = g; c.fillRect(0, 0, w, h)
+            c.fillStyle = '#3d3229'; c.fillRect(0, 0, w, h)
             for(let row = 0; row < 8; row++)
                 for(let col = 0; col < 4; col++)
                 {
-                    const x = col * 128 + (row % 2) * 64, y = row * 64
-                    c.fillStyle = `rgba(${120 + Math.random() * 40},${90 + Math.random() * 30},${60 + Math.random() * 20},0.35)`
+                    const x = col * 128 + (row % 2) * 64, y = row * 64, v = 60 + rnd() * 40
+                    c.fillStyle = `rgb(${v + 20},${v + 8},${v - 6})`
                     c.fillRect(x + 3, y + 3, 122, 58)
+                    c.fillStyle = 'rgba(0,0,0,0.12)'; c.fillRect(x + 3, y + 46, 122, 15)
                 }
-            c.strokeStyle = 'rgba(40,25,15,0.55)'; c.lineWidth = 4
-            for(let row = 0; row <= 8; row++) { c.beginPath(); c.moveTo(0, row * 64); c.lineTo(w, row * 64); c.stroke() }
-            for(let row = 0; row < 8; row++) for(let col = 0; col <= 4; col++) { const x = col * 128 + (row % 2) * 64; c.beginPath(); c.moveTo(x, row * 64); c.lineTo(x, row * 64 + 64); c.stroke() }
-        }, [ Lh / 8, 1.4 ])
+        }, [ Lh / 6, H / 6 ])
         const floor = this.canvasTexture(256, 256, (c, w, h) =>
         {
-            for(let i = 0; i < 2; i++) for(let j = 0; j < 2; j++) { c.fillStyle = (i + j) % 2 ? '#e8dcc6' : '#3b2c25'; c.fillRect(i * 128, j * 128, 128, 128) }
-            c.strokeStyle = 'rgba(0,0,0,0.25)'; c.strokeRect(0, 0, w, h)
-        }, [ Lh / 3, W / 3 ])
-        const ceiling = this.canvasTexture(256, 256, (c, w, h) =>
-        {
-            c.fillStyle = '#3a2418'; c.fillRect(0, 0, w, h)
-            c.fillStyle = '#5a3824'; for(let i = 0; i < 4; i++) c.fillRect(i * 64 + 6, 0, 40, h)
-        }, [ Lh / 4, 1 ])
-        const carpet = this.canvasTexture(64, 256, (c, w, h) =>
-        {
-            c.fillStyle = '#9c1027'; c.fillRect(0, 0, w, h)
-            c.fillStyle = '#d4a63a'; c.fillRect(2, 0, 4, h); c.fillRect(w - 6, 0, 4, h)
-        }, [ 1, Lh / 4 ])
-
+            for(let i = 0; i < 2; i++) for(let j = 0; j < 2; j++) { const v = 70 + rnd() * 25; c.fillStyle = `rgb(${v},${v - 6},${v - 14})`; c.fillRect(i * 128 + 2, j * 128 + 2, 124, 124) }
+        }, [ Lh / 4, W / 4 ])
+        const dark = (hex) => { const m = this.flat(null, hex); return m }
         const plane = (w, h) => new THREE.PlaneGeometry(w, h)
+        const stoneMat = this.flat(stone), wood = dark('#3b2416'), gold = dark('#c9a227'), candle = dark('#fff1c9'), flame = dark('#ffcf5a')
         add(plane(Lh, W), this.flat(floor), 0, 0, 0, - Math.PI / 2)
-        add(plane(Lh, W), this.flat(ceiling), 0, H, 0, Math.PI / 2)
-        add(plane(Lh, H), this.flat(stone), 0, H / 2, - W / 2)
-        add(plane(Lh, H), this.flat(stone), 0, H / 2, W / 2, 0, Math.PI)
-        add(plane(W, H), this.flat(stone), - Lh / 2, H / 2, 0, 0, Math.PI / 2)
-        add(plane(W, H), this.flat(stone), Lh / 2, H / 2, 0, 0, - Math.PI / 2)
-        add(plane(Lh - 6, 3.2), this.flat(carpet), 1, 0.02, 0, - Math.PI / 2)
-
-        // columns, arches between them, chandeliers, banners
-        const gold = this.flat(null, '#d4a63a'), column = this.flat(null, '#cdb38f'), glow = this.flat(null, '#ffe39a'), banner = this.flat(null, '#7d0f22')
-        for(let x = - Lh / 2 + 5; x <= Lh / 2 - 5; x += 10)
+        add(plane(Lh, H), stoneMat, 0, H / 2, - W / 2)
+        add(plane(Lh, H), stoneMat, 0, H / 2, W / 2, 0, Math.PI)
+        add(plane(W, H), stoneMat, Lh / 2, H / 2, 0, 0, - Math.PI / 2)
+        add(plane(W, H + 6), stoneMat, - Lh / 2, H / 2, 0, 0, Math.PI / 2)
+        // ribbed pointed vault: two sloped ceiling planes and wooden ribs every bay
+        const slope = Math.atan2(5, W / 2)
+        for(const side of [ - 1, 1 ])
         {
-            for(const z of [ - W / 2 + 0.6, W / 2 - 0.6 ])
+            const roof = add(plane(Lh, Math.hypot(W / 2, 5)), dark('#2a1d14'), 0, H + 2.5, side * W / 4)
+            roof.rotateX(side < 0 ? Math.PI / 2 - slope : Math.PI / 2 + slope)
+        }
+        for(let x = - Lh / 2 + 3; x <= Lh / 2 - 3; x += 6)
+        {
+            for(const side of [ - 1, 1 ])
             {
-                add(new THREE.CylinderGeometry(0.45, 0.55, H, 14), column, x, H / 2, z)
-                add(new THREE.BoxGeometry(1.4, 0.5, 1.4), gold, x, H - 0.25, z)
-                add(new THREE.BoxGeometry(1.4, 0.4, 1.4), column, x, 0.2, z)
-            }
-            // chandelier: a gold ring of glowing candles
-            add(new THREE.CylinderGeometry(0.03, 0.03, 1.6, 4), gold, x, H - 0.8, 0)
-            add(new THREE.TorusGeometry(1.1, 0.07, 6, 24), gold, x, H - 1.6, 0, Math.PI / 2)
-            for(let k = 0; k < 8; k++)
-            {
-                const a = k / 8 * Math.PI * 2
-                add(new THREE.SphereGeometry(0.12, 8, 6), glow, x + Math.cos(a) * 1.1, H - 1.45, Math.sin(a) * 1.1)
+                add(new THREE.CylinderGeometry(0.55, 0.65, H, 10), dark('#5c4c3d'), x, H / 2, side * (W / 2 - 0.6))          // clustered column
+                add(new THREE.CylinderGeometry(0.25, 0.25, H, 6), dark('#4a3c30'), x - 0.6, H / 2, side * (W / 2 - 0.4))
+                add(new THREE.CylinderGeometry(0.25, 0.25, H, 6), dark('#4a3c30'), x + 0.6, H / 2, side * (W / 2 - 0.4))
+                const rib = add(new THREE.BoxGeometry(0.35, Math.hypot(W / 2, 5) + 0.4, 0.4), wood, x, H + 2.45, side * W / 4)
+                rib.rotateX(side < 0 ? - (Math.PI / 2 - slope) : (Math.PI / 2 - slope))
+                // torch sconce on the column
+                add(new THREE.BoxGeometry(0.2, 0.6, 0.2), dark('#222'), x, 6, side * (W / 2 - 1.3))
+                add(new THREE.SphereGeometry(0.28, 8, 6), flame, x, 6.5, side * (W / 2 - 1.3))
             }
         }
-        for(let x = - Lh / 2 + 10; x <= Lh / 2 - 10; x += 10)
-            for(const z of [ - W / 2 + 0.05, W / 2 - 0.05 ])
-                add(new THREE.PlaneGeometry(1.6, 3.2), banner, x, H - 2.1, z, 0, z < 0 ? 0 : Math.PI)
-        // the entrance: open doors at the +x end, glowing outside
-        add(new THREE.PlaneGeometry(4.5, 5.5), this.flat(null, '#ffd8a0'), Lh / 2 - 0.02, 2.75, 0, 0, - Math.PI / 2)
+        // pointed arches between columns along each wall (frame the portraits)
+        for(let x = - Lh / 2 + 6; x <= Lh / 2 - 6; x += 6)
+            for(const side of [ - 1, 1 ])
+            {
+                const arch = new THREE.Shape()
+                arch.moveTo(- 2.6, 0); arch.lineTo(- 2.6, 9); arch.quadraticCurveTo(- 2.6, 12.5, 0, 14); arch.quadraticCurveTo(2.6, 12.5, 2.6, 9); arch.lineTo(2.6, 0)
+                arch.lineTo(2.3, 0); arch.lineTo(2.3, 9); arch.quadraticCurveTo(2.3, 12.2, 0, 13.5); arch.quadraticCurveTo(- 2.3, 12.2, - 2.3, 9); arch.lineTo(- 2.3, 0)
+                add(new THREE.ShapeGeometry(arch), dark('#5c4c3d'), x - 3, 0, side * (W / 2 - 0.05), 0, side < 0 ? 0 : Math.PI)
+            }
+        // two long feast tables with benches, gold plates and candlesticks
+        for(const z of [ - 3.2, 3.2 ])
+        {
+            add(new THREE.BoxGeometry(Lh - 26, 0.2, 2.2), wood, - 2, 1.4, z)
+            for(const dz of [ - 1.7, 1.7 ])
+                add(new THREE.BoxGeometry(Lh - 26, 0.15, 0.7), wood, - 2, 0.8, z + dz)
+            for(let x = - Lh / 2 + 16; x < Lh / 2 - 14; x += 1.6)
+            {
+                add(new THREE.CylinderGeometry(0.28, 0.28, 0.04, 12), gold, x, 1.53, z - 0.6)
+                add(new THREE.CylinderGeometry(0.28, 0.28, 0.04, 12), gold, x, 1.53, z + 0.6)
+                if(Math.round(x * 10) % 48 === 0)
+                {
+                    add(new THREE.CylinderGeometry(0.06, 0.1, 0.7, 6), gold, x, 1.85, z)
+                    add(new THREE.SphereGeometry(0.1, 6, 4), flame, x, 2.3, z)
+                }
+            }
+        }
+        // hundreds of floating candles under the vault (they bob gently)
+        const candleGeo = new THREE.CylinderGeometry(0.07, 0.07, 0.5, 6)
+        const flameGeo = new THREE.SphereGeometry(0.08, 6, 4).scale(1, 1.6, 1)
+        const n = 260
+        this.candles = { body: new THREE.InstancedMesh(candleGeo, candle, n), flame: new THREE.InstancedMesh(flameGeo, flame, n), base: [] }
+        for(let i = 0; i < n; i++)
+            this.candles.base.push([ (rnd() - 0.5) * (Lh - 8), 9 + rnd() * 5, (rnd() - 0.5) * (W - 5), rnd() * 6 ])
+        for(const m of [ this.candles.body, this.candles.flame ]) { m.frustumCulled = false; hall.add(m) }
+        // house banners hanging from the vault
+        const colors = [ '#7d0f22', '#1f4a2c', '#1d3363', '#b8901f' ]
+        let b = 0
+        for(let x = - Lh / 2 + 9; x <= Lh / 2 - 9; x += 12)
+            for(const side of [ - 1, 1 ])
+            {
+                add(plane(1.8, 4.5), dark(colors[b++ % 4]), x, H - 3, side * (W / 2 - 2.5), 0, Math.PI / 2)
+                add(new THREE.CylinderGeometry(0.05, 0.05, 2.2, 4), gold, x, H - 0.7, side * (W / 2 - 2.5), 0, 0, Math.PI / 2)
+            }
+        // the far end: a dais and the tall gothic window (the video plays inside its arch)
+        add(new THREE.BoxGeometry(6, 0.6, W - 1), dark('#4a3c30'), - Lh / 2 + 3, 0.3, 0)
+        const win = new THREE.Shape()
+        win.moveTo(- 6, 0); win.lineTo(- 6, 9); win.quadraticCurveTo(- 6, 15, 0, 18); win.quadraticCurveTo(6, 15, 6, 9); win.lineTo(6, 0); win.lineTo(- 6, 0)
+        add(new THREE.ShapeGeometry(win), dark('#1a2440'), - Lh / 2 + 0.05, 2, 0, 0, Math.PI / 2)
+        // entrance doors behind the start point, glowing outside light
+        add(plane(5, 7), dark('#ffd8a0'), Lh / 2 - 0.05, 3.5, 0, 0, - Math.PI / 2)
 
         this.game.scene.add(hall)
         hall.visible = false
@@ -315,85 +348,79 @@ export class CastleGallery
         this.hallAdd = add
     }
 
-    /** Frames along both long walls (each fitted to its photo), the big video screen on the far wall */
+    /** Portraits hung salon-style up both walls (big and small, at different heights, each in an ornate gold frame
+     *  fitted to its photo), and the video in the great window */
     placeHallMedia()
     {
         const { W, H, L } = this.hallSize
-        const items = this.theatre.items
-        const photos = items.filter(i => i.type === 'photo')
-        const perSide = Math.ceil(photos.length / 2)
-        const spacing = Math.min(5, (L - 16) / Math.max(1, perSide))
-        this.stops = [ { type: 'entrance', pos: new THREE.Vector3(L / 2 - 3, 1.7, 0), look: new THREE.Vector3(- L / 2, 2.6, 0) } ]
-        const frameMat = this.flat(null, '#c9a227')
-        photos.forEach((item, i) =>
+        const photos = this.theatre.items.filter(i => i.type === 'photo')
+        const frameColors = [ '#c9a227', '#a7791c', '#d8b54a', '#8a5a1c' ]
+        // slots: every bay between columns gets a large portrait plus smaller ones above / beside it
+        const slots = []
+        for(let x = L / 2 - 9; x >= - L / 2 + 12; x -= 6)
+            for(const side of [ - 1, 1 ])
+            {
+                slots.push({ x, y: 5.2, side, max: [ 3.6, 4.4 ] })
+                slots.push({ x: x - 1.2, y: 10.2, side, max: [ 2.0, 2.4 ] })
+                slots.push({ x: x + 1.3, y: 10.6, side, max: [ 1.6, 2.0 ] })
+            }
+        // order: big ones first so every photo gets a prominent spot before the small ones repeat
+        const ordered = [ ...slots.filter(s => s.max[0] > 3), ...slots.filter(s => s.max[0] <= 3) ]
+        const used = ordered.slice(0, Math.max(photos.length, Math.min(ordered.length, photos.length * 2)))
+        used.forEach((slot, i) =>
         {
-            const side = i % 2 ? 1 : - 1
-            const x = L / 2 - 9 - Math.floor(i / 2) * spacing
-            const z = side * (W / 2 - 0.08)
-            const ry = side < 0 ? 0 : Math.PI
+            const item = photos[i % photos.length]
+            const z = slot.side * (W / 2 - 0.12)
+            const ry = slot.side < 0 ? 0 : Math.PI
+            const tilt = (Math.sin(i * 12.9) * 0.03)
+            const frameMat = this.flat(null, frameColors[i % frameColors.length])
+            const outer = this.hallAdd(new THREE.BoxGeometry(1, 1, 0.18), frameMat, slot.x, slot.y, z, 0, ry, tilt)
+            const inner = this.hallAdd(new THREE.BoxGeometry(1, 1, 0.2), this.flat(null, '#5a3a14'), slot.x, slot.y, z - slot.side * 0.02, 0, ry, tilt)
             const pic = new THREE.MeshBasicNodeMaterial({ side: THREE.DoubleSide })
             pic.fog = false
-            const blank = new THREE.Texture()
-            pic.colorNode = texture(blank)
-            const frame = this.hallAdd(new THREE.BoxGeometry(1, 1, 0.12), frameMat, x, 3.6, z - side * 0.06, 0, ry)
-            const mesh = this.hallAdd(new THREE.PlaneGeometry(1, 1), pic, x, 3.6, z - side * 0.14, 0, ry)
-            const maxW = spacing - 0.8, maxH = 4.2
-            const fit = (img) =>
+            const mesh = this.hallAdd(new THREE.PlaneGeometry(1, 1), pic, slot.x, slot.y, z - slot.side * 0.13, 0, ry, tilt)
+            mesh.visible = false
+            const img = new Image()
+            img.onload = () =>
             {
+                const t = new THREE.Texture(img)
+                t.colorSpace = THREE.SRGBColorSpace
+                t.anisotropy = 8
+                t.needsUpdate = true
+                pic.colorNode = texture(t)
+                pic.needsUpdate = true
                 const a = img.width / img.height
-                let w = maxW, h = w / a
-                if(h > maxH) { h = maxH; w = h * a }
+                let w = slot.max[0], h = w / a
+                if(h > slot.max[1]) { h = slot.max[1]; w = h * a }
                 mesh.scale.set(w, h, 1)
-                frame.scale.set(w + 0.35, h + 0.35, 1)
+                inner.scale.set(w + 0.18, h + 0.18, 1)
+                outer.scale.set(w + 0.55, h + 0.55, 1)
+                mesh.visible = true
             }
-            const setImage = (src) =>
-            {
-                const img = new Image()
-                img.onload = () =>
-                {
-                    const t = new THREE.Texture(img)
-                    t.colorSpace = THREE.SRGBColorSpace
-                    t.anisotropy = 8
-                    t.needsUpdate = true
-                    pic.colorNode = texture(t)
-                    pic.needsUpdate = true
-                    fit(img)
-                }
-                img.src = src
-            }
-            setImage(item.thumb)
-            this.stops.push({ type: 'photo', item, hd: false, upgrade: () => setImage(item.full), pos: new THREE.Vector3(x, 3.1, side * - 0.4), look: new THREE.Vector3(x, 3.5, z) })
+            img.src = slot.max[0] > 3 ? item.full : item.thumb      // big portraits in full quality
         })
-        // the video wall at the far end
-        const videos = items.filter(i => i.type === 'video')
+        // video in the great window
+        const videos = this.theatre.items.filter(i => i.type === 'video')
         if(videos.length)
         {
             const video = document.createElement('video')
             video.muted = true
             video.playsInline = true
             video.crossOrigin = 'anonymous'
-            video.preload = 'auto'
             let index = 0
             const play = () => { video.src = videos[index].full; video.play().catch(() => {}) }
             video.addEventListener('ended', () => { index = (index + 1) % videos.length; play() })
-            video.addEventListener('loadedmetadata', () =>
-            {
-                const a = video.videoWidth / video.videoHeight
-                let h = H - 2.4, w = h * a
-                if(w > W - 2) { w = W - 2; h = w / a }
-                screen.scale.set(w, h, 1)
-                screenFrame.scale.set(w + 0.5, h + 0.5, 1)
-            })
             const map = new THREE.VideoTexture(video)
             map.colorSpace = THREE.SRGBColorSpace
             const mat = new THREE.MeshBasicNodeMaterial()
             mat.colorNode = texture(map)
             mat.fog = false
-            const screenFrame = this.hallAdd(new THREE.BoxGeometry(1, 1, 0.15), frameMat, - L / 2 + 0.1, H / 2 + 0.2, 0, 0, Math.PI / 2)
-            const screen = this.hallAdd(new THREE.PlaneGeometry(1, 1), mat, - L / 2 + 0.2, H / 2 + 0.2, 0, 0, Math.PI / 2)
-            screen.scale.set(8, 4.5, 1)
+            const screen = this.hallAdd(new THREE.PlaneGeometry(1, 1), mat, - L / 2 + 0.2, 9, 0, 0, Math.PI / 2)
+            const frame = this.hallAdd(new THREE.BoxGeometry(1, 1, 0.2), this.flat(null, '#c9a227'), - L / 2 + 0.1, 9, 0, 0, Math.PI / 2)
+            const fit = () => { const a = video.videoWidth / video.videoHeight || 16 / 9; let h = 11, w = h * a; if(w > 11) { w = 11; h = w / a } screen.scale.set(w, h, 1); frame.scale.set(w + 0.6, h + 0.6, 1) }
+            fit()
+            video.addEventListener('loadedmetadata', fit)
             this.hallVideo = { video, play }
-            this.stops.push({ type: 'video', pos: new THREE.Vector3(- L / 2 + 11, 2.4, 0), look: new THREE.Vector3(- L / 2, H / 2 + 0.2, 0) })
         }
     }
 
@@ -405,28 +432,15 @@ export class CastleGallery
         el.innerHTML = `
             <div class="ct-vignette"></div>
             <div class="ct-title">Castello ♥ 我們的回憶</div>
-            <div class="ct-count"></div>
-            <button class="ct-nav ct-prev" aria-label="上一個">‹</button>
-            <button class="ct-nav ct-next" aria-label="下一個">›</button>
+            <div class="ct-help">方向鍵 / WASD 走動 · 拖曳滑鼠或手指環顧四周</div>
             <div class="ct-controls">
-                <button class="ct-play">❚❚ 暫停導覽</button>
                 <button class="ct-sound">🔇 影片聲音</button>
                 <button class="ct-exit">離開城堡 →</button>
             </div>`
         document.body.append(el)
         this.theatre.el = el
-        this.camPos = new THREE.Vector3()
-        this.camLook = new THREE.Vector3()
+        this.walker = { pos: new THREE.Vector3(), yaw: 0, pitch: 0.12, keys: new Set(), idle: 0 }
         this.override = { position: new THREE.Vector3(), quaternion: new THREE.Quaternion() }
-        this.lookHelper = new THREE.PerspectiveCamera() // cameras look down -z (an Object3D would look away from the target)
-        el.querySelector('.ct-prev').addEventListener('click', () => this.goTo(this.theatre.index - 1, true))
-        el.querySelector('.ct-next').addEventListener('click', () => this.goTo(this.theatre.index + 1, true))
-        el.querySelector('.ct-play').addEventListener('click', (e) =>
-        {
-            this.theatre.playing = !this.theatre.playing
-            e.currentTarget.textContent = this.theatre.playing ? '❚❚ 暫停導覽' : '▶ 自動導覽'
-            this.theatre.wait = 0
-        })
         el.querySelector('.ct-sound').addEventListener('click', (e) =>
         {
             if(!this.hallVideo) return
@@ -434,25 +448,29 @@ export class CastleGallery
             e.currentTarget.textContent = this.hallVideo.video.muted ? '🔇 影片聲音' : '🔊 影片聲音'
         })
         el.querySelector('.ct-exit').addEventListener('click', () => this.closeTheatre())
+        const keyName = (e) => ({ ArrowUp: 'f', KeyW: 'f', ArrowDown: 'b', KeyS: 'b', ArrowLeft: 'l', KeyA: 'l', ArrowRight: 'r', KeyD: 'r' })[e.code]
         addEventListener('keydown', (e) =>
         {
             if(!this.theatre.open) return
             if(e.key === 'Escape') this.closeTheatre()
-            else if(e.key === 'ArrowRight' || e.key === 'ArrowUp') this.goTo(this.theatre.index + 1, true)
-            else if(e.key === 'ArrowLeft' || e.key === 'ArrowDown') this.goTo(this.theatre.index - 1, true)
-            e.stopPropagation()
+            const k = keyName(e); if(k) this.walker.keys.add(k)
+            e.stopPropagation(); e.preventDefault()
         }, true)
-    }
-
-    goTo(i, manual = false)
-    {
-        const n = this.stops.length
-        this.theatre.index = (i + n) % n
-        this.theatre.wait = 0
-        if(manual) this.theatre.playing = false, this.theatre.el.querySelector('.ct-play').textContent = '▶ 自動導覽'
-        const stop = this.stops[this.theatre.index]
-        if(stop.type === 'photo' && !stop.hd) { stop.hd = true; stop.upgrade() }   // sharp version when you look at it
-        this.theatre.el.querySelector('.ct-count').textContent = stop.type === 'photo' ? `${this.theatre.index} / ${this.stops.length - (this.hallVideo ? 2 : 1)}` : stop.type === 'video' ? '影片' : ''
+        addEventListener('keyup', (e) => { const k = keyName(e); if(k) this.walker.keys.delete(k) }, true)
+        // look around by dragging (mouse or one finger); two fingers / long press walks forward on phones
+        let last = null, touches = 0
+        el.addEventListener('pointerdown', (e) => { if(e.target.closest('button')) return; last = [ e.clientX, e.clientY ]; touches++; if(touches >= 2) this.walker.keys.add('f'); el.setPointerCapture(e.pointerId) })
+        el.addEventListener('pointermove', (e) =>
+        {
+            if(!last) return
+            this.walker.yaw -= (e.clientX - last[0]) * 0.004
+            this.walker.pitch = Math.max(- 0.6, Math.min(0.9, this.walker.pitch - (e.clientY - last[1]) * 0.004))
+            last = [ e.clientX, e.clientY ]
+            this.walker.idle = 0
+        })
+        const up = () => { last = null; touches = Math.max(0, touches - 1); if(touches < 2) this.walker.keys.delete('f') }
+        el.addEventListener('pointerup', up)
+        el.addEventListener('pointercancel', up)
     }
 
     openTheatre()
@@ -461,7 +479,6 @@ export class CastleGallery
             return
         if(!this.hall) { this.buildHall(); this.placeHallMedia() }
         this.theatre.open = true
-        this.theatre.playing = true
         this.hall.visible = true
         this.savedFilters = [ ...this.game.inputs.filters ]
         this.game.inputs.filters.clear()
@@ -469,17 +486,16 @@ export class CastleGallery
         this.theatre.el.classList.add('is-open')
         document.documentElement.classList.add('has-modal-open', 'is-in-castle')
         this.hallVideo?.play()
-        // start just outside the hall doors, then walk in
-        const o = this.hallOrigin
-        this.camPos.set(o.x + this.hallSize.L / 2 + 4, o.y + 2, o.z)
-        this.camLook.set(o.x, o.y + 2.6, o.z)
+        // stand just inside the doors, looking down the hall
+        this.walker.pos.set(this.hallSize.L / 2 - 3, 1.8, 0)
+        this.walker.yaw = Math.PI / 2
+        this.walker.pitch = 0.12
+        this.walker.idle = 0
         this.game.view.cameraOverride = this.override
-        // a person's field of view (the game camera is a narrow, far away lens)
         const camera = this.game.view.camera
         this.savedFov = camera.fov
-        camera.fov = 58
+        camera.fov = 62
         camera.updateProjectionMatrix()
-        this.goTo(0)
     }
 
     closeTheatre()
@@ -488,6 +504,7 @@ export class CastleGallery
             return
         this.theatre.open = false
         this.theatre.cooldown = true
+        this.walker.keys.clear()
         this.hall.visible = false
         this.hallVideo?.video.pause()
         this.game.view.cameraOverride = null
@@ -506,25 +523,53 @@ export class CastleGallery
     updateTheatre()
     {
         const dt = Math.min(0.05, this.game.ticker.delta)
-        const stop = this.stops[this.theatre.index]
-        const o = this.hallOrigin
-        const tPos = stop.pos.clone().add(o), tLook = stop.look.clone().add(o)
-        const k = 1 - Math.exp(- dt * 1.6)
-        this.camPos.lerp(tPos, k)
-        this.camLook.lerp(tLook, k * 1.3)
-        // a gentle breathing sway, like walking
-        const t = this.game.ticker.elapsed ?? performance.now() / 1000
-        this.override.position.copy(this.camPos).add(new THREE.Vector3(0, Math.sin(t * 1.3) * 0.04, 0))
-        this.lookHelper.position.copy(this.override.position)
-        this.lookHelper.lookAt(this.camLook)
-        this.override.quaternion.copy(this.lookHelper.quaternion)
-        if(this.theatre.playing)
+        const w = this.walker
+        const t = performance.now() / 1000
+        // walk: forward is where you look (flat), strafe sideways
+        const fx = - Math.sin(w.yaw), fz = - Math.cos(w.yaw)
+        let mx = 0, mz = 0
+        if(w.keys.has('f')) { mx += fx; mz += fz }
+        if(w.keys.has('b')) { mx -= fx; mz -= fz }
+        if(w.keys.has('l')) { mx += fz; mz -= fx }
+        if(w.keys.has('r')) { mx -= fz; mz += fx }
+        const moving = mx || mz
+        if(moving)
         {
-            this.theatre.wait += dt
-            const hold = stop.type === 'video' ? 14 : stop.type === 'entrance' ? 3 : 5
-            if(this.theatre.wait > hold)
-                this.goTo(this.theatre.index + 1)
+            const len = Math.hypot(mx, mz)
+            w.pos.x += mx / len * 6 * dt
+            w.pos.z += mz / len * 6 * dt
+            w.idle = 0
         }
+        else
+        {
+            // left alone, drift slowly down the hall, gazing at the portraits
+            w.idle += dt
+            if(w.idle > 4)
+            {
+                w.pos.x -= 1.2 * dt
+                w.yaw = Math.PI / 2 + Math.sin(t * 0.25) * 0.9
+                if(w.pos.x < - this.hallSize.L / 2 + 14) w.pos.x = this.hallSize.L / 2 - 3
+            }
+        }
+        const { W, L } = this.hallSize
+        w.pos.x = Math.max(- L / 2 + 7, Math.min(L / 2 - 2, w.pos.x))
+        w.pos.z = Math.max(- W / 2 + 2, Math.min(W / 2 - 2, w.pos.z))
+        const bob = moving ? Math.sin(t * 9) * 0.05 : 0
+        this.override.position.copy(w.pos).add(this.hallOrigin).add(new THREE.Vector3(0, bob, 0))
+        this.override.quaternion.setFromEuler(new THREE.Euler(w.pitch, w.yaw, 0, 'YXZ'))
+        // floating candles bob and flicker
+        const c = this.candles, m = new THREE.Matrix4()
+        c.base.forEach(([ x, y, z, ph ], i) =>
+        {
+            const yy = y + Math.sin(t * 0.8 + ph) * 0.15
+            m.makeTranslation(x, yy, z)
+            c.body.setMatrixAt(i, m)
+            const s = 0.85 + Math.sin(t * 14 + ph * 3) * 0.15
+            m.makeScale(s, s, s).setPosition(x, yy + 0.33, z)
+            c.flame.setMatrixAt(i, m)
+        })
+        c.body.instanceMatrix.needsUpdate = true
+        c.flame.instanceMatrix.needsUpdate = true
     }
 
     update()
