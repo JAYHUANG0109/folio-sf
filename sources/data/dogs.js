@@ -12,7 +12,7 @@ export const dogs = [
         size: 0.55,
         speed: { walk: 3.2, run: 9.5 },
         mass: 0.25,
-        home: { x: -75, z: 58, rotation: Math.PI * 0.25 },
+        home: { x: -75, z: 52, rotation: Math.PI * 0.25 },
         favorites: [ 'iceCream', 'chinatown', 'turkey', 'tennis' ],
         lines: {
             chase: '小可在追你！',
@@ -33,7 +33,7 @@ export const dogs = [
         size: 1.6,
         speed: { walk: 2.6, run: 7.5 },
         mass: 2.2,
-        home: { x: -29, z: 58, rotation: - Math.PI * 0.25 },
+        home: { x: -29, z: 52, rotation: - Math.PI * 0.25 },
         favorites: [ 'fish', 'turkey', 'pier39', 'goldenGate' ],
         lines: {
             chase: 'Dookie 跑過來了！',
@@ -57,11 +57,11 @@ export const dogSpots = {
     fish:       { x: 18, z: -52, item: 'fish' },       // shore next to Pier 39
     iceCream:   { x: 12, z: 40, item: 'iceCream' },    // Dolores Park
     chinatown:  { x: 24, z: -18, item: 'bun' },        // Grant Ave
-    turkey:     { x: -46, z: 66, item: 'drumstick' },  // the giant Thanksgiving dish
+    turkey:     { x: -46, z: 60, item: 'drumstick' },  // the giant Thanksgiving dish
     tennis:     { x: -52, z: 17, item: 'tennisBall' }, // Goldman Tennis Center
     pier39:     { x: 30, z: -50, item: null },
     goldenGate: { x: -62, z: -44, item: null },
 }
 
 /** The giant Thanksgiving turkey dish (bottom left of the map) */
-export const turkey = { x: -52, z: 72, radius: 9.5 }
+export const turkey = { x: -52, z: 66, radius: 9.5 }

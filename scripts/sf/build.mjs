@@ -288,7 +288,7 @@ const exclusions = [
     { rect: [ - 8, 66, 34, 92 ] },                                  // stadium
     { rect: [ 42, 48, 90, 92 ] },                                   // SFO
     { rect: [ - 60, - 48, - 20, - 14 ] },                           // Palace
-    { rect: [ - 80, 45, - 25, 86 ] },                               // turkey + dog houses
+    { rect: [ - 80, 38, - 25, 80 ] },                               // turkey + dog houses
     { rect: [ - 73, - 8, - 43, 33 ] },                               // tennis (1.85x)
     { x: - 31.5, z: 10, r: 9 },                                     // Alamo Square park
     { rect: [ - 97, - 100, - 63, - 68 ] },                          // Napa vineyards
@@ -1025,7 +1025,7 @@ console.log('scenery ok')
         rotation: [ 0, s.respawn.rotation, 0 ],
     }))
     // extra teleport point: the giant Thanksgiving turkey (just north of the dish, facing it)
-    nodes.push({ name: 'respawnTurkey', position: [ - 52, round(Math.max(ground(- 52, 61.8), 0)), 61.8 ], rotation: [ 0, Math.PI, 0 ] }) // on the hilltop, by the dish
+    nodes.push({ name: 'respawnTurkey', position: [ - 52, round(Math.max(ground(- 52, 55.8), 0)), 55.8 ], rotation: [ 0, Math.PI, 0 ] }) // on the hilltop, by the dish
     await writeGlb(out('static/respawns/respawnsReferences.glb'), nodes, { worldScale: W })
 }
 console.log('respawns ok')

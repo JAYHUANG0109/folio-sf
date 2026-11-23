@@ -2117,7 +2117,7 @@ builders.levis = (ctx) =>
         pixelText(tower, "LEVI'S STADIUM", C.red, [ 0, 7.45, 1.98 ], 0.2, { depth: 0.08 })
         tower.box([ 20, 1.4, 0.2 ], C.snow, [ 0, 7.25, - 1.85 ])
         pixelText(tower, "LEVI'S STADIUM", C.red, [ 0, 7.45, - 1.98 ], 0.2, { depth: 0.08, back: true })
-        nodes.push(fixedNode('suiteTower', tower, ctx.at(cx, cz - 16.2), [ { position: [ 0, 4.7, 0 ], size: [ 24, 9.4, 3.6 ] } ]))
+        nodes.push(fixedNode('suiteTower', tower, ctx.at(cx, cz - 12.5), [ { position: [ 0, 4.7, 0 ], size: [ 24, 9.4, 3.6 ] } ]))
     }
 
     // giant video boards above both end zones, playing the 49ers
