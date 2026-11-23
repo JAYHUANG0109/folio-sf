@@ -309,8 +309,8 @@ export function evaPlane()
             m.cbox([ 0.03, 0.42, 0.24 ], C.stone, [ side * (R + 0.01), y0 + 0.05, z ])
         // EVA AIR in green along the front of the fuselage
         const t = new Model()
-        pixelText(t, 'EVA AIR', green, [ 0, 0, 0 ], 0.13, { depth: 0.03 })
-        m.merge(t, [ side * (R + 0.02), y0 + 0.36, - L / 2 + 3.4 ], [ 0, side * Math.PI / 2, 0 ])
+        pixelText(t, 'EVA AIR', green, [ 0, 0, 0 ], 0.09, { depth: 0.03 })
+        m.merge(t, [ side * (R * 0.93 + 0.02), y0 + 0.1, - L / 2 + 3.4 ], [ 0, side * Math.PI / 2, 0 ])
     }
     // wings: swept, slight dihedral, raked tips; flap fairings underneath
     const wing = new THREE.Shape()
@@ -378,7 +378,6 @@ builders.sfo = (ctx) =>
         t.box([ 0.12, 3.6, 0.06 ], C.snow, [ F - 0.06, 0.3, z ])
     for(const y of [ 1.5, 2.7 ])
         t.box([ 0.12, 0.06, length - 0.4 ], C.snow, [ F - 0.06, y, 0 ])
-    pixelText(t, 'SAN FRANCISCO INTERNATIONAL', C.dark, [ F - 0.1, 3.05, 0 ], 0.1, { depth: 0.04 })
     {
         const label = new Model()
         pixelText(label, 'SAN FRANCISCO INTERNATIONAL', C.dark, [ 0, 0, 0 ], 0.11, { depth: 0.04 })
@@ -716,7 +715,7 @@ builders.unionSquare = (ctx) =>
     }
 
     // palms on the corners, the middle stays open for driving
-    for(const [ x, z ] of [ [ cx + 8.2, cz + 8.8 ], [ cx - 6.3, cz + 7.6 ], [ cx + 4.2, cz - 6.6 ], [ cx - 5.6, cz - 4.6 ] ])
+    for(const [ x, z ] of [ [ cx + 8.2, cz + 8.8 ], [ cx - 6.3, cz + 7.6 ] ] /* south side only: the north stays open toward Chinatown */)
         nodes.push(dynamicNode('palm', palmTree(5.5), ctx.at(x, z), [ { shape: 'tube', position: [ 0, 2, 0 ], radius: 0.3, height: 4 } ], 0.5))
 
     // granite paving: light and dark stripes like the real square (painted on, no bumps)

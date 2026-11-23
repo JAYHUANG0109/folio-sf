@@ -288,7 +288,7 @@ const exclusions = [
     { rect: [ - 8, 66, 34, 92 ] },                                  // stadium
     { rect: [ 42, 48, 90, 92 ] },                                   // SFO
     { rect: [ - 60, - 48, - 20, - 14 ] },                           // Palace
-    { rect: [ - 78, 52, - 28, 86 ] },                               // turkey + dog houses
+    { rect: [ - 80, 45, - 25, 86 ] },                               // turkey + dog houses
     { rect: [ - 73, - 8, - 43, 33 ] },                               // tennis (1.85x)
     { x: - 31.5, z: 10, r: 9 },                                     // Alamo Square park
     { rect: [ - 97, - 100, - 63, - 68 ] },                          // Napa vineyards
@@ -951,7 +951,7 @@ const footprints = [] // [x, z, w, d, isDowntown] for the map
     sign.box([ 3.2, 0.2, 0.22 ], C.snow, [ 0, 2.25, 0 ])
     sign.box([ 2.4, 0.2, 0.22 ], C.snow, [ 0, 1.95, 0 ])
     // JAY ♥ JESSICA in big knockable blocks, north of the dish between the two dog houses
-    sceneryNodes.push(...nameBlocks(ground, [ { text: 'JAY', color: C.sky }, { text: '♥', color: C.red }, { text: 'JESSICA', color: C.pink } ], x, z - 20))
+    sceneryNodes.push(...nameBlocks(ground, [ { text: 'JAY', color: C.sky }, { text: '♥', color: C.red }, { text: 'JESSICA', color: C.pink } ], x, z - 22.5))
 }
 
 // Dog houses: 小可's pink cottage and Dookie's Swiss chalet

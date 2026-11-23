@@ -56,9 +56,8 @@ export const hills = [
     [6, -18, 4.0, 8],      // Nob Hill (west of Chinatown, under California St)
     [42, -40, 3.5, 6],     // Telegraph Hill
     [-24, -22, 2.5, 12],   // Pacific Heights
+    [-52, 72, 4.5, 6],     // the turkey hill
     [-31, 10, 3.0, 6.5],   // Alamo Square: the park on its hill, across the street from the Painted Ladies
-    [-24, 46, 7.0, 8],     // Twin Peaks
-    [-14, 54, 6.0, 7],
     [-44, 40, 4.0, 8],     // Mount Sutro
     [3, 52, 3.4, 8],       // Dolores Heights: the park slopes down from here toward downtown
     [3, -84, 3.0, 8],      // Alcatraz
@@ -80,13 +79,13 @@ export const pads = [
     [36, -54, 4, 7, 0],       // Pier 39 shore
     [-40, -32, 11, 16, 0],    // Palace of Fine Arts (1.5x)
     [-58, 16, 13, 17.5, 0],   // tennis (1.85x)
-    [-52, 72, 10.5, 13.5, 1.5], // Thanksgiving turkey (1.5x) on top of a little flat-topped hill
+    [-52, 72, 9.5, 15, 4.2],  // Thanksgiving turkey (1.5x) on top of its own hill (the old Twin Peaks hill moved here)
     [-79, -84, 15, 22, 3.2],  // secret: Napa castle (west of the bridge), at bridge deck level: flat, smooth drive
     [-34, -92, 5, 8, 0.8],    // secret: Muir Woods
-    [-72, 60, 3, 6, 0],       // 小可's house (off the hill)
-    [-32, 60, 4, 7, 0],       // Dookie's house (off the hill)
-    [-60, 52.5, 5, 8, 0],     // JAY ♥ JESSICA blocks: flat ground north of the hill
-    [-44, 52.5, 5, 8, 0],
+    [-75, 58, 3, 6, 0],       // 小可's house (off the hill)
+    [-29, 58, 4, 7, 0],       // Dookie's house (off the hill)
+    [-60, 49.5, 5, 8, 0],     // JAY ♥ JESSICA blocks: flat ground north of the hill
+    [-44, 49.5, 5, 8, 0],
     [3, -84, 8.5, 12, 2.4],   // Alcatraz summit (flat for the cellhouse), cliffs all around
     [-17, -52, 2, 5, 0],      // cable car turnaround
     [-17, -40.7, 2.2, 5, null], // flat landing at the top of Lombard (Hyde St): the car doesn't roll away on spawn
@@ -98,7 +97,7 @@ export const parks = [
     { rect: [-34, 13, -24, 18] },         // Panhandle
     { ellipse: [-31.5, 10, 9.5, 8] },     // Alamo Square park
     { ellipse: [9, 43.5, 13, 9.5] },      // Dolores Park: the big sloping lawn
-    { ellipse: [-22, 48, 11, 10] },       // Twin Peaks
+    { ellipse: [-52, 72, 13, 13] },       // the turkey hill, grassy slopes
     { ellipse: [-44, 40, 8, 7] },         // Mount Sutro
     { ellipse: [-50, -30, 14, 11] },      // Presidio
     { rect: [-56, -48, -30, -44] },       // Crissy Field
@@ -116,7 +115,7 @@ export const streets = [
     { points: [[-6, -50], [10, -50], [24, -50], [38, -49], [48, -43], [54, -34], [57, -24], [55, -12], [56, 4], [60, 20], [60, 40], [57, 54], [58, 62]], width: 5.4, asphalt: true },
     // Market St, in two parts around the (bigger) Union Square
     { points: [[55, -16], [46, -8], [43, -2], [44, 5]], width: 5.4, asphalt: true },
-    { points: [[21, 26], [19, 30], [14, 32.5], [2, 38], [-10, 42]], width: 5.4, asphalt: true },
+    { points: [[21, 26], [19, 30], [14, 32.5], [2, 38], [-6, 41]], width: 5.4, asphalt: true },
     // to Levi's: branches off the Embarcadero just before SFO (the Embarcadero itself runs all the way down the waterfront to SFO)
     { points: [[57.5, 50], [50, 58], [42, 64], [35, 70]], width: 7, asphalt: true, highway: true, name: '101' }, // ends at the stadium lot
     // Marina Blvd to the bridge
@@ -137,8 +136,6 @@ export const streets = [
     { points: [[-84, 24], [-76, 37], [-58, 39], [-44, 35], [-35, 24], [-28, 21], [-19.5, 20]], width: 4.4, asphalt: true },
     // Palace of Fine Arts loop
     { points: [[-40, -46], [-40, -41]], width: 4.4, asphalt: true },
-    // Twin Peaks road
-    { points: [[-10, 42], [-16, 50], [-24, 52], [-30, 46], [-24, 40], [-16, 43.5], [-11, 42.5]], width: 4.4, asphalt: true },
     // Great Highway, Ocean Beach
     { points: [[-63, -47.5], [-72, -45], [-80, -38], [-82, -10], [-82, 30], [-80, 60], [-70, 84]], width: 5.4, asphalt: true, highway: true },
     // Peninsula road west of Levi's
