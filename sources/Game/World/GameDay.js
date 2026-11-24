@@ -253,7 +253,7 @@ export class GameDay
         if(p.kind === 'sack') yards = - (4 + Math.random() * 6)
         else if(p.kind === 'bigplay') yards = 16 + Math.random() * 30
         else if(p.kind === 'interception' || p.kind === 'fumble') yards = 2 + Math.random() * 6
-        else if(p.kind === 'run' || p.kind === 'pass') yards = - 2 + Math.random() * 14
+        else if(p.kind === 'run' || p.kind === 'pass') yards = (p.dir > 0 ? 0 : - 2) + Math.random() * (p.dir > 0 ? 16 : 13)   // the home team moves the ball a bit better
         else yards = 0
         p.gain = Math.min(yards / 5, 10 - p.dir * p.line + 1.2)          // never run past the back of the end zone
         p.good = Math.random() < 0.85
@@ -338,8 +338,8 @@ export class GameDay
             {
                 this.cheer(p.kind === 'bigplay' ? 0.9 : 0.5)
                 if(p.kind === 'bigplay')
-                    this.call(Math.random() < 0.5 ? 'catch' : 'tackle', [ { text: 'OH what a CATCH!' }, { text: 'Look at him go!' } ])
-                else if(Math.random() < 0.6)
+                    this.call(this.clips?.tackle?.length && Math.random() < 0.5 ? 'tackle' : 'catch', [ { text: 'OH what a CATCH!' }, { text: 'Look at him go!' } ])
+                else
                     this.call('firstdown', [ { text: 'FIRST DOWN, Forty Niners!' } ])
             }
         }
@@ -354,6 +354,11 @@ export class GameDay
             }
             else if(Math.random() < 0.25 && !niners)
                 this.call('bighit', [ { text: 'BIG hit!', rate: 1.2 } ])
+            else if(niners && p.kind === 'pass' && gainedYards >= 1 && Math.random() < 0.35)
+            {
+                this.cheer(0.4)
+                this.call('catch', [ { text: 'Nice grab!' } ])
+            }
         }
     }
 
@@ -377,7 +382,7 @@ export class GameDay
         const takes = this.clips?.[name]
         if(!takes?.length || document.documentElement.classList.contains('is-audio-muted'))
             return null
-        if(!force && (this.volume < 0.5 || performance.now() - this.lastCall < 6000))
+        if(!force && (this.volume < 0.35 || performance.now() - this.lastCall < 3000))
             return null
         this.lastCall = performance.now()
         const take = takes[Math.floor(Math.random() * takes.length)]
@@ -726,7 +731,8 @@ export class GameDay
         if(sound)
         {
             sound.cheer = Math.max(0, sound.cheer - delta * 0.3)
-            sound.out.gain.value = this.volume * (0.5 + sound.cheer * 0.6)
+            // no constant murmur: the crowd is only heard when it cheers (big plays, scores)
+            sound.out.gain.value = this.volume * Math.min(1, sound.cheer) * 0.75
             for(const l of sound.layers)
             {
                 l.phase += delta * (0.4 + Math.random() * 0.3)

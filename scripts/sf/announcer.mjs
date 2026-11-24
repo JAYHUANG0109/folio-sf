@@ -16,6 +16,7 @@ import { execFileSync, spawnSync } from 'node:child_process'
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../..')
 const input = path.join(root, 'recordings/announcer')
 const output = path.join(root, 'static/sounds/announcer')
+const PITCH = 0.84            // < 1 = deeper (0.84 is about 3 semitones down)
 const NAMES = [ 'touchdown', 'countdown', 'firstdown', 'catch', 'tackle', 'bighit', 'fieldgoal', 'missed', 'interception', 'fumble', 'sack', 'thirddown', 'stop' ]
 
 fs.mkdirSync(output, { recursive: true })
@@ -52,7 +53,13 @@ for(const file of files.sort())
     const filters = [
         `atrim=start=${start.toFixed(3)}:end=${end.toFixed(3)}`,
         'asetpts=PTS-STARTPTS',
-        'highpass=f=90',
+        // a deeper, older voice: down ~3 semitones (pitch and formants), same speed, a warmer low end
+        'aresample=44100',
+        `asetrate=${Math.round(44100 * PITCH)}`,
+        'aresample=44100',
+        `atempo=${(1 / PITCH).toFixed(4)}`,
+        'bass=g=4:f=140:w=0.8',
+        'highpass=f=70',
         'acompressor=threshold=-20dB:ratio=4:attack=5:release=120:makeup=4',
         'aecho=0.9:0.7:70|140:0.22|0.1',          // the stadium PA bouncing off the stands
         'loudnorm=I=-14:TP=-1.5:LRA=9',
