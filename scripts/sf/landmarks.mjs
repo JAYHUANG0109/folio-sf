@@ -4,6 +4,7 @@
  * Positions given to ctx.at() are WORLD x/z; it returns the area-local position resting on the ground.
  */
 import * as THREE from 'three'
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import { Model, C, meshNode, fixedNode, dynamicNode, kinematicNode, refNode, rng } from './kit.mjs'
 import * as Layout from './layout.mjs'
 import { bulb, lightString, litPine, wreath } from './holiday.mjs'
@@ -2340,6 +2341,9 @@ builders.levis = (ctx) =>
                 fans.parts.slice(- 2).forEach(part => { part.v = phase })
             }
         }
+        for(const t of [ 0, 3, 5 ])                                                                     // glowing LED ribbons along the tiers (like Levi's ring)
+            s.box([ length - t * 0.3 + 0.02, 0.07, 0.06 ], C.lamp, [ 0, 0.72 + t * 0.85, t * 0.95 - 0.5 ])
+        s.box([ length + 0.42, 0.1, 0.08 ], C.lamp, [ 0, 6.4, 4.68 ])
         s.box([ length + 0.4, 0.5, 1.2 ], C.snow, [ 0, 5.9, 5.3 ])                                   // concourse rim
         s.box([ length + 0.4, 6, 0.3 ], C.stone, [ 0, 0, 6 ])                                        // back wall (white frame)
         for(let k = 0; k <= length / 3; k++)
@@ -2351,15 +2355,32 @@ builders.levis = (ctx) =>
     addStand('standSouth', cx, cz + 7.5, 22, 0)
     addStand('standWest', cx - 15.5, cz, 9, - Math.PI / 2, true)
     addStand('standEast', cx + 15.5, cz, 9, Math.PI / 2)
-    // light towers on the corners
+    // light towers on the corners: a bank of floodlights (they blaze at night) aimed at the field, light beams pouring
+    // down onto the grass, and the field itself lit bright white (Materials: floodBeam / floodPool)
+    const beams = []
     for(const [ x, z ] of [ [ - 15, - 9 ], [ 15, - 9 ], [ - 15, 12 ], [ 15, 12 ] ])
     {
         const l = new Model()
         l.cylinder(0.15, 0.2, 9, C.snow, [ 0, 0, 0 ], 6)
-        l.box([ 2, 1, 0.3 ], C.snow, [ 0, 9, 0 ])
-        for(let k = 0; k < 6; k++)
-            l.cbox([ 0.25, 0.25, 0.1 ], C.gold, [ - 0.8 + (k % 3) * 0.8, 9.3 + Math.floor(k / 3) * 0.4, 0.17 ])
+        l.box([ 2.6, 1.5, 0.3 ], C.slate, [ 0, 8.9, 0 ], [ 0.35, 0, 0 ])
+        for(let k = 0; k < 12; k++)
+            l.cbox([ 0.36, 0.3, 0.12 ], C.lamp, [ - 0.99 + (k % 4) * 0.66, 9.25 + Math.floor(k / 4) * 0.42, 0.22 - Math.floor(k / 4) * 0.14 ], [ 0.35, 0, 0 ])
         nodes.push({ ...fixedNode('lightTower', l, ctx.at(cx + x, cz + z), [ { shape: 'tube', position: [ 0, 4.5, 0 ], radius: 0.25, height: 9 } ]), rotation: [ 0, Math.atan2(- x, - z), 0 ] })
+        // the beam: an open cone from the lamp bank down to a wide patch of the field (design offsets from the center)
+        const from = new THREE.Vector3(x * 0.97, 9.6, z * 0.97)
+        const to = new THREE.Vector3(x * 0.25, 0.05, z * 0.2)
+        const length = from.distanceTo(to)
+        const cone = new THREE.CylinderGeometry(0.9, 5.2, length, 24, 1, true)   // uv.y: 0 at the field, 1 at the lamps
+        cone.translate(0, - length / 2, 0)
+        cone.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, - 1, 0), to.clone().sub(from).normalize()))
+        cone.translate(from.x, from.y, from.z)
+        beams.push(cone)
+    }
+    {
+        const g = mergeGeometries(beams)
+        nodes.push({ name: 'floodBeams', position: ctx.at(cx, cz), mesh: { geometry: g, material: 'floodBeam' } })
+        const pool = new THREE.PlaneGeometry(28, 15).rotateX(- Math.PI / 2).translate(0, 0.09, 0)
+        nodes.push({ name: 'floodPool', position: ctx.at(cx, cz), mesh: { geometry: pool, material: 'floodPool' } })
     }
 
     // the suite tower on the north side: stacked glass decks, a green roof, LEVI'S STADIUM in red letters

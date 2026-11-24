@@ -168,6 +168,14 @@ export class GameDay
         }
         const snap = 1.2
         const run = Math.max(0, p.t - snap) / (p.duration - snap)
+        // a long 49ers scoring run: the yard-line countdown while he's running
+        if(p.td && p.dir > 0 && !p.countdownTried && p.t > snap + 0.4 && p.gain > 3)
+        {
+            p.countdownTried = true
+            p.countdownHowl = this.playClip('countdown', true)
+        }
+        if(p.t < snap)
+            p.countdownTried = false
         const eased = run * run * (3 - 2 * run)
         // the ball carrier's path this play (the QB drops back on a sack; nobody runs on a kick)
         const kick = p.kind === 'fieldgoal' || p.kind === 'punt'
@@ -258,6 +266,14 @@ export class GameDay
         p.gain = Math.min(yards / 5, 10 - p.dir * p.line + 1.2)          // never run past the back of the end zone
         p.good = Math.random() < 0.85
         p.duration = p.kind === 'fieldgoal' || p.kind === 'punt' ? 4.5 : 6
+        // a scoring play: the carrier goes all the way into the end zone, a longer play so you can watch him get there
+        p.td = [ 'run', 'pass', 'bigplay' ].includes(p.kind) && p.dir * (p.line + p.dir * p.gain) > 10
+        p.countdownHowl = null
+        if(p.td)
+        {
+            p.gain = 10.9 - p.dir * p.line
+            p.duration = 6 + Math.min(3, p.gain * 0.35)
+        }
         // the call before the snap: third down for the Seahawks, the crowd gets loud
         if(p.down === 3 && p.dir < 0 && Math.random() < 0.6)
         {
@@ -277,7 +293,7 @@ export class GameDay
             if(p.good)
             {
                 this.cheer(niners ? 1 : 0.1)
-                if(niners) { this.launchVolley(3); this.call('fieldgoal', [ { text: 'The kick is up...', rate: 1 }, { text: 'and it is GOOD!', pitch: 1.35 } ]) }
+                if(niners) { this.call('fieldgoal', [ { text: 'The kick is up...', rate: 1 }, { text: 'and it is GOOD!', pitch: 1.35 } ]) }
             }
             else if(!niners)
             {
@@ -314,8 +330,8 @@ export class GameDay
             if(niners)
             {
                 this.cheer(1.3)
-                this.launchVolley(6)
-                this.touchdownCall(p.kind === 'bigplay' ? 3 : 9)
+                this.launchVolley(10)
+                this.touchdownCall(99, p.countdownHowl)
             }
             else if(!Object.keys(this.clips || {}).length)
                 this.announce([ { text: 'Seahawks score.', pitch: 0.85, rate: 0.95 } ])
@@ -405,11 +421,17 @@ export class GameDay
         this.announce(lines, force)
     }
 
-    touchdownCall(from = 6)
+    touchdownCall(from = 6, countdown = null)
     {
         this.crowdJumpTimer = 7          // the whole stadium jumps for a few seconds
         if(this.clips?.touchdown?.length)
         {
+            // the countdown is still going: TOUCHDOWN right as it ends
+            if(countdown && countdown.playing())
+            {
+                countdown.once('end', () => this.playClip('touchdown', true))
+                return
+            }
             // recorded: the yard-line countdown (if any) straight into TOUCHDOWN 49ERS!!!
             if(from < 8 && this.clips.countdown?.length && this.playClip('countdown', true, () => this.playClip('touchdown', true)))
                 return
@@ -480,13 +502,7 @@ export class GameDay
 
     updateFireworks(delta)
     {
-        this.nextFirework -= delta
-        if(this.nextFirework < 0)
-        {
-            this.launch()
-            if(Math.random() < 0.35) setTimeout(() => this.active && this.launch(), 300)
-            this.nextFirework = 1.2 + Math.random() * 2.2
-        }
+        // fireworks only go up for touchdowns (launchVolley)
         // rockets climb, leaving a short spark trail, then burst
         for(let i = this.rockets.length - 1; i >= 0; i--)
         {
