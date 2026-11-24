@@ -1,5 +1,6 @@
 import * as THREE from 'three/webgpu'
 import { color } from 'three/tsl'
+import { Howler } from 'howler'
 import { Game } from '../Game.js'
 import { MeshDefaultMaterial } from '../Materials/MeshDefaultMaterial.js'
 import { dogs as dogsData, dogSpots } from '../../data/worldData.js'
@@ -79,6 +80,9 @@ function makeItem(type)
     }
     return group
 }
+
+let riderDog = null       // only one dog rides on the car's roof at a time
+const ROOF = new THREE.Vector3(- 0.15, 0.58, 0)     // on the car's roof, car local (forward is +x)
 
 class Dog
 {
@@ -190,8 +194,75 @@ class Dog
         this.housePosition = new THREE.Vector3(x, Math.max(0, this.game.terrain.getGroundElevation(x, z)) + (this.isBig ? 6.6 : 3.6), z)
     }
 
+    /**
+     * Bark (synthesized): 小可 yips, light and high; Dookie gives a deep chesty WOOF. Louder when the car is close.
+     */
+    bark(times = this.isBig ? 1 + Math.round(Math.random()) : 2 + Math.round(Math.random()))
+    {
+        const ctx = Howler.ctx
+        if(!ctx || !Howler.masterGain || ctx.state !== 'running' || document.documentElement.classList.contains('is-audio-muted'))
+            return
+        const p = this.body.translation()
+        const player = this.game.player.position
+        const distance = Math.hypot(p.x - player.x, p.z - player.z)
+        const volume = Math.max(0, Math.min(1, (28 - distance) / 18))
+        if(volume <= 0)
+            return
+        const big = this.isBig
+        let t = ctx.currentTime + 0.02
+        for(let i = 0; i < times; i++)
+        {
+            const length = big ? 0.26 + Math.random() * 0.06 : 0.1 + Math.random() * 0.04
+            const pitch = big ? 175 + Math.random() * 30 : 820 + Math.random() * 160
+            // the voice: a buzzy tone that pops up then drops, through a mouth-like formant
+            const voice = ctx.createOscillator()
+            voice.type = 'sawtooth'
+            voice.frequency.setValueAtTime(pitch * 0.8, t)
+            voice.frequency.linearRampToValueAtTime(pitch * (big ? 1.15 : 1.3), t + length * 0.2)
+            voice.frequency.exponentialRampToValueAtTime(pitch * (big ? 0.62 : 0.7), t + length)
+            const formant = ctx.createBiquadFilter()
+            formant.type = 'bandpass'
+            formant.frequency.setValueAtTime(big ? 480 : 1900, t)
+            formant.frequency.linearRampToValueAtTime(big ? 330 : 1400, t + length)
+            formant.Q.value = big ? 2.2 : 3
+            const body = ctx.createBiquadFilter()
+            body.type = 'lowpass'
+            body.frequency.value = big ? 1300 : 5200
+            // breath: a puff of filtered noise at the start
+            const noise = ctx.createBufferSource()
+            const buffer = ctx.createBuffer(1, Math.floor(ctx.sampleRate * length), ctx.sampleRate)
+            const data = buffer.getChannelData(0)
+            for(let k = 0; k < data.length; k++)
+                data[k] = (Math.random() * 2 - 1) * Math.pow(1 - k / data.length, 3)
+            noise.buffer = buffer
+            const breath = ctx.createBiquadFilter()
+            breath.type = 'bandpass'
+            breath.frequency.value = big ? 700 : 2600
+            breath.Q.value = 0.8
+            const gain = ctx.createGain()
+            const peak = (big ? 0.55 : 0.32) * volume
+            gain.gain.setValueAtTime(0.0001, t)
+            gain.gain.exponentialRampToValueAtTime(peak, t + 0.012)
+            gain.gain.exponentialRampToValueAtTime(peak * 0.5, t + length * 0.5)
+            gain.gain.exponentialRampToValueAtTime(0.0001, t + length)
+            const noiseGain = ctx.createGain()
+            noiseGain.gain.value = big ? 0.35 : 0.25
+            voice.connect(formant).connect(body).connect(gain)
+            noise.connect(breath).connect(noiseGain).connect(gain)
+            gain.connect(Howler.masterGain)
+            voice.start(t)
+            voice.stop(t + length + 0.02)
+            noise.start(t)
+            // open the mouth with each bark
+            setTimeout(() => { this.barkOpen = length }, Math.max(0, (t - ctx.currentTime) * 1000))
+            t += length + (big ? 0.18 + Math.random() * 0.1 : 0.07 + Math.random() * 0.05)
+        }
+    }
+
     say(key)
     {
+        if(key === 'chase' || key === 'bump')
+            this.bark()
         const line = this.data.lines[key]
         if(!line || this.lineCooldown > 0)
             return
@@ -295,11 +366,41 @@ class Dog
         this.chaseCooldown -= delta
         this.bumpCooldown -= delta
         this.lineCooldown -= delta
+        // now and then, a bark when the car is around (not while asleep)
+        this.barkCooldown = (this.barkCooldown ?? 4 + Math.random() * 6) - delta
+        if(this.barkCooldown < 0)
+        {
+            this.barkCooldown = 7 + Math.random() * 10
+            const q = this.body.translation(), c = this.game.player.position
+            if(this.state !== 'sleep' && Math.hypot(q.x - c.x, q.z - c.z) < 20)
+                this.bark()
+        }
+        if(this.barkOpen > 0)
+            this.barkOpen -= delta
+
+        // Riding on the car's roof: stay up there for a while, hop off when it's over (or the car crashes / flips)
+        if(this.state === 'ride')
+        {
+            this.ride.time += delta
+            const vehicle = this.game.physicalVehicle
+            const tooRough = vehicle.upsideDown?.active || vehicle.position.y < - 1
+            if(this.ride.time > this.ride.duration || tooRough || this.isSleepTime())
+                this.hopOff(tooRough)
+            return
+        }
 
         const p = this.body.translation()
         const player = this.game.player.position
         const playerDistance = Math.hypot(p.x - player.x, p.z - player.z)
         const playerSpeed = this.game.physicalVehicle.speed || 0
+
+        // Close to the car while chasing it and the car is slow: jump up on the roof (one dog at a time)
+        if(this.state === 'chase' && !riderDog && (this.rideCooldown || 0) <= 0 && playerDistance < (this.isBig ? 3.6 : 3) && Math.abs(playerSpeed) < 6 && !this.game.physicalVehicle.upsideDown?.active)
+        {
+            this.jumpOn()
+            return
+        }
+        this.rideCooldown = (this.rideCooldown || 0) - delta
 
         // Fell in the water or off the map: go home
         if(this.state !== 'sleep' && (p.y < - 3 || Math.abs(p.x) > this.game.terrain.size / 2 || Math.abs(p.z) > this.game.terrain.size / 2))
@@ -359,7 +460,7 @@ class Dog
         }
 
         // Chase the car when it comes close
-        if(this.state !== 'sleep' && this.state !== 'goHome' && this.state !== 'chase' && this.chaseCooldown <= 0 && playerDistance < (this.isBig ? 13 : 15))
+        if(this.state !== 'sleep' && this.state !== 'goHome' && this.state !== 'chase' && this.chaseCooldown <= 0 && playerDistance < (this.isBig ? 20 : 23))
         {
             this.setState('chase')
             this.say('chase')
@@ -368,9 +469,9 @@ class Dog
         if(this.state === 'chase')
         {
             this.target.set(player.x, 0, player.z)
-            if(this.stateTime > 14 || playerDistance > 26)
+            if(this.stateTime > 28 || playerDistance > 38)
             {
-                this.chaseCooldown = 12
+                this.chaseCooldown = 6
                 Math.random() < 0.5 ? this.pickErrand() : this.pickWander()
             }
         }
@@ -493,6 +594,41 @@ class Dog
         this.speed = Math.hypot(v.x, v.z)
     }
 
+    jumpOn()
+    {
+        riderDog = this
+        const p = this.body.translation()
+        this.ride = { time: 0, duration: 20 + Math.random() * 25, from: new THREE.Vector3(p.x, p.y, p.z), jump: 0.55 }
+        this.currentSpeed = 0
+        this.pause = null
+        this.body.setLinvel({ x: 0, y: 0, z: 0 }, true)
+        this.body.setEnabled(false)
+        this.setState('ride')
+        this.bark(this.isBig ? 1 : 2)
+        this.lineCooldown = 0
+        this.game.notifications.show(`<span>${this.data.name} 跳上車頂了！</span>`, '', 3, null, `dog-${this.data.id}-ride`)
+    }
+
+    hopOff(thrown = false)
+    {
+        if(riderDog === this)
+            riderDog = null
+        const vehicle = this.game.physicalVehicle
+        // land beside the car (to its right), on the ground
+        const side = new THREE.Vector3(0, 0, 1).applyQuaternion(vehicle.quaternion)
+        side.y = 0
+        side.normalize().multiplyScalar(this.isBig ? 3 : 2.4)
+        const x = vehicle.position.x + side.x, z = vehicle.position.z + side.z
+        this.body.setEnabled(true)
+        this.body.setTranslation({ x, y: Math.max(vehicle.position.y, this.game.terrain.getGroundElevation(x, z)) + 0.6, z }, true)
+        this.body.setLinvel({ x: side.x * (thrown ? 3 : 1), y: 2, z: side.z * (thrown ? 3 : 1) }, true)
+        this.standUp()
+        this.rideCooldown = 25
+        this.chaseCooldown = 8
+        this.ride = null
+        this.pickWander()
+    }
+
     goToBed()
     {
         // curl up inside the dog house, nose peeking out of the door
@@ -567,8 +703,26 @@ class Dog
 
     animate(delta, time)
     {
+        if(this.state === 'ride' && this.ride)
+        {
+            // on the roof, facing forward with the car; the first moment is a leap up in an arc
+            const vehicle = this.game.physicalVehicle
+            const roof = ROOF.clone().applyQuaternion(vehicle.quaternion).add(vehicle.position)
+            const k = Math.min(1, this.ride.time / this.ride.jump)
+            const e = k * k * (3 - 2 * k)
+            this.visual.position.lerpVectors(this.ride.from, roof, e)
+            this.visual.position.y += Math.sin(k * Math.PI) * 1.6 + Math.abs(Math.sin(time * 7)) * 0.03 * k     // the leap, then a happy bob
+            const facing = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.PI / 2, 0))
+            this.visual.quaternion.copy(vehicle.quaternion).multiply(facing)
+            this.speed = 0
+            this.wag = 1
+            this.ridePose = true
+        }
+        else
+            this.ridePose = false
         const p = this.body.translation()
-        if(this.sleepPosition)
+        if(this.ridePose) { /* placed above */ }
+        else if(this.sleepPosition)
             this.visual.position.copy(this.sleepPosition)
         else
             this.visual.position.set(p.x, p.y, p.z)
@@ -579,7 +733,8 @@ class Dog
         this.gallop += (Math.min(1, Math.max(0, (speed - walk * 1.4) / (run - walk * 1.4))) - this.gallop) * Math.min(1, delta * 4)
         const g = this.gallop
 
-        if(this.upright)
+        if(this.ridePose) {}
+        else if(this.upright)
         {
             // lean into turns, pitch with the gallop
             const lean = Math.max(- 0.25, Math.min(0.25, - this.turnRate * speed * 0.025))
@@ -640,7 +795,7 @@ class Dog
         {
             const lookAtCar = this.state === 'wander' && !this.pause && Math.hypot(this.game.player.position.x - this.visual.position.x, this.game.player.position.z - this.visual.position.z) < 12
             legs.head.object.position.y = legs.head.base.y + bob * 0.6 - s * legDrop * 1.15 - sniff * legDrop * 0.35 + sit * legDrop * 0.1
-            legs.head.object.rotation.x = - s * 0.35 + sniff * (0.55 + Math.sin(time * 9) * 0.12) + (this.state === 'chase' ? - 0.15 : 0) - g * 0.1
+            legs.head.object.rotation.x = - s * 0.35 + sniff * (0.55 + Math.sin(time * 9) * 0.12) + (this.state === 'chase' ? - 0.15 : 0) - g * 0.1 - (this.barkOpen > 0 ? Math.max(0, Math.sin(this.barkOpen * 30)) * 0.22 : 0)   // head jerks up with each bark
             const lookAround = this.pause?.type === 'look' ? Math.sin(time * 1.2 + this.seed) * 0.6 : 0
             const curious = lookAtCar ? Math.max(- 0.8, Math.min(0.8, Math.atan2(this.game.player.position.x - this.visual.position.x, this.game.player.position.z - this.visual.position.z) - this.facing)) : 0
             legs.head.object.rotation.y = (lookAround + Math.atan2(Math.sin(curious), Math.cos(curious)) * 0.7 + Math.sin(time * 0.4 + this.seed) * 0.1) * (1 - s)

@@ -10,3 +10,8 @@ dist
 # Firebase
 .firebase/
 firebase-debug.log
+
+# raw announcer recordings (processed clips live in static/sounds/announcer)
+recordings/announcer/*
+!recordings/announcer/SCRIPT.md
+!recordings/announcer/.gitkeep

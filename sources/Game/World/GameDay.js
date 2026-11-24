@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu'
-import { Howler } from 'howler'
+import { Howl, Howler } from 'howler'
 import { color, instanceColor } from 'three/tsl'
 import { Game } from '../Game.js'
 import { MeshDefaultMaterial } from '../Materials/MeshDefaultMaterial.js'
@@ -23,6 +23,7 @@ export class GameDay
         this.active = false
 
         this.setPlayers()
+        this.setAnnouncerClips()
         this.setFireworks()
         this.setSound()
 
@@ -145,7 +146,7 @@ export class GameDay
         this.ball = new THREE.Mesh(new THREE.SphereGeometry(0.12, 12, 8).scale(1, 1, 1.6), this.material('#6b3a1e'))
         this.game.scene.add(this.ball)
         this.dummy = new THREE.Object3D()
-        this.play = { t: 0, duration: 6, line: 0, dir: 1 }
+        this.play = { t: 0, duration: 6, line: 0, dir: 1, down: 1, toGo: 2, kind: 'run', gain: 1 }
     }
 
     // field coordinates: x along the field (-12..12), z across (-5..5), in design units around the stadium center
@@ -160,33 +161,17 @@ export class GameDay
         p.t += delta
         if(p.t > p.duration)
         {
-            // next play: the line moves; touchdown => big cheer + fireworks + the call
             p.t = 0
-            const before = p.line
-            p.line += p.dir * (3 + Math.random() * 6)
-            this.hit()
-            if(Math.abs(p.line) > 10)
-            {
-                this.cheer(1.2)
-                this.launchVolley(6)
-                if(p.dir > 0)
-                    this.touchdownCall(Math.abs(before))
-                else
-                    this.announce([ { text: 'Seahawks score.', pitch: 0.8, rate: 0.95 } ])
-                p.line = 0
-                p.dir *= - 1
-            }
-            else if(Math.random() < 0.45)
-            {
-                this.cheer(0.5)
-                if(Math.random() < 0.4 && p.dir > 0)
-                    this.announce([ [ { text: 'FIRST DOWN, Forty Niners!' } ], [ { text: 'OH what a CATCH!' } ], [ { text: 'He breaks a tackle!', rate: 1.2 }, { text: 'Still going!' } ], [ { text: 'Big hit!', rate: 1.2 } ], [ { text: 'Third and long, the crowd is on its feet!' } ] ][Math.floor(Math.random() * 5)])
-            }
+            this.resolvePlay()
+            this.nextPlay()
             setTimeout(() => this.active && this.whistle(), 900)
         }
         const snap = 1.2
         const run = Math.max(0, p.t - snap) / (p.duration - snap)
-        const carry = p.line + p.dir * run * 5
+        const eased = run * run * (3 - 2 * run)
+        // the ball carrier's path this play (the QB drops back on a sack; nobody runs on a kick)
+        const kick = p.kind === 'fieldgoal' || p.kind === 'punt'
+        const carry = kick ? p.line - p.dir * 1.2 : p.line + p.dir * p.gain * eased
         for(let team = 0; team < 2; team++)
         {
             const offense = team === (p.dir > 0 ? 0 : 1)
@@ -232,14 +217,197 @@ export class GameDay
                 pl.root.position.set(wx, wy + Math.abs(Math.sin(pl.stride)) * 0.05 * moving, wz)
             })
         }
-        const [ bx, by, bz ] = this.toWorld(carry + p.dir * 0.2, Math.sin(run * 4) * 1.2, p.t > snap ? 0.85 : 0.12)
-        this.ball.position.set(bx, by, bz)
+        if(kick && p.t > snap + 0.3)
+        {
+            // the kick: the ball sails toward (or through) the uprights
+            const k = Math.min(1, (p.t - snap - 0.3) / 2.2)
+            const target = p.kind === 'fieldgoal' ? p.dir * 12.6 : p.line + p.dir * 8
+            const [ bx, by, bz ] = this.toWorld(p.line + (target - p.line) * k, p.kind === 'fieldgoal' && !p.good ? k * 1.8 : 0, 0.3 + Math.sin(k * Math.PI) * (p.kind === 'punt' ? 7 : 4.5) + (p.kind === 'fieldgoal' ? k * 1.2 : 0))
+            this.ball.position.set(bx, by, bz)
+        }
+        else
+        {
+            const [ bx, by, bz ] = this.toWorld(carry + p.dir * 0.2, Math.sin(run * 4) * 1.2, p.t > snap ? 0.85 : 0.12)
+            this.ball.position.set(bx, by, bz)
+        }
     }
 
     /** the big call: counting down the yard lines, then TOUCHDOWN! */
+    /**
+     * A real-ish drive: field x runs -12..12 (end zones beyond ±10), 1 unit = 5 yards, 10 yards to make a first down.
+     * The 49ers (team 0) attack +x (dir 1), the Seahawks attack -x.
+     */
+    nextPlay()
+    {
+        const p = this.play
+        const yardsToGoal = (10 - p.dir * p.line) * 5
+        const r = Math.random()
+        let yards
+        if(p.down === 4 && p.toGo > 0.3)
+            p.kind = yardsToGoal <= 37 ? 'fieldgoal' : 'punt'
+        else if(r < 0.04) p.kind = 'interception'
+        else if(r < 0.07) p.kind = 'fumble'
+        else if(r < 0.13) p.kind = 'sack'
+        else if(r < 0.27) p.kind = 'bigplay'
+        else p.kind = Math.random() < 0.5 ? 'run' : 'pass'
+        if(p.kind === 'sack') yards = - (4 + Math.random() * 6)
+        else if(p.kind === 'bigplay') yards = 16 + Math.random() * 30
+        else if(p.kind === 'interception' || p.kind === 'fumble') yards = 2 + Math.random() * 6
+        else if(p.kind === 'run' || p.kind === 'pass') yards = - 2 + Math.random() * 14
+        else yards = 0
+        p.gain = Math.min(yards / 5, 10 - p.dir * p.line + 1.2)          // never run past the back of the end zone
+        p.good = Math.random() < 0.85
+        p.duration = p.kind === 'fieldgoal' || p.kind === 'punt' ? 4.5 : 6
+        // the call before the snap: third down for the Seahawks, the crowd gets loud
+        if(p.down === 3 && p.dir < 0 && Math.random() < 0.6)
+        {
+            this.cheer(0.6)
+            this.call('thirddown', [ { text: 'Third down! Listen to this crowd!' } ])
+        }
+    }
+
+    resolvePlay()
+    {
+        const p = this.play
+        const niners = p.dir > 0
+        const turnover = () => { p.dir *= - 1; p.down = 1; p.toGo = 2 }
+        this.hit()
+        if(p.kind === 'fieldgoal')
+        {
+            if(p.good)
+            {
+                this.cheer(niners ? 1 : 0.1)
+                if(niners) { this.launchVolley(3); this.call('fieldgoal', [ { text: 'The kick is up...', rate: 1 }, { text: 'and it is GOOD!', pitch: 1.35 } ]) }
+            }
+            else if(!niners)
+            {
+                this.cheer(1)
+                this.call('missed', [ { text: 'NO GOOD! Wide right!', pitch: 1.3 } ])
+            }
+            p.line = 0
+            turnover()
+            return
+        }
+        if(p.kind === 'punt')
+        {
+            p.line = Math.max(- 9, Math.min(9, p.line + p.dir * 8))
+            turnover()
+            return
+        }
+        const newLine = p.line + p.dir * p.gain
+        if(p.kind === 'interception' || p.kind === 'fumble')
+        {
+            p.line = Math.max(- 9.5, Math.min(9.5, newLine))
+            if(!niners)
+            {
+                this.cheer(1.1)
+                this.call(p.kind, p.kind === 'interception'
+                    ? [ { text: 'PICKED OFF!', pitch: 1.4, rate: 1.1 }, { text: 'Interception, San Francisco!' } ]
+                    : [ { text: 'FUMBLE!', pitch: 1.4 }, { text: 'And the Niners recover!' } ])
+            }
+            turnover()
+            return
+        }
+        if(p.dir * newLine > 10)
+        {
+            // touchdown: 49ers -> the big call, fireworks, the whole stadium jumps; Seahawks -> quiet
+            if(niners)
+            {
+                this.cheer(1.3)
+                this.launchVolley(6)
+                this.touchdownCall(p.kind === 'bigplay' ? 3 : 9)
+            }
+            else
+                this.announce([ { text: 'Seahawks score.', pitch: 0.85, rate: 0.95 } ])
+            p.line = 0
+            turnover()
+            return
+        }
+        p.line = newLine
+        if(p.kind === 'sack' && !niners)
+        {
+            this.cheer(0.9)
+            this.call('sack', [ { text: 'SACKED! Bosa gets there!', pitch: 1.3 } ])
+        }
+        const gainedYards = p.gain
+        if(gainedYards >= p.toGo)
+        {
+            p.down = 1
+            p.toGo = 2
+            if(niners)
+            {
+                this.cheer(p.kind === 'bigplay' ? 0.9 : 0.5)
+                if(p.kind === 'bigplay')
+                    this.call(Math.random() < 0.5 ? 'catch' : 'tackle', [ { text: 'OH what a CATCH!' }, { text: 'Look at him go!' } ])
+                else if(Math.random() < 0.6)
+                    this.call('firstdown', [ { text: 'FIRST DOWN, Forty Niners!' } ])
+            }
+        }
+        else
+        {
+            p.toGo -= Math.max(gainedYards, - 1)
+            p.down++
+            if(p.down > 4)
+            {
+                if(niners === false) { this.cheer(1); this.call('stop', [ { text: 'STOPPED! Turnover on downs!', pitch: 1.3 } ]) }
+                turnover()
+            }
+            else if(Math.random() < 0.25 && !niners)
+                this.call('bighit', [ { text: 'BIG hit!', rate: 1.2 } ])
+        }
+    }
+
+    /** recorded announcer clips (static/sounds/announcer, made by `npm run sf:announcer` from Jay's recordings) */
+    setAnnouncerClips()
+    {
+        this.clips = {}
+        fetch('sounds/announcer/manifest.json', { cache: 'no-cache' })
+            .then(r => r.ok ? r.json() : {})
+            .then(manifest =>
+            {
+                for(const [ name, files ] of Object.entries(manifest || {}))
+                    this.clips[name] = files.map(file => ({ file, howl: null }))
+            })
+            .catch(() => {})
+    }
+
+    /** play a random take of a recorded clip; returns its Howl (or null when there's no recording) */
+    playClip(name, force = false, onEnd = null)
+    {
+        const takes = this.clips?.[name]
+        if(!takes?.length || document.documentElement.classList.contains('is-audio-muted'))
+            return null
+        if(!force && (this.volume < 0.5 || performance.now() - this.lastCall < 6000))
+            return null
+        this.lastCall = performance.now()
+        const take = takes[Math.floor(Math.random() * takes.length)]
+        take.howl = take.howl || new Howl({ src: [ `sounds/announcer/${take.file}` ], volume: 1 })
+        take.howl.volume(Math.min(1, Math.max(this.volume, force ? 0.85 : 0)))
+        if(onEnd)
+            take.howl.once('end', onEnd)
+        take.howl.play()
+        return take.howl
+    }
+
+    /** a call: the recording if there is one, otherwise the browser voice */
+    call(name, lines, force = false)
+    {
+        if(this.playClip(name, force))
+            return
+        this.announce(lines, force)
+    }
+
     touchdownCall(from = 6)
     {
         this.crowdJumpTimer = 7          // the whole stadium jumps for a few seconds
+        if(this.clips?.touchdown?.length)
+        {
+            // recorded: the yard-line countdown (if any) straight into TOUCHDOWN 49ERS!!!
+            if(from < 8 && this.clips.countdown?.length && this.playClip('countdown', true, () => this.playClip('touchdown', true)))
+                return
+            if(this.playClip('touchdown', true))
+                return
+        }
         const lines = []
         if(from < 8)
             lines.push({ text: 'He\'s at the thirty!', rate: 1.25, pitch: 1.15 }, { text: 'the twenty!', rate: 1.3, pitch: 1.2 }, { text: 'the ten!', rate: 1.35, pitch: 1.3 })
