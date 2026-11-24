@@ -40,7 +40,6 @@ export const boardwalk = { points: [[7, -51.6], [7.4, -56.5], [9, -61.5], [8.8, 
 /** Ponds and lagoons (water inside land, always at sea level) */
 export const ponds = [
     { ellipse: [-40, -19, 14, 6], depth: 0.32 }, // Palace of Fine Arts lagoon: big, in front of the rotunda (shallow, easy to drive out)
-    { ellipse: [-68, 47, 4, 2.2], depth: 0.32 },  // Stow Lake
 ]
 
 /**
