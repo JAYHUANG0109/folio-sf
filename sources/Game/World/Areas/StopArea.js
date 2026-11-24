@@ -26,6 +26,9 @@ export class StopArea extends Area
         if(stop.id === 'levis')
             this.setFootball()
 
+        if(stop.id === 'sfo')
+            this.setPlane()
+
         this.task = new StopTask(this)
     }
 
@@ -167,6 +170,51 @@ export class StopArea extends Area
 
         car.body.setNextKinematicTranslation(car.position)
         car.body.setNextKinematicRotation(car.quaternion)
+    }
+
+    /**
+     * The EVA plane dressed as a reindeer floats slowly up and down above the apron like Santa's sleigh
+     * (a kinematic body, so its collider follows). Santa.js reads world.evaPlane to ride on it.
+     */
+    setPlane()
+    {
+        let reference = null
+        this.references.items.forEach((value, name) => { if(!reference && name.startsWith('evaPlane')) reference = value[0] })
+        const body = reference?.userData.object?.physical?.body
+        if(!body)
+            return
+        const t = body.translation(), r = body.rotation()
+        const plane = {
+            body,
+            base: new THREE.Vector3(t.x, t.y, t.z),
+            quaternion: new THREE.Quaternion(r.x, r.y, r.z, r.w),
+            position: new THREE.Vector3(),
+            sway: new THREE.Quaternion(),
+            euler: new THREE.Euler(0, 0, 0, 'YXZ'),
+            time: 0,
+        }
+        this.game.world.evaPlane = plane
+        this.game.ticker.events.on('tick', () =>
+        {
+            const delta = this.game.ticker.deltaScaled
+            plane.time += delta
+            const k = plane.time
+            // winter only: it lifts off and floats like Santa's sleigh; the rest of the year it rests still at the gate
+            const winter = this.game.environment?.seasonId() === 'winter' ? 1 : 0
+            if(plane.lift === undefined)
+                plane.lift = winter
+            plane.lift += (winter - plane.lift) * Math.min(1, delta * 0.5)
+            const f = plane.lift
+            // lifted ~1.4 off the apron, bobbing 0.6 up and down over ~7 s, with a gentle roll and pitch
+            plane.position.copy(plane.base)
+            plane.position.y += (1.4 + Math.sin(k * 0.9) * 0.6) * f
+            plane.euler.set(Math.sin(k * 0.9 + 1.2) * 0.025 * f, 0, Math.sin(k * 0.6) * 0.03 * f)
+            plane.sway.setFromEuler(plane.euler)
+            const q = plane.quaternion.clone().multiply(plane.sway)
+            body.setNextKinematicTranslation(plane.position)
+            body.setNextKinematicRotation(q)
+            plane.current = q
+        }, 10)
     }
 
     /**

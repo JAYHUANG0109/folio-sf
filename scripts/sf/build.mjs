@@ -170,7 +170,7 @@ const frustumOverrides = {
     levis: { x: 12, z: 79, radius: 24 },
 }
 const areaNodes = []
-const SITE_LIGHTS_SKIP = new Set([ 'goldenGate' ]) // the bridge has its own look (and Santa)
+const SITE_LIGHTS_SKIP = new Set([])
 const siteFootprints = [] // [cx, cz, halfX, halfZ, angle] in design units, from the fixed colliders of every site
 
 /** Scale a landmark node around its own position (the position itself was already moved by ctx.at) */
@@ -220,14 +220,19 @@ for(const stop of [ ...Layout.stops, ...secrets ])
     {
         const deco = new Model()
         let bulbs = 0
-        const boxes = []
+        const boxes = [], tubes = []
         for(const node of children)
         {
-            if(!/PhysicalFixed$/.test(node.name || '') || !node.children || !node.mesh)
+            if(!/PhysicalFixed$/.test(node.name || '') || !node.children || !node.mesh || /^evaPlane/.test(node.name))
                 continue
             const angle = node.rotation ? node.rotation[1] : 0
             for(const c of node.children)
             {
+                if(/^tube/.test(c.name) && c.scale && c.scale[1] >= 1.6 * k && c.scale[0] >= 0.5 && c.scale[0] < 30)
+                {
+                    tubes.push({ node, angle, c })
+                    continue
+                }
                 if(!/^cuboid/.test(c.name) || !c.scale || (c.rotation && (Math.abs(c.rotation[0] || 0) > 0.05 || Math.abs(c.rotation[2] || 0) > 0.05)))
                     continue
                 const [ w, h, d ] = c.scale
@@ -270,9 +275,30 @@ for(const stop of [ ...Layout.stops, ...secrets ])
             if(bulbs > 1400)
                 break
         }
+        // round parts (columns, towers): a ring of lights round the top and a spiral down
+        for(const { node, angle, c } of tubes.slice(0, 24))
+        {
+            const [ px, py, pz ] = c.position, [ d, h ] = c.scale
+            const rr = d / 2 + 0.08, top = py + h / 2
+            const cxw = px * Math.cos(angle) + pz * Math.sin(angle), czw = - px * Math.sin(angle) + pz * Math.cos(angle)
+            const at = (lx, ly, lz) => [ node.position[0] + cxw + lx, node.position[1] + ly, node.position[2] + czw + lz ]
+            const ring = Math.max(8, Math.round(rr * Math.PI * 2 / 0.45))
+            for(let i = 0; i < ring; i++)
+            {
+                const a = i / ring * Math.PI * 2
+                bulb(deco, at(Math.cos(a) * rr, top - 0.1, Math.sin(a) * rr), 0.11)
+            }
+            const turns = Math.max(1.5, h / 3), n = Math.round(turns * ring * 0.6)
+            for(let i = 0; i < n; i++)
+            {
+                const t = i / n, a = t * turns * Math.PI * 2
+                bulb(deco, at(Math.cos(a) * rr, py - h / 2 + 0.4 + t * (h - 0.6), Math.sin(a) * rr), 0.1)
+            }
+            bulbs += ring + n
+        }
         if(!deco.empty)
             children.push(meshNode('siteLights', deco, [ 0, 0, 0 ]))
-        console.log('site lights', stop.id, boxes.length, 'blocks,', bulbs, 'bulbs')
+        console.log('site lights', stop.id, boxes.length, 'blocks,', tubes.length, 'round,', bulbs, 'bulbs')
     }
     const frustum = frustumOverrides[stop.id] || { x: cx, z: cz, radius: stop.radius + 14 }
     const radius = stop.radius * k
@@ -804,6 +830,17 @@ const footprints = [] // [x, z, w, d, isDowntown] for the map
             }
         }
         pyramid.add(new THREE.BoxGeometry(R0 * 1.4, 1.4, R0 * 1.4).translate(0, 0.7, 0), C.dark, [ 0, 0, 0 ])   // glass lobby
+        // Christmas: its four edges strung with lights to the tip of the spire, like a giant tree, a gold star on top
+        for(let k = 0; k < 4; k++)
+        {
+            const a = Math.PI / 4 + k * Math.PI / 2 + Math.PI / 4
+            for(let y = 1.6; y < H + 1.4 + 6.3; y += 0.4)
+            {
+                const r = (y < H + 1.4 ? radius(y - 1.4) : R1 + (0.02 - R1) * ((y - H - 1.4) / 6.5)) + 0.08
+                bulb(pyramid, [ Math.cos(a) * r, y, Math.sin(a) * r ], 0.13)
+            }
+        }
+        pyramid.add(new THREE.OctahedronGeometry(0.6, 0), C.gold, [ 0, H + 1.4 + 7.0, 0 ], [ 0, 0, Math.PI / 4 ])
     }
     sceneryNodes.push(fixedNode('transamerica', pyramid, [ 46, ground(46, - 24), - 24 ], [ { position: [ 0, 5, 0 ], size: [ 4.6, 10, 4.6 ] } ]))
 
@@ -813,6 +850,19 @@ const footprints = [] // [x, z, w, d, isDowntown] for the map
     sf.dome(1.6, C.stone, [ 0, 26, 0 ], 10)
     for(let i = 0; i < 12; i++)
         sf.cylinder(2.42 - i * 0.065, 2.42 - i * 0.065, 0.08, C.sky, [ 0, 1 + i * 2, 0 ], 10)
+    for(let y = 2; y < 26; y += 3)                                     // rings of lights up the tower
+    {
+        const r = 2.4 - (y / 26) * 0.8 + 0.1
+        for(let k = 0; k < 24; k++)
+            bulb(sf, [ Math.cos(k / 24 * Math.PI * 2) * r, y, Math.sin(k / 24 * Math.PI * 2) * r ], 0.13)
+    }
+    for(let k = 0; k < 30; k++)                                        // the crown: lights over the dome and a star
+    {
+        const a = k / 30 * Math.PI * 2
+        bulb(sf, [ Math.cos(a) * 1.62, 26.2, Math.sin(a) * 1.62 ], 0.14)
+        bulb(sf, [ Math.cos(a) * 1.2, 27.0, Math.sin(a) * 1.2 ], 0.12)
+    }
+    sf.add(new THREE.OctahedronGeometry(0.55, 0), C.gold, [ 0, 28.3, 0 ], [ 0, 0, Math.PI / 4 ])
     sceneryNodes.push(fixedNode('salesforce', sf, [ 41, ground(41, - 15), - 15 ], [ { shape: 'tube', position: [ 0, 8, 0 ], radius: 2.3, height: 16 } ]))
 
     // Coit Tower on Telegraph Hill
@@ -825,6 +875,14 @@ const footprints = [] // [x, z, w, d, isDowntown] for the map
     }
     coit.cylinder(1.5, 1.5, 0.4, C.cream, [ 0, 7, 0 ], 10)
     coit.box([ 4, 1, 4 ], C.cream)
+    for(let k = 0; k < 70; k++)                                        // a spiral garland of lights up the column
+    {
+        const t = k / 70, a = t * Math.PI * 8
+        bulb(coit, [ Math.cos(a) * 1.38, 1.1 + t * 5.6, Math.sin(a) * 1.38 ], 0.11)
+    }
+    for(let k = 0; k < 24; k++)
+        bulb(coit, [ Math.cos(k / 24 * Math.PI * 2) * 1.58, 7.45, Math.sin(k / 24 * Math.PI * 2) * 1.58 ], 0.11)
+    wreath(coit, [ 0, 5.0, 1.42 ], 0, 1.6)
     sceneryNodes.push(fixedNode('coit', coit, [ 46, ground(46, - 35), - 35 ], [ { shape: 'tube', position: [ 0, 3.5, 0 ], radius: 1.4, height: 7 } ]))
 
     // Sutro Tower
@@ -839,6 +897,9 @@ const footprints = [] // [x, z, w, d, isDowntown] for the map
         sutro.box([ 0.3, 3, 0.3 ], C.snow, [ x * 0.6, 14, z * 0.6 ])
         sutro.box([ 0.2, 1.2, 0.2 ], C.red, [ x * 0.6, 17, z * 0.6 ])
     }
+    for(const [ x, z ] of legs)                                         // lights strung up each leg
+        for(let t = 0.04; t < 1; t += 0.05)
+            bulb(sutro, [ x * 1.6 + (x * 0.6 - x * 1.6) * t, 14 * t, z * 1.6 + (z * 0.6 - z * 1.6) * t ], 0.14)
     sceneryNodes.push(fixedNode('sutro', sutro, [ - 34, ground(- 34, 50), 50 ], [ { position: [ 0, 4, 0 ], size: [ 3, 8, 3 ] } ]))
 }
 
@@ -1104,7 +1165,7 @@ const footprints = [] // [x, z, w, d, isDowntown] for the map
         { position: [ 0, 2.4, 0 ], size: [ 7.6, 3.6, 4.8 ] },
     ]), S))
     sceneryNodes.push(scaleNode(fixedNode('gravy', sides, [ x - 7.2 * S, ground(x - 7.2 * S, z - 1), z - 1 ], [ { shape: 'tube', position: [ 0, 0.35, 1.1 ], radius: 0.9, height: 0.7 } ]), S))
-    sceneryNodes.push(scaleNode(fixedNode('pumpkinPie', pie, [ x + 6.5 * S, ground(x + 6.5 * S, z + 2), z + 2 ], [ { shape: 'tube', position: [ 0, 0.3, 0 ], radius: 2.2, height: 0.7 } ]), S))
+    sceneryNodes.push(scaleNode(fixedNode('pumpkinPie', pie, [ x + 9.3 * S, ground(x + 9.3 * S, z + 2), z + 2 ], [ { shape: 'tube', position: [ 0, 0.3, 0 ], radius: 2.2, height: 0.7 } ]), S))
     // sign
     const sign = new Model()
     sign.cylinder(0.12, 0.12, 2.4, C.wood, [ - 1.6, 0, 0 ], 6)

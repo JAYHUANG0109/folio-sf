@@ -6,6 +6,7 @@
 import * as THREE from 'three'
 import { Model, C, meshNode, fixedNode, dynamicNode, kinematicNode, refNode, rng } from './kit.mjs'
 import * as Layout from './layout.mjs'
+import { bulb, lightString, litPine, wreath } from './holiday.mjs'
 
 /* ---------- shared pieces ---------- */
 
@@ -354,14 +355,94 @@ export function evaPlane()
         for(const r of [ 0, Math.PI / 2, Math.PI / 4, - Math.PI / 4 ])
             m.cbox([ 0.03, 0.9 * (r % (Math.PI / 2) ? 0.6 : 1), 0.14 ], green, [ lx * 1.3, ly, lz ], [ r, 0, 0 ])
     }
-    // landing gear
-    m.cylinder(0.07, 0.07, y0 - R, C.stone, [ 0, 0.3, - L / 2 + 1.2 ], 6)
-    m.cylinder(0.28, 0.28, 0.3, dark, [ 0, 0.28, - L / 2 + 1.2 ], 10, [ 0, 0, Math.PI / 2 ])
+    // Christmas livery: dressed as a reindeer (like the Emirates A380): a big glossy red nose, huge antlers rising
+    // from a wreath of holly on the crown, a leather harness with gold bells behind the cockpit;
+    // candy cane engines, MERRY XMAS along the rear and a Santa hat on the tail
+    m.sphere(0.46, C.red, [ 0, y0 - 0.08, - L / 2 - R * 1.38 ], 2)
+    {
+        const hz = - L / 2 + 1.55
+        m.add(along(new THREE.CylinderGeometry(R + 0.035, R + 0.035, 0.22, 24)), C.wood, [ 0, y0, hz ])      // harness strap
+        for(let i = 0; i < 14; i++)                                                                          // gold bells around it
+        {
+            const a = i / 14 * Math.PI * 2
+            m.sphere(0.09, C.gold, [ Math.cos(a) * (R + 0.1), y0 + Math.sin(a) * (R + 0.1), hz ], 1)
+        }
+        m.cbox([ 0.12, 0.08, 2.0 ], C.wood, [ 0, y0 - R * 0.72, hz - 1.0 ], [ 0, 0, 0 ])                  // chin strap
+        const az = - L / 2 + 0.6
+        for(let i = 0; i < 18; i++)                                                                          // holly wreath at the antler base
+        {
+            const a = i / 18 * Math.PI * 2
+            m.sphere(0.13, i % 2 ? C.leaf : C.moss, [ Math.cos(a) * 0.55, y0 + R - 0.02, az + Math.sin(a) * 0.35 ], 0, [ 1, 0.6, 1 ])
+            if(i % 3 === 0) m.sphere(0.06, C.red, [ Math.cos(a) * 0.6, y0 + R + 0.08, az + Math.sin(a) * 0.4 ], 0)
+        }
+        // antlers: a sweeping main beam with five tines each, tan
+        for(const side of [ - 1, 1 ])
+        {
+            const pts = [ [ side * 0.3, y0 + R, az ], [ side * 0.75, y0 + R + 1.3, az + 0.15 ], [ side * 1.5, y0 + R + 2.5, az + 0.05 ], [ side * 2.0, y0 + R + 3.5, az - 0.3 ] ]
+            const curve = new THREE.CatmullRomCurve3(pts.map(p => new THREE.Vector3(...p)))
+            m.add(new THREE.TubeGeometry(curve, 16, 0.12, 6), C.khaki)
+            m.sphere(0.12, C.khaki, pts[3], 0)
+            for(const [ t, len, lean ] of [ [ 0.22, 0.9, 0.6 ], [ 0.42, 1.1, 0.2 ], [ 0.6, 1.0, - 0.2 ], [ 0.76, 0.8, 0.5 ], [ 0.9, 0.6, - 0.4 ] ])
+            {
+                const p = curve.getPointAt(t)
+                const tip = new THREE.Vector3(p.x - side * len * 0.25, p.y + len, p.z + lean * len * 0.6)
+                const tine = new THREE.CatmullRomCurve3([ p, new THREE.Vector3((p.x + tip.x) / 2, (p.y + tip.y) / 2 - 0.05, (p.z + tip.z) / 2), tip ])
+                m.add(new THREE.TubeGeometry(tine, 6, 0.07, 5), C.khaki)
+            }
+        }
+    }
     for(const side of [ - 1, 1 ])
     {
-        m.cylinder(0.1, 0.1, 1.1, C.stone, [ side * 1.1, 0.5, 0.6 ], 6)
-        for(const dz of [ 0.1, 1.1 ])
-            m.cylinder(0.35, 0.35, 0.55, dark, [ side * 1.1, 0.35, dz ], 12, [ 0, 0, Math.PI / 2 ])
+        const ex = side * 2.7
+        for(let k = 0; k < 4; k++)                                                          // candy cane stripes on the nacelles
+            m.add(along(new THREE.CylinderGeometry(0.535, 0.53, 0.18, 18)), C.red, [ ex, y0 - 1.05, - 2.0 + k * 0.5 ])
+        for(let k = 0; k < 3; k++)                                                          // holly sprig behind the cockpit
+            m.cbox([ 0.03, 0.12, 0.34 ], C.leaf, [ side * (R + 0.02), y0 + 0.55, - L / 2 + 1.1 + k * 0.08 ], [ (k - 1) * 0.8, 0, 0 ])
+        for(let k = 0; k < 3; k++)
+            m.sphere(0.06, C.red, [ side * (R + 0.04), y0 + 0.5 + (k % 2) * 0.07, - L / 2 + 1.05 + k * 0.08 ], 0)
+        const t = new Model()
+        pixelText(t, 'MERRY XMAS', C.red, [ 0, 0, 0 ], 0.08, { depth: 0.03 })
+        m.merge(t, [ side * (R * 0.93 + 0.03), y0 + 0.1, L / 2 - 2.9 ], [ 0, side * Math.PI / 2, 0 ])
+        // red and white wingtips
+        m.cbox([ 0.5, 0.14, 0.62 ], C.red, [ side * 7.6, y0 - 0.45 + 7.2 * 0.07, - 1.6 + 3.2 ], [ 0, 0, side * 0.07 ])
+    }
+    // Santa hat on top of the fin (the fin top runs from z +1.0 to +2.2 behind its root, at y0 + 0.55 + 3.6)
+    {
+        const hy = y0 + 0.55 + 3.6, hz = L / 2 - 1.2 + 2.8
+        m.cylinder(0.42, 0.42, 0.22, C.snow, [ 0, hy - 0.08, hz ], 14)
+        m.cone(0.38, 1.25, C.red, [ 0, hy + 0.12, hz ], 12, [ 0.45, 0, 0 ])
+        m.sphere(0.17, C.snow, [ 0, hy + 1.2, hz + 0.55 ], 1)
+    }
+    // it flies like a sleigh now (it floats, see StopArea.setPlane): gold sleigh runners curling up at the front
+    // instead of landing gear, a sack of presents behind Santa's seat, fairy lights along the spine and the wings
+    for(const side of [ - 1, 1 ])
+    {
+        const rx = side * 0.95, ry = y0 - R - 0.55
+        const curve = new THREE.CatmullRomCurve3([ [ rx, ry + 0.1, L / 2 - 0.5 ], [ rx, ry, L / 2 - 2 ], [ rx, ry, - L / 2 + 2 ], [ rx, ry + 0.25, - L / 2 ], [ rx, ry + 0.9, - L / 2 - 0.8 ], [ rx, ry + 1.25, - L / 2 - 0.2 ], [ rx, ry + 0.95, - L / 2 + 0.1 ] ].map(p => new THREE.Vector3(...p)))
+        m.add(new THREE.TubeGeometry(curve, 60, 0.1, 8), C.gold)
+        for(const z of [ - L / 2 + 2.2, - 1.5, 1.8, L / 2 - 2 ])
+            m.beam([ rx, ry, z ], [ side * R * 0.55, y0 - R * 0.75, z ], 0.08, C.gold)
+        // lights along the top of the fuselage (both sides of the spine) and the wing's leading edge
+        for(let z = - L / 2 + 1.0; z < L / 2 - 0.2; z += 0.36)
+            m.add(new THREE.OctahedronGeometry(0.07, 0), C.fairy, [ side * R * 0.68, y0 + R * 0.74, z ])
+        for(let x = 0.9; x <= 7.2; x += 0.36)
+            m.add(new THREE.OctahedronGeometry(0.07, 0), C.fairy, [ side * (0.4 + x), y0 - 0.45 + x * 0.07 + 0.06, - 1.6 + x * 2.9 / 7.2 - 0.04 ])
+        for(let a = 0; a < Math.PI * 2; a += Math.PI / 7)                 // a ring of lights round each engine intake
+            m.add(new THREE.OctahedronGeometry(0.06, 0), C.fairy, [ side * 2.7 + Math.cos(a) * 0.55, y0 - 1.05 + Math.sin(a) * 0.55, - 2.3 ])
+    }
+    {
+        const sz = - L / 2 + 4.6, top = y0 + R
+        m.sphere(0.55, C.wood, [ 0, top + 0.35, sz ], 1, [ 1, 0.9, 1.1 ])                          // the sack
+        m.cylinder(0.12, 0.18, 0.25, C.wood, [ 0, top + 0.82, sz ], 8)
+        m.add(new THREE.TorusGeometry(0.14, 0.04, 5, 10), C.gold, [ 0, top + 0.9, sz ], [ Math.PI / 2, 0, 0 ])
+        for(const [ dx, dy, dz, size, col, rib ] of [ [ - 0.45, 0.85, 0.3, 0.38, C.red, C.gold ], [ 0.45, 0.8, 0.25, 0.34, C.leaf, C.red ], [ 0.05, 1.15, 0.55, 0.3, C.sky, C.snow ], [ - 0.2, 1.05, - 0.35, 0.32, C.gold, C.red ] ])
+        {
+            m.cbox([ size, size, size ], col, [ dx, top + dy - 0.2, sz + dz ], [ 0.2, dx, 0.15 ])
+            m.cbox([ size + 0.02, size + 0.02, size * 0.22 ], rib, [ dx, top + dy - 0.2, sz + dz ], [ 0.2, dx, 0.15 ])
+            m.cbox([ size * 0.22, size + 0.02, size + 0.02 ], rib, [ dx, top + dy - 0.2, sz + dz ], [ 0.2, dx, 0.15 ])
+        }
+        m.cbox([ 1.0, 0.12, 0.9 ], C.red, [ 0, top + 0.02, - L / 2 + 2.6 ])                       // Santa's red saddle blanket
+        m.cbox([ 1.04, 0.06, 0.94 ], C.gold, [ 0, top - 0.02, - L / 2 + 2.6 ])
     }
     return m
 }
@@ -415,7 +496,37 @@ builders.sfo = (ctx) =>
     t.box([ 2.4, 0.15, length ], C.snow, [ F - 1.5, 2.4, 0 ])
     for(let z = - length / 2 + 1; z < length / 2; z += 3)
         t.cylinder(0.07, 0.07, 2.4, C.stone, [ F - 2.5, 0, z ], 6)
+    // Christmas at the terminal: lights along every wave roof's front and back edge and the curbside canopy,
+    // wreaths with red bows on the glass facade between the mullions, garland swags under the canopy
+    for(let k = 0; k < spans; k++)
+    {
+        const zc = - length / 2 + spanL * (k + 0.5), r = spanL * 0.85
+        for(let a = - 0.65; a <= 0.65; a += 0.06)
+            for(const ex of [ - 1, 1 ])
+                bulb(t, [ ex * ((depth + 2.4) / 2 + 0.05), 4.2 + Math.cos(a) * 1.4 - 0.4 + 0.08, zc + Math.sin(a) * r ], 0.11)
+    }
+    for(let z = - length / 2 + 1; z < length / 2 - 1; z += 3)
+    {
+        lightString(t, [ F - 2.75, 2.5, z ], [ F - 2.75, 2.5, z + 3 ], 0.3, 0.3, 0.1)
+        for(let i = 0; i <= 8; i++)
+            t.sphere(0.09, i % 2 ? C.moss : C.leaf, [ F - 2.7, 2.3 - Math.sin(i / 8 * Math.PI) * 0.35, z + i * 3 / 8 ], 0)
+        t.cbox([ 0.12, 0.14, 0.22 ], C.red, [ F - 2.72, 2.32, z ])
+    }
+    for(let z = - length / 2 + 2.6; z < length / 2 - 1; z += 3.6)
+        wreath(t, [ F - 0.14, 2.2, z ], - Math.PI / 2, 1.5)
     nodes.push(fixedNode('terminal', t, ctx.at(tx, tz), [ { position: [ 0, 2.1, 0 ], size: [ depth, 4.2, length ] } ]))
+    // a big lit Christmas tree with presents at the north end of the terminal
+    {
+        const tree = new Model()
+        litPine(tree, [ 0, 0, 0 ], 2.6)
+        for(let i = 0; i < 6; i++)
+        {
+            const a = i / 6 * Math.PI * 2
+            tree.box([ 0.6, 0.6, 0.6 ], [ C.red, C.gold, C.sky, C.leaf, C.pink, C.snow ][i], [ Math.cos(a) * 2.2, 0, Math.sin(a) * 2.2 ], [ 0, a, 0 ])
+            tree.box([ 0.64, 0.62, 0.12 ], C.gold, [ Math.cos(a) * 2.2, 0, Math.sin(a) * 2.2 ], [ 0, a, 0 ])
+        }
+        nodes.push(fixedNode('sfoTree', tree, ctx.at(tx - 2.5, tz - length / 2 - 2.5), [ { shape: 'tube', position: [ 0, 2.6, 0 ], radius: 1.2, height: 5.2 } ]))
+    }
 
     // the sculpture out front: tall orange and blue blades on a round plinth
     {
@@ -439,6 +550,9 @@ builders.sfo = (ctx) =>
             g.box([ 0.97, 0.35, 2.5 ], C.sky, [ 0, 5.2, z ])
             g.box([ 0.96, 0.18, 2.5 ], C.sky, [ 0, 4.95, z ])
         }
+        for(const ex of [ - 0.6, 0.6 ])                             // lights along both edges of the guideway
+            for(let z = - length / 2 - 3; z <= length / 2 + 3; z += 0.5)
+                bulb(g, [ ex, 4.98, z ], 0.09)
         nodes.push(fixedNode('airTrain', g, ctx.at(tx - 7.2, tz), [ ...[ - 12, - 7.5, - 3, 1.5, 6, 10.5 ].map(z => ({ shape: 'tube', position: [ 0, 2.3, z ], radius: 0.28, height: 4.6 })) ]))
     }
 
@@ -450,16 +564,32 @@ builders.sfo = (ctx) =>
         c.cylinder(1.5, 0.8, 1, C.snow, [ 0, 12, 0 ], 12)
         c.cylinder(1.5, 1.5, 1.4, C.slate, [ 0, 13, 0 ], 12)
         c.cylinder(1.6, 1.5, 0.5, C.snow, [ 0, 14.4, 0 ], 12)
-        c.cylinder(0.08, 0.08, 1.5, C.dark, [ 0, 14.9, 0 ], 4)
-        c.sphere(0.2, C.red, [ 0, 16.5, 0 ], 0)
-        nodes.push(fixedNode('tower', c, ctx.at(tx + 2, tz + 13), [ { shape: 'tube', position: [ 0, 6, 0 ], radius: 1.2, height: 12 } ]))
+        // a round holiday deck on the crown (Santa's sleigh and reindeer land here in winter, see Santa.js):
+        // gold rail, a garland with red bows, the antenna moved to the rim
+        c.cylinder(3.4, 1.6, 0.6, C.snow, [ 0, 14.3, 0 ], 24)
+        c.cylinder(3.45, 3.45, 0.08, C.gold, [ 0, 14.86, 0 ], 24)
+        for(let i = 0; i < 24; i++)
+        {
+            const a = i / 24 * Math.PI * 2
+            c.cylinder(0.035, 0.035, 0.45, C.gold, [ Math.cos(a) * 3.3, 14.9, Math.sin(a) * 3.3 ], 4)
+            if(i % 3 === 0)
+                c.cbox([ 0.22, 0.16, 0.08 ], C.red, [ Math.cos(a) * 3.38, 15.25, Math.sin(a) * 3.38 ], [ 0, - a + Math.PI / 2, 0 ])
+        }
+        c.add(new THREE.TorusGeometry(3.3, 0.04, 4, 48), C.gold, [ 0, 15.35, 0 ], [ Math.PI / 2, 0, 0 ])
+        c.add(new THREE.TorusGeometry(3.32, 0.09, 5, 48), C.moss, [ 0, 15.15, 0 ], [ Math.PI / 2, 0, 0 ])
+        c.cylinder(0.08, 0.08, 1.5, C.dark, [ 2.9, 14.9, 0 ], 4)
+        c.sphere(0.2, C.red, [ 2.9, 16.5, 0 ], 0)
+        const towerAt = ctx.at(tx + 2, tz + 13)
+        console.log('SFO tower deck (world):', (ctx.cx + towerAt[0]).toFixed(2), (ctx.y + towerAt[1] + 14.9 * ctx.S).toFixed(2), (ctx.cz + towerAt[2]).toFixed(2), 'radius', (3.3 * ctx.S).toFixed(2))
+        nodes.push(fixedNode('tower', c, towerAt, [ { shape: 'tube', position: [ 0, 6, 0 ], radius: 1.2, height: 12 } ]))
     }
 
     // the EVA Air 787-10 at the gate, nose to the terminal, with its jet bridge
     {
         const px = 57.5, pz = 79
+        // kinematic: it floats up and down like Santa's sleigh (StopArea.setPlane), Santa rides it (Santa.js)
         nodes.push({
-            ...fixedNode('evaPlane', evaPlane(), ctx.at(px, pz), [
+            ...kinematicNode('refEvaPlane', evaPlane(), ctx.at(px, pz), [
                 { position: [ 0, 1.75, 0.5 ], size: [ 1.7, 1.7, 15 ] },
                 { shape: 'tube', position: [ 2.7, 0.7, - 1.2 ], radius: 0.5, height: 1.4 },
                 { shape: 'tube', position: [ - 2.7, 0.7, - 1.2 ], radius: 0.5, height: 1.4 },
@@ -471,6 +601,8 @@ builders.sfo = (ctx) =>
         b.box([ 4.4, 0.08, 0.95 ], C.snow, [ 0, 2.4, 0 ])
         b.cylinder(0.12, 0.12, 1.3, C.dark, [ - 0.8, 0, 0 ], 6)
         b.box([ 0.6, 0.35, 0.6 ], C.dark, [ - 0.8, 0, 0 ])
+        for(const ez of [ - 0.5, 0.5 ])
+            lightString(b, [ - 2.2, 2.45, ez ], [ 2.2, 2.45, ez ], 0.3, 0.12, 0.09)
         nodes.push(fixedNode('jetBridge', b, ctx.at(px + 6.3 + 2.2, pz - 1.3), [ { position: [ 0, 1.8, 0 ], size: [ 4.4, 1.2, 0.9 ] } ]))
         // ground stripes on the apron: the lead-in line
         const lines = new Model()
@@ -2387,10 +2519,39 @@ builders.tennis = (ctx) =>
                 d.cylinder(0.05, 0.05, 3.3, C.snow, [ x, 0, z - cz ], 5)
         }
         // scoreboard
-        d.box([ 2.4, 1.2, 0.15 ], C.dark, [ - 9.2, 1.4, 0 ])
-        d.cylinder(0.06, 0.06, 1.4, C.dark, [ - 9.9, 0, 0 ], 4)
-        d.cylinder(0.06, 0.06, 1.4, C.dark, [ - 8.5, 0, 0 ], 4)
-        pixelText(d, 'JAY 6  DJ 6', C.gold, [ - 9.2, 1.75, 0.09 ], 0.075, { depth: 0.03 })
+        // scoreboard: a real tennis board, J on top and DJ below, three sets and the game score:
+        // 6-4, 4-6, 5-5 in the decider and deuce (40-40), the serve with J. Readable from both sides.
+        {
+            const bx = - 9.2, by = 1.3, bw = 3.3, bh = 1.65
+            d.box([ bw, bh, 0.15 ], C.dark, [ bx, by, 0 ])
+            d.box([ bw + 0.1, 0.08, 0.19 ], C.gold, [ bx, by + bh, 0 ])
+            d.box([ bw + 0.1, 0.08, 0.19 ], C.gold, [ bx, by - 0.04, 0 ])
+            for(const ex of [ - 1, 1 ])
+            {
+                d.cylinder(0.06, 0.06, by, C.dark, [ bx + ex * (bw / 2 - 0.25), 0, 0 ], 4)
+                d.box([ 0.08, bh + 0.12, 0.19 ], C.gold, [ bx + ex * (bw / 2 + 0.01), by - 0.04, 0 ])
+            }
+            const cell = 0.07, small = 0.045
+            const nameLeft = - 1.5, sets = [ - 0.3, 0.15, 0.6 ], point = 1.2
+            const rowJ = by + 0.92, rowDJ = by + 0.32, header = by + 1.37
+            for(const side of [ 1, - 1 ])
+            {
+                const z = side * 0.09, back = side < 0
+                const X = (x) => bx + (back ? - x : x)
+                const left = (text, c, x, y, sz) => pixelText(d, text, c, [ X(x + ([ ...text ].length * sz * 4 - sz) / 2), y, z ], sz, { depth: 0.03, back })
+                const center = (text, c, x, y, sz) => pixelText(d, text, c, [ X(x), y, z ], sz, { depth: 0.03, back })
+                sets.forEach((x, i) => center(String(i + 1), C.stone, x, header, small))
+                d.cbox([ 0.62, 1.16, 0.02 ], C.slate, [ X(point), by + 0.78, z * 0.95 ])                  // the game score panel
+                left('J', C.snow, nameLeft, rowJ, cell)
+                left('DJ', C.snow, nameLeft, rowDJ, cell)
+                d.sphere(0.06, C.gold, [ X(nameLeft + 0.62), rowJ + 0.17, z ], 0)                           // serving
+                d.cbox([ 2.95, 0.03, 0.02 ], C.stone, [ bx, by + 0.79, z ])                                 // divider
+                ;[ '6', '4', '5' ].forEach((v, i) => center(v, i === 0 ? C.gold : C.snow, sets[i], rowJ, cell))
+                ;[ '4', '6', '5' ].forEach((v, i) => center(v, i === 1 ? C.gold : C.snow, sets[i], rowDJ, cell))
+                center('40', C.red, point, rowJ, cell)
+                center('40', C.red, point, rowDJ, cell)
+            }
+        }
         // umbrellas and planters along the middle walkway
         for(const x of [ - 4, 4 ])
         {
