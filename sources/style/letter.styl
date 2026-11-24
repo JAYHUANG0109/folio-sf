@@ -1,5 +1,9 @@
-// A Christmas letter: a crimson envelope sealed in gold wax opens into a cream card with a lit pine garland
-// (see sources/Game/Letter.js)
+// A Christmas letter in the style of an old acceptance letter: an aged parchment envelope addressed in green ink,
+// sealed with red wax, opening into a parchment letter with an ink crest and letterhead (sources/Game/Letter.js).
+// Everything sits on a 3D stage that tilts with the pointer and lifts toward you on hover.
+ink = #3a2412
+wine = #7d1420
+
 .love-letter
     position fixed
     inset 0
@@ -10,9 +14,10 @@
     opacity 0
     pointer-events none
     transition opacity 0.8s ease
-    font-family "Noto Serif TC", "Cormorant Garamond", "LXGW WenKai TC", serif
+    font-family "IM Fell English", "Noto Serif TC", serif
+    color ink
     overflow hidden
-    perspective 1000px
+    perspective 1100px
     perspective-origin 50% 45%
 
     &.is-visible
@@ -22,10 +27,9 @@
     .ll-backdrop
         position absolute
         inset 0
-        background radial-gradient(ellipse 80% 70% at 50% 45%, rgba(48, 18, 22, 0.78), rgba(10, 12, 14, 0.94))
-        backdrop-filter blur(6px) saturate(0.8)
+        background radial-gradient(ellipse 80% 70% at 50% 45%, rgba(40, 22, 14, 0.78), rgba(8, 8, 10, 0.95))
+        backdrop-filter blur(6px) saturate(0.7)
 
-    // warm out-of-focus lights
     .ll-bokeh
         position absolute
         inset 0
@@ -37,11 +41,10 @@
             margin calc(var(--s) * -0.5)
             border-radius 50%
             background radial-gradient(circle, var(--c) 0%, transparent 68%)
-            opacity 0.16
+            opacity 0.15
             filter blur(6px)
             animation ll-glow 8s ease-in-out infinite alternate
 
-    // drifting snow
     .ll-snow
         position absolute
         inset 0
@@ -58,8 +61,20 @@
             animation-timing-function linear
             animation-iteration-count infinite
 
-    /* ---------- the envelope ---------- */
-    // the 3D stage: tilts with the pointer; envelope and card live inside it
+    // gold dust trailing the pointer over the letter
+    .ll-dust
+        position fixed
+        z-index 70
+        width 5px
+        height 5px
+        margin -2.5px
+        border-radius 50%
+        pointer-events none
+        background #ffe9a8
+        box-shadow 0 0 8px 3px rgba(255, 210, 120, 0.8)
+        animation ll-dust 1.2s ease-out forwards
+
+    /* ---------- 3D stage ---------- */
     .ll-stage
         grid-area 1 / 1
         position relative
@@ -67,266 +82,342 @@
         display grid
         place-items center
         transform-style preserve-3d
-        transform rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg))
-        will-change transform
+        transform translateY(var(--float, 0px)) scale(var(--fit, 1)) translateZ(var(--lift, 0px)) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg))
+        transition --fit 0.3s
 
+    .ll-glare
+        position absolute
+        inset 0
+        border-radius inherit
+        pointer-events none
+        z-index 8
+        background radial-gradient(circle at var(--gx, 50%) var(--gy, 30%), rgba(255, 250, 230, 0.45), rgba(255, 240, 200, 0.08) 30%, transparent 58%)
+        mix-blend-mode soft-light
+        transform translateZ(30px)
+
+    /* ---------- the envelope: parchment, green ink address, red wax ---------- */
     .ll-envelope
         grid-area 1 / 1
         position relative
         z-index 2
         transform-style preserve-3d
-        width 86vw
-        max-width 380px
-        aspect-ratio 1.5
+        width 88vw
+        max-width 440px
+        aspect-ratio 1.55
         border none
         padding 0
         cursor pointer
-        border-radius 6px
-        background linear-gradient(155deg, #8c1426, #5c0a17 70%, #4a0812)
-        box-shadow 0 30px 70px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(214, 178, 90, 0.55), inset 0 0 0 7px #5c0a17, inset 0 0 0 8px rgba(214, 178, 90, 0.75)
+        border-radius 3px
+        background radial-gradient(ellipse at 20% 15%, rgba(255, 250, 230, 0.7), transparent 45%), radial-gradient(ellipse at 85% 90%, rgba(120, 80, 30, 0.35), transparent 50%), linear-gradient(160deg, #efe0bf, #d9c294 60%, #c7ab78)
+        box-shadow 0 30px 70px rgba(0, 0, 0, 0.6), inset 0 0 40px rgba(110, 70, 25, 0.45), inset 0 0 0 1px rgba(110, 70, 25, 0.3)
         transform translateY(24px) scale(0.94)
         transition transform 0.9s cubic-bezier(0.2, 0.8, 0.2, 1.1), opacity 0.6s ease 0.55s
-        animation ll-float 4s ease-in-out infinite
         outline none
-
         &:focus-visible
-            box-shadow 0 30px 70px rgba(0, 0, 0, 0.55), 0 0 0 3px #e7c873
+            box-shadow 0 30px 70px rgba(0, 0, 0, 0.6), 0 0 0 3px #e7c873
 
-        // velvet sheen
-        &::after
-            content ''
-            position absolute
-            inset 0
-            border-radius 6px
-            background linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.07) 45%, transparent 60%)
-            pointer-events none
+    .ll-back
+        position absolute
+        inset 0
+        border-radius 3px
+        background linear-gradient(160deg, #cdb382, #a98a55)
+        transform translateZ(-6px)
 
     .ll-pocket
         position absolute
         inset 0
-        border-radius 6px
-        background linear-gradient(to top right, #6e0d1c 50%, transparent 50.3%) left / 50.2% 100% no-repeat, linear-gradient(to top left, #640b19 50%, transparent 50.3%) right / 50.2% 100% no-repeat
+        border-radius 3px
+        background linear-gradient(to top right, rgba(140, 100, 50, 0.16) 50%, transparent 50.3%) left / 50.2% 100% no-repeat, linear-gradient(to top left, rgba(140, 100, 50, 0.12) 50%, transparent 50.3%) right / 50.2% 100% no-repeat
 
     .ll-flap
         position absolute
         left 0
         right 0
         top 0
-        height 56%
-        background linear-gradient(180deg, #9a1a2d, #74101f)
+        height 54%
+        background linear-gradient(180deg, #ead9b3, #d6bd8c)
         clip-path polygon(0 0, 100% 0, 50% 100%)
         transform-origin top center
         transition transform 0.8s ease
-        filter drop-shadow(0 4px 4px rgba(0, 0, 0, 0.35))
+        filter drop-shadow(0 4px 4px rgba(60, 35, 10, 0.35))
         z-index 2
-        // a fine gold line along the flap edge
-        &::after
-            content ''
-            position absolute
-            inset 0
-            clip-path polygon(0 0, 100% 0, 50% 100%, 50% 97%, 97.5% 1.5%, 2.5% 1.5%, 50% 97%, 50% 100%)
-            background #d6b25a
-            opacity 0.7
+        backface-visibility hidden
 
-    // the wax seal: gold, embossed J, a rim of drips
+    .ll-address
+        position absolute
+        left 9%
+        bottom 12%
+        z-index 1
+        display flex
+        flex-direction column
+        align-items flex-start
+        text-align left
+        font-family "Pinyon Script", "IM Fell English", "Noto Serif TC", serif
+        font-size 17px
+        line-height 1.35
+        color #1f4a33
+        transform translateZ(8px) rotate(-2deg)
+        em
+            font-style normal
+            font-family "Pinyon Script", "Noto Serif TC", serif
+            font-size 26px
+            margin-bottom 2px
+
+    // red sealing wax, irregular, with an embossed J
     .ll-seal
         position absolute
         left 50%
-        top 56%
-        width 66px
-        height 66px
-        margin -33px 0 0 -33px
-        border-radius 46% 54% 50% 50% / 52% 48% 52% 48%
+        top 54%
+        width 74px
+        height 70px
+        margin -35px 0 0 -37px
+        border-radius 52% 48% 55% 45% / 47% 55% 45% 53%
         display grid
         place-items center
-        background radial-gradient(circle at 34% 30%, #f9e7a8, #d3a948 38%, #9a7224 75%, #7d5a19)
-        box-shadow 0 5px 12px rgba(0, 0, 0, 0.45), inset 0 -3px 6px rgba(90, 60, 10, 0.6), inset 0 3px 5px rgba(255, 245, 210, 0.5)
+        background radial-gradient(circle at 36% 30%, #d8434c, #9b1b24 45%, #6a0c14 85%)
+        box-shadow 0 5px 12px rgba(0, 0, 0, 0.5), inset 0 -4px 6px rgba(40, 0, 5, 0.6), inset 0 3px 5px rgba(255, 160, 160, 0.35)
         z-index 3
-        transition transform 0.5s ease, opacity 0.4s ease
+        transform translateZ(26px)
+        transition transform 0.6s ease, opacity 0.45s ease
         span
-            width 46px
-            height 46px
+            width 48px
+            height 48px
             border-radius 50%
             display grid
             place-items center
-            font-family "Great Vibes", "Cormorant Garamond", serif
-            font-size 34px
-            color #7a5617
-            text-shadow 0 1px 0 rgba(255, 240, 200, 0.6), 0 -1px 0 rgba(80, 50, 5, 0.5)
-            box-shadow inset 0 0 0 2px rgba(122, 86, 23, 0.35)
+            font-family "Great Vibes", serif
+            font-size 36px
+            color #6a0c14
+            text-shadow 0 1px 0 rgba(255, 170, 170, 0.45), 0 -1px 0 rgba(30, 0, 0, 0.6)
+            box-shadow inset 0 0 0 2px rgba(80, 5, 12, 0.5), inset 0 0 0 5px rgba(255, 120, 120, 0.12)
 
     .ll-holly-seal
         position absolute
-        left calc(50% - 6px)
-        top calc(56% + 8px)
-        width 64px
+        left calc(50% - 4px)
+        top calc(54% + 10px)
+        width 60px
         z-index 4
-        transform rotate(-18deg)
+        transform translateZ(40px) rotate(-18deg)
         filter drop-shadow(0 2px 3px rgba(0, 0, 0, 0.4))
         transition opacity 0.4s ease
-
-    .ll-to
-        position absolute
-        left 0
-        right 0
-        bottom 11%
-        text-align center
-        font-size 21px
-        letter-spacing 0.08em
-        color #f1dc9c
-        z-index 1
-        em
-            font-family "Great Vibes", "Cormorant Garamond", serif
-            font-style normal
-            font-size 28px
-            margin-right 4px
 
     .ll-hint
         position absolute
         left 0
         right 0
-        bottom 18%
+        bottom 16%
         z-index 3
-        transition opacity 0.4s ease
         text-align center
         font-size 14px
         color rgba(241, 220, 156, 0.8)
         letter-spacing 0.3em
+        transition opacity 0.4s ease
 
     &.is-visible .ll-envelope
         transform translateY(0) scale(1)
 
-    /* ---------- the card ---------- */
+    /* ---------- the letter: aged parchment ---------- */
     .ll-paper
         grid-area 1 / 1
         position relative
         z-index 3
         transform-style preserve-3d
         width 92vw
-        max-width 520px
-        max-height 94vh
-        padding 96px 46px 26px
-        border-radius 4px
-        color #3b2418
-        background radial-gradient(ellipse at 30% 0%, rgba(255, 255, 255, 0.9), transparent 60%), radial-gradient(ellipse at 100% 100%, rgba(214, 178, 90, 0.12), transparent 55%), linear-gradient(175deg, #fffaf0, #f6ecd8)
-        // a thick card stock edge (stacked shadows) and a deep, soft drop shadow
-        box-shadow 0 1px 0 #efe3c8, 0 2px 0 #e6d7b6, 0 3px 0 #ddcca6, 0 4px 0 #d3c096, 0 5px 0 #cbb68a, 0 40px 80px rgba(0, 0, 0, 0.55), 0 12px 24px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(160, 120, 60, 0.25)
-        transform translateY(140px) translateZ(-120px) rotateX(-58deg) scale(0.8)
+        max-width 540px
+        padding 30px 48px 24px
+        border-radius 2px
+        text-align left
+        background radial-gradient(ellipse 70% 55% at 50% 45%, rgba(255, 248, 225, 0.85), transparent 70%), radial-gradient(circle at 12% 88%, rgba(150, 100, 40, 0.22), transparent 22%), radial-gradient(circle at 88% 14%, rgba(150, 100, 40, 0.18), transparent 20%), radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(120, 75, 25, 0.45) 100%), linear-gradient(175deg, #efdfba, #e2cb9c 55%, #d6bb87)
+        box-shadow 0 1px 0 #d4bb88, 0 2px 0 #cbb07c, 0 3px 0 #c1a46f, 0 40px 80px rgba(0, 0, 0, 0.6), 0 12px 24px rgba(0, 0, 0, 0.3)
+        transform translateY(150px) translateZ(-130px) rotateX(-60deg) scale(0.8)
         opacity 0
         pointer-events none
         transition transform 1.35s cubic-bezier(0.16, 0.9, 0.25, 1.05) 0.55s, opacity 0.5s ease 0.55s
 
-        // an inset double gold border, like a foil-stamped card
+        // a soft horizontal fold across the middle
         &::before
             content ''
             position absolute
-            inset 12px
-            border 1px solid rgba(184, 140, 52, 0.75)
-            box-shadow inset 0 0 0 4px #fbf3e2, inset 0 0 0 5px rgba(184, 140, 52, 0.45)
+            left 0
+            right 0
+            top 50%
+            height 2px
+            background linear-gradient(90deg, transparent, rgba(110, 70, 25, 0.18) 20%, rgba(255, 250, 235, 0.4) 50%, rgba(110, 70, 25, 0.18) 80%, transparent)
             pointer-events none
-        // subtle paper grain
+        // paper grain
         &::after
             content ''
             position absolute
             inset 0
             pointer-events none
-            opacity 0.35
-            background-image radial-gradient(rgba(120, 90, 50, 0.08) 1px, transparent 1px)
-            background-size 3px 3px
+            opacity 0.5
+            background-image radial-gradient(rgba(90, 60, 20, 0.12) 0.8px, transparent 0.8px), radial-gradient(rgba(255, 255, 255, 0.25) 0.8px, transparent 0.8px)
+            background-size 4px 4px, 7px 7px
+            background-position 0 0, 2px 3px
 
-        p
+        p, h2
             margin 0
             position relative
             z-index 1
 
+    // a ring stain and blotches
+    .ll-stains
+        position absolute
+        inset 0
+        pointer-events none
+        background radial-gradient(ellipse at 25% 30%, rgba(160, 110, 50, 0.1), transparent 18%), radial-gradient(ellipse at 70% 55%, rgba(160, 110, 50, 0.08), transparent 15%)
+
     .ll-garland
         position absolute
         left 0
-        top 0
+        top -14px
         width 100%
-        height 90px
-        z-index 1
-        filter drop-shadow(0 3px 3px rgba(40, 30, 10, 0.25))
+        height 70px
+        z-index 2
+        filter drop-shadow(0 3px 3px rgba(40, 30, 10, 0.3))
+        transform translateZ(40px)
 
     .ll-bulb ellipse
         animation ll-twinkle 2.4s ease-in-out infinite
         animation-delay var(--d)
         filter drop-shadow(0 0 3px var(--c)) drop-shadow(0 0 6px var(--c))
 
-    .ll-holly-corner
-        position absolute
-        left 18px
-        bottom 16px
-        width 64px
-        opacity 0.95
-        transform rotate(-14deg) scaleX(-1)
-        z-index 1
+    .ll-crest
+        display block
+        width 128px
+        margin 22px auto 2px
+        transform translateZ(34px)
+        filter drop-shadow(0 1px 0 rgba(255, 250, 230, 0.5))
 
-    .ll-eyebrow
+    .ll-office
         text-align center
-        font-family "Cormorant Garamond", serif
-        font-style italic
-        font-weight 600
-        font-size 15px
-        letter-spacing 0.35em
-        text-transform uppercase
-        color #a8822f
-        margin-bottom 14px !important
-
-    .ll-greeting
-        font-family "Great Vibes", "Noto Serif TC", serif
-        font-size 40px
-        line-height 1.2
-        color #7d0f1e
-        text-align center
-        margin-bottom 14px !important
-
-    .ll-body
-        text-align center
-        p
-            margin 0 0 12px !important
-            font-size 17px
-            line-height 1.8
-            letter-spacing 0.06em
-            color #3b2418
-        p:last-child
-            margin-bottom 0 !important
+        font-family "Cinzel", serif
+        font-weight 500
+        font-size 21px
+        line-height 1.25
+        letter-spacing 0.06em
+        color ink
+        transform translateZ(24px)
         span
             display block
-            white-space nowrap          // each line stays whole: no stray characters wrapping
+        .ll-office-2
+            font-size 17px
+            margin-top 1px
+        small
+            font-family "Pinyon Script", serif
+            font-size 22px
+            letter-spacing 0
+            margin 0 4px
+
+    .ll-head
+        text-align center
+        font-family "Cinzel", serif
+        font-size 12px
+        letter-spacing 0.12em
+        margin-top 4px !important
+        transform translateZ(18px)
+
+    .ll-orders
+        text-align center
+        font-style italic
+        font-size 12px
+        line-height 1.4
+        color rgba(58, 36, 18, 0.8)
+        margin 3px auto 14px !important
+        max-width 360px
+        transform translateZ(14px)
+
+    .ll-greeting
+        font-family "Pinyon Script", "Noto Serif TC", serif
+        font-size 30px
+        line-height 1.1
+        color wine
+        margin-bottom 8px !important
+        transform translateZ(22px)
+
+    .ll-body
+        transform translateZ(14px)
+        p
+            margin 0 0 10px !important
+            font-family "Noto Serif TC", "IM Fell English", serif
+            font-size 16px
+            line-height 1.85
+            letter-spacing 0.05em
+            color #2f1d0f
+        span
+            display block
+            white-space nowrap
+
+    .ll-closing
+        font-style italic
+        font-size 16px
+        margin-top 6px !important
+        transform translateZ(16px)
 
     .ll-signature
-        margin-top 14px !important
-        text-align right
         font-family "Great Vibes", "Noto Serif TC", serif
         font-size 34px
-        color #7d0f1e
-        padding-right 54px
+        line-height 1.1
+        color wine
+        margin 2px 0 0 12px !important
+        transform translateZ(26px) rotate(-3deg)
+        transform-origin left center
+
+    .ll-sigline
+        font-family "IM Fell English", "Noto Serif TC", serif
+        font-size 13px
+        letter-spacing 0.04em
+        color rgba(58, 36, 18, 0.85)
+        transform translateZ(14px)
+
+    .ll-holly-corner
+        position absolute
+        right 18px
+        bottom 18px
+        width 62px
+        z-index 1
+        transform translateZ(36px) rotate(10deg)
 
     .ll-close
         position relative
         z-index 1
         display block
-        margin 16px auto 0
-        padding 10px 34px
-        border 1px solid #b88c34
+        margin 14px auto 0
+        padding 9px 30px
+        border 1px solid rgba(110, 70, 25, 0.6)
         border-radius 2px
         cursor pointer
-        font inherit
-        font-size 15px
+        font-family "Cinzel", "Noto Serif TC", serif
+        font-size 14px
         letter-spacing 0.3em
-        color #7d0f1e
-        background linear-gradient(180deg, #fffaf0, #f3e3c0)
-        box-shadow 0 2px 0 rgba(184, 140, 52, 0.35)
-        transition transform 0.2s ease, box-shadow 0.2s ease
-
+        color wine
+        background linear-gradient(180deg, rgba(255, 250, 235, 0.7), rgba(225, 205, 160, 0.7))
+        transform translateZ(22px)
+        transition box-shadow 0.2s ease
         &:hover
-            transform translateY(-1px)
-            box-shadow 0 4px 10px rgba(125, 15, 30, 0.2)
+            box-shadow 0 4px 12px rgba(125, 20, 32, 0.25)
 
+    .ll-sparkles
+        position absolute
+        left 50%
+        top 50%
+        width 0
+        height 0
+        z-index 6
+        transform-style preserve-3d
+        pointer-events none
+        span
+            position absolute
+            width var(--s)
+            height var(--s)
+            border-radius 50%
+            box-shadow 0 0 10px 3px rgba(255, 220, 140, 0.95), 0 0 22px 6px rgba(255, 190, 90, 0.5)
+            opacity 0
+            animation ll-burst 2.2s cubic-bezier(0.1, 0.7, 0.3, 1) forwards
+
+    /* ---------- opening ---------- */
     &.is-open
         .ll-envelope
-            animation none
             transform translateY(200px) translateZ(-260px) rotateX(25deg) scale(0.8)
             opacity 0
             pointer-events none
@@ -334,22 +425,16 @@
         .ll-flap
             transform rotateX(180deg)
         .ll-seal
-            transform scale(1.3) rotate(-20deg)
+            transform translateZ(60px) scale(1.4) rotate(-25deg)
             opacity 0
         .ll-holly-seal
+            opacity 0
+        .ll-hint
             opacity 0
         .ll-paper
             transform translateY(0) translateZ(0) rotateX(0) scale(1)
             opacity 1
             pointer-events auto
-        .ll-hint
-            opacity 0
-
-@keyframes ll-float
-    0%, 100%
-        translate 0 0
-    50%
-        translate 0 -7px
 
 @keyframes ll-snowfall
     0%
@@ -371,118 +456,6 @@
     50%
         opacity 0.45
 
-@media (max-width: 480px)
-    .love-letter
-        .ll-paper
-            padding 92px 18px 24px
-        .ll-garland
-            height 74px
-        .ll-body p
-            font-size min(15.5px, 4vw)
-            line-height 1.9
-            letter-spacing 0.03em
-        .ll-greeting
-            font-size 34px
-        .ll-signature
-            font-size 30px
-            padding-right 40px
-
-/* ---------- 3D layers & effects ---------- */
-.love-letter
-    // the layers of the card float at different depths (parallax as it tilts)
-    .ll-garland
-        transform translateZ(46px)
-    .ll-holly-corner
-        transform translateZ(38px) rotate(-14deg) scaleX(-1)
-    .ll-eyebrow
-        transform translateZ(26px)
-    .ll-greeting
-        transform translateZ(30px)
-    .ll-body
-        transform translateZ(16px)
-    .ll-signature
-        transform translateZ(28px)
-    .ll-close
-        transform translateZ(22px)
-    .ll-seal
-        transform translateZ(30px)
-    .ll-holly-seal
-        transform translateZ(42px) rotate(-18deg)
-    .ll-to
-        transform translateZ(14px)
-
-    // the envelope has a back face too
-    .ll-back
-        position absolute
-        inset 0
-        border-radius 6px
-        background linear-gradient(155deg, #6a0f1d, #3e0710)
-        transform translateZ(-6px)
-        box-shadow 0 0 0 1px rgba(214, 178, 90, 0.4)
-    .ll-flap
-        transform-style preserve-3d
-        backface-visibility hidden
-
-    // moving light: a soft specular glare that follows the tilt
-    .ll-glare
-        position absolute
-        inset 0
-        border-radius inherit
-        pointer-events none
-        z-index 5
-        background radial-gradient(circle at var(--gx, 50%) var(--gy, 30%), rgba(255, 255, 255, 0.38), rgba(255, 255, 255, 0.06) 32%, transparent 60%)
-        mix-blend-mode soft-light
-        transform translateZ(50px)
-
-    // gold foil shimmer on the eyebrow and the card's inner border
-    .ll-eyebrow
-        background linear-gradient(100deg, #9c7424 20%, #f6dc8a 38%, #fff4cf 45%, #c9a24a 55%, #9c7424 75%)
-        background-size 250% 100%
-        -webkit-background-clip text
-        background-clip text
-        color transparent
-        animation ll-foil 4.5s ease-in-out infinite
-    .ll-paper::before
-        border-image linear-gradient(100deg, #b88c34, #f6dc8a, #b88c34, #e8c773, #b88c34) 1
-        animation ll-foil-border 6s linear infinite
-
-    // the opening burst
-    .ll-sparkles
-        position absolute
-        left 50%
-        top 50%
-        width 0
-        height 0
-        z-index 6
-        transform-style preserve-3d
-        pointer-events none
-        span
-            position absolute
-            width var(--s)
-            height var(--s)
-            border-radius 50%
-            box-shadow 0 0 10px 3px rgba(255, 220, 140, 0.95), 0 0 22px 6px rgba(255, 190, 90, 0.5)
-            opacity 0
-            animation ll-burst 2.2s cubic-bezier(0.1, 0.7, 0.3, 1) forwards
-
-    // the seal breaks in two as it opens
-    &.is-open .ll-seal
-        transform translateZ(60px) scale(1.4) rotate(-25deg)
-
-@keyframes ll-foil
-    0%, 100%
-        background-position 100% 0
-    50%
-        background-position 0 0
-
-@keyframes ll-foil-border
-    0%
-        filter hue-rotate(0deg) brightness(1)
-    50%
-        filter hue-rotate(-8deg) brightness(1.25)
-    100%
-        filter hue-rotate(0deg) brightness(1)
-
 @keyframes ll-burst
     0%
         opacity 0
@@ -492,3 +465,52 @@
     100%
         opacity 0
         transform translate3d(var(--dx), var(--dy), var(--z)) scale(1)
+
+@keyframes ll-dust
+    0%
+        opacity 1
+        transform translate(0, 0) scale(1)
+    100%
+        opacity 0
+        transform translate(var(--dx), var(--dy)) scale(0.3)
+
+@media (max-height: 820px)
+    .love-letter
+        .ll-crest
+            width 104px
+            margin-top 14px
+        .ll-body p
+            line-height 1.7
+            margin-bottom 6px !important
+
+@media (max-width: 480px)
+    .love-letter
+        .ll-paper
+            padding 30px 22px 22px
+        .ll-crest
+            width 100px
+        .ll-office
+            font-size 17px
+        .ll-body p
+            font-size min(15px, 3.9vw)
+            line-height 1.75
+        .ll-envelope
+            aspect-ratio 1.45
+        .ll-address
+            font-size 14px
+            em
+                font-size 22px
+
+// touch screens: keep the tilt but render the card flat (no per-layer depth), so the text stays crisp
+@media (hover: none)
+    .love-letter
+        .ll-paper *, .ll-envelope *
+            transform none
+        .ll-signature
+            transform rotate(-3deg)
+        .ll-holly-seal
+            transform rotate(-18deg)
+        .ll-holly-corner
+            transform rotate(10deg)
+        .ll-address
+            transform rotate(-2deg)
