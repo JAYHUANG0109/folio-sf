@@ -42,13 +42,13 @@ export class Materials
         const pulse = time.mul(1.4).sin().mul(0.15).add(0.85)
 
         const halo = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide })
-        const haloStrength = float(1).sub(uv().sub(0.5).length().mul(2)).clamp(0, 1).pow(1.6)
+        const haloStrength = float(1).sub(uv().sub(0.5).length().mul(2)).clamp(0.0001, 1).pow(1.6)
         halo.outputNode = vec4(color('#ffd27a').mul(haloStrength.mul(pulse).mul(0.9)), 1)
         halo.fog = false
         this.save('auraHalo', halo)
 
         const beam = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide })
-        const beamStrength = float(1).sub(uv().y).clamp(0, 1).pow(1.5)
+        const beamStrength = float(1).sub(uv().y).clamp(0.0001, 1).pow(1.5)
         beam.outputNode = vec4(color('#ffe4a8').mul(beamStrength.mul(pulse).mul(0.55)), 1)
         beam.fog = false
         this.save('auraBeam', beam)
@@ -105,19 +105,20 @@ export class Materials
 
         // warm pools of light on the ground under the street lamps
         const pool = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })
-        const fall = float(1).sub(uv().sub(0.5).length().mul(2)).clamp(0, 1).pow(1.8)
+        const fall = float(1).sub(uv().sub(0.5).length().mul(2)).clamp(0.0001, 1).pow(1.8)
         pool.outputNode = vec4(color('#ffb85c').mul(fall.mul(0.75).mul(this.nightUniform)), 1)
         pool.fog = false
         this.save('lampPool', pool)
 
         // Levi's floodlights at night: soft light beams pouring from the towers, and a bright wash over the field
         const flood = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide })
-        flood.outputNode = vec4(color('#fff6dc').mul(uv().y.pow(1.8).mul(0.085).add(0.008).mul(this.nightUniform)), 1)
+        const beamY = uv().y.clamp(0, 1)                 // no pow(): pow(0, y) can be NaN on some GPUs (black bloom squares)
+        flood.outputNode = vec4(color('#fff6dc').mul(beamY.mul(beamY).mul(0.085).add(0.008).mul(this.nightUniform)), 1)
         flood.fog = false
         this.save('floodBeam', flood)
         const floodPool = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })
         const centered = uv().sub(0.5).mul(vec2(1, 1.6)).length().mul(2)
-        floodPool.outputNode = vec4(color('#f4fbff').mul(float(1).sub(centered.pow(3)).clamp(0, 1).mul(0.17).mul(this.nightUniform)), 1)
+        floodPool.outputNode = vec4(color('#f4fbff').mul(float(1).sub(centered.mul(centered).mul(centered)).clamp(0, 1).mul(0.17).mul(this.nightUniform)), 1)
         floodPool.fog = false
         this.save('floodPool', floodPool)
         

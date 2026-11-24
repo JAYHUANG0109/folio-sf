@@ -2425,7 +2425,7 @@ builders.levis = (ctx) =>
     // giant 49ERS letters outside
     // SF VS SEA in big knockable blocks by the stadium: 49ers red, gold VS, Seahawks green
     const matchup = 'SF VS SEA'
-    nodes.push(...letters(ctx, matchup, [ C.red, C.red, 0, C.gold, C.gold, 0, C.leaf, C.leaf, C.leaf ], cx + 12, cz - 12, 0, 0.42, 0.35))
+    nodes.push(...letters(ctx, matchup, [ C.red, C.red, 0, C.gold, C.gold, 0, C.leaf, C.leaf, C.leaf ], cx + 13.3, cz - 12, 0, 0.36, 0.3))
 
     // the football, push it into the end zone
     const ball = new Model()

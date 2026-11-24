@@ -627,24 +627,53 @@ export class GameDay
         const out = ctx.createGain()
         out.gain.value = 0
         out.connect(Howler.masterGain)
-        // crowd: many voices = several band passed noise layers, each swelling on its own (a living murmur)
+        // crowd: ~40 voices, each a buzzy tone (a person shouting) at its own pitch with its own wobble, shaped
+        // into "ahh / ohh" by two vowel formants; a little breath noise underneath. Silent until the crowd cheers.
+        const voicesBus = ctx.createGain()
+        voicesBus.gain.value = 0.9
+        const f1 = ctx.createBiquadFilter(); f1.type = 'bandpass'; f1.frequency.value = 720; f1.Q.value = 1.4
+        const f2 = ctx.createBiquadFilter(); f2.type = 'bandpass'; f2.frequency.value = 1150; f2.Q.value = 1.8
+        const f3 = ctx.createBiquadFilter(); f3.type = 'lowpass'; f3.frequency.value = 2400
+        const g1 = ctx.createGain(); g1.gain.value = 1.0
+        const g2 = ctx.createGain(); g2.gain.value = 0.55
+        voicesBus.connect(f1).connect(g1).connect(f3)
+        voicesBus.connect(f2).connect(g2).connect(f3)
+        f3.connect(out)
+        const voices = []
+        for(let i = 0; i < 40; i++)
+        {
+            const o = ctx.createOscillator()
+            o.type = 'sawtooth'
+            const base = i % 3 === 0 ? 210 + Math.random() * 90 : 105 + Math.random() * 70      // a mix of higher and lower voices
+            o.frequency.value = base
+            const wobble = ctx.createOscillator()
+            wobble.frequency.value = 3 + Math.random() * 3
+            const wobbleDepth = ctx.createGain()
+            wobbleDepth.gain.value = base * 0.025
+            wobble.connect(wobbleDepth).connect(o.frequency)
+            const g = ctx.createGain()
+            g.gain.value = 0
+            o.connect(g).connect(voicesBus)
+            o.start()
+            wobble.start()
+            voices.push({ o, g, base, phase: Math.random() * 10, rate: 0.3 + Math.random() * 0.8 })
+        }
         const layers = []
-        for(const [ f, q ] of [ [ 380, 0.8 ], [ 900, 1.1 ], [ 1700, 1.3 ], [ 2800, 1.6 ] ])
         {
             const src = ctx.createBufferSource()
             src.buffer = this.noiseBuffer(ctx, 5, () => 1)
             src.loop = true
-            src.playbackRate.value = 0.9 + Math.random() * 0.2
             const band = ctx.createBiquadFilter()
             band.type = 'bandpass'
-            band.frequency.value = f
-            band.Q.value = q
+            band.frequency.value = 1000
+            band.Q.value = 0.7
             const g = ctx.createGain()
-            g.gain.value = 0.25
+            g.gain.value = 0.05
             src.connect(band).connect(g).connect(out)
             src.start(0, Math.random() * 4)
-            layers.push({ g, band, f, phase: Math.random() * 6 })
+            layers.push({ g, band, f: 1000, phase: 0 })
         }
+        this.crowdVoices = voices
         this.sound = { ctx, out, layers, cheer: 0 }
         return this.sound
     }
@@ -793,12 +822,17 @@ export class GameDay
             sound.cheer = Math.max(0, sound.cheer - delta * 0.3)
             // no constant murmur: the crowd is only heard when it cheers (big plays, scores)
             sound.out.gain.value = this.volume * Math.min(1, sound.cheer) * 0.75
-            for(const l of sound.layers)
+            // each voice swells on its own; the bigger the cheer, the louder and higher they all shout
+            const c = Math.min(1, sound.cheer)
+            for(const v of this.crowdVoices || [])
             {
-                l.phase += delta * (0.4 + Math.random() * 0.3)
-                l.g.gain.value = 0.18 + Math.sin(l.phase) * 0.06 + sound.cheer * 0.12
-                l.band.frequency.value = l.f * (1 + sound.cheer * 0.25)
+                v.phase += delta * v.rate
+                const level = Math.max(0, 0.55 + Math.sin(v.phase) * 0.45) * c * 0.045
+                v.g.gain.setTargetAtTime(level, sound.ctx.currentTime, 0.08)
+                v.o.frequency.setTargetAtTime(v.base * (1 + c * 0.35), sound.ctx.currentTime, 0.2)
             }
+            for(const l of sound.layers)
+                l.g.gain.value = 0.05 * c
         }
     }
 }
