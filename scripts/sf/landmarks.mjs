@@ -194,6 +194,7 @@ const GLYPHS = {
     Y: [ '#.#', '#.#', '###', '.#.', '.#.' ],
     I: [ '###', '.#.', '.#.', '.#.', '###' ],
     C: [ '###', '#..', '#..', '#..', '###' ],
+    V: [ '#.#', '#.#', '#.#', '#.#', '.#.' ],
     '♥': [ '.#.#.', '#####', '#####', '.###.', '..#..' ],
 }
 
@@ -271,9 +272,15 @@ function letters(ctx, text, color, startX, z, rotationY = 0, cell = 0.4, gap = 0
 {
     const nodes = []
     let offset = 0
-    for(const char of text)
+    for(const [ index, char ] of [ ...text ].entries())
     {
-        const { model, width, height } = letter(char, color, cell)
+        if(char === ' ')
+        {
+            offset += cell * 2
+            continue
+        }
+        const tint = Array.isArray(color) ? color[index] : color
+        const { model, width, height } = letter(char, tint, cell)
         const x = startX + offset * Math.cos(rotationY)
         const zz = z - offset * Math.sin(rotationY)
         nodes.push({
@@ -2416,7 +2423,9 @@ builders.levis = (ctx) =>
     }
 
     // giant 49ERS letters outside
-    nodes.push(...letters(ctx, '49ERS', C.red, cx + 14, cz - 12, 0, 0.45))
+    // SF VS SEA in big knockable blocks by the stadium: 49ers red, gold VS, Seahawks green
+    const matchup = 'SF VS SEA'
+    nodes.push(...letters(ctx, matchup, [ C.red, C.red, 0, C.gold, C.gold, 0, C.leaf, C.leaf, C.leaf ], cx + 12, cz - 12, 0, 0.42, 0.35))
 
     // the football, push it into the end zone
     const ball = new Model()
