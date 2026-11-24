@@ -67,9 +67,12 @@ export function paint(geometry, colorIndex, { flat = true } = {})
  */
 export function mergeParts(parts)
 {
-    const painted = parts.map(({ geometry, color, matrix }) =>
+    const painted = parts.map(({ geometry, color, matrix, v }) =>
     {
         const g = paint(geometry, color)
+        if(v !== undefined)          // a per-part value carried in uv.y (e.g. each fan's jump phase, see the 'crowd' material)
+            for(let i = 1; i < g.attributes.uv.array.length; i += 2)
+                g.attributes.uv.array[i] = v
         if(matrix)
             g.applyMatrix4(matrix)
         if(matrix && matrix.determinant() < 0)

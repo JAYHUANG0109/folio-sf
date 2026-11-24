@@ -681,12 +681,35 @@ builders.ferryBuilding = (ctx) =>
         for(const z of [ - 0.5, 0.5 ])
             hall.cbox([ 0.06, 0.5, 0.25 ], C.dark, [ - 1.32, 5 + k * 1.5, z ])     // slit windows
     hall.box([ 3, 0.3, 3 ], trim, [ 0, 13.3, 0 ])
-    for(const [ x, z, ry ] of [ [ - 1.32, 0, 0 ], [ 1.32, 0, 0 ], [ 0, - 1.32, Math.PI / 2 ], [ 0, 1.32, Math.PI / 2 ] ])
+    // four clock faces, one per side, standing proud of the wall (centered discs, so none sinks into the tower):
+    // a cream dial in a gold rim, twelve hour marks, black hands at ten past ten
+    for(const [ nx, nz ] of [ [ - 1, 0 ], [ 1, 0 ], [ 0, - 1 ], [ 0, 1 ] ])
     {
-        hall.cylinder(0.95, 0.95, 0.06, C.cream, [ x, 11.9, z ], 16, [ 0, ry, Math.PI / 2 ])
-        hall.cylinder(1.02, 1.02, 0.05, C.dark, [ x * 0.995, 11.9, z * 0.995 ], 16, [ 0, ry, Math.PI / 2 ])
-        hall.cbox([ 0.08, 0.6, 0.08 ], C.black, [ x * 1.035, 12.15, z * 1.035 ])
-        hall.cbox([ 0.08, 0.08, 0.45 ], C.black, [ x * 1.035, 11.9, z * 1.035 ], [ 0, ry, 0 ])
+        const out = (d) => [ nx * d, 11.9, nz * d ]
+        const disc = (r, t, color, d) =>
+        {
+            const g = new THREE.CylinderGeometry(r, r, t, 32)
+            if(nx) g.rotateZ(Math.PI / 2)
+            else g.rotateX(Math.PI / 2)
+            hall.add(g, color, out(d))
+        }
+        disc(1.05, 0.08, C.gold, 1.34)
+        disc(0.95, 0.06, C.cream, 1.39)
+        // position on the dial: u to the viewer's right, v up (y)
+        const ux = nz ? - nz : 0, uz = nx ? nx : 0
+        const onDial = (u, v, d) => [ nx * d + ux * u, 11.9 + v, nz * d + uz * u ]
+        const spin = (a) => nx ? [ - a * nx, 0, 0 ] : [ 0, 0, a * nz ]
+        for(let h = 0; h < 12; h++)
+        {
+            const a = h / 12 * Math.PI * 2
+            const long = h % 3 === 0
+            hall.cbox(nx ? [ 0.04, long ? 0.2 : 0.12, 0.05 ] : [ 0.05, long ? 0.2 : 0.12, 0.04 ], C.black, onDial(Math.sin(a) * 0.78, Math.cos(a) * 0.78, 1.43), spin(a))
+        }
+        const hand = (angle, length, width) =>
+            hall.cbox(nx ? [ 0.04, length, width ] : [ width, length, 0.04 ], C.black, onDial(Math.sin(angle) * length / 2, Math.cos(angle) * length / 2, 1.44), spin(angle))
+        hand(- Math.PI / 6 * 2 + 0.09, 0.48, 0.09)          // hour hand, just past 10
+        hand(Math.PI / 6 * 2, 0.7, 0.06)                    // minute hand on 2 (ten past)
+        hall.cylinder(0.06, 0.06, 0.05, C.gold, onDial(0, 0, 1.43), 10, nx ? [ 0, 0, Math.PI / 2 ] : [ Math.PI / 2, 0, 0 ])
     }
     // belfry stages: arched openings that glow at night, then a colonnade and the little cupola
     const glow = new Model()
@@ -1701,6 +1724,12 @@ builders.lombard = (ctx) =>
                 m.sphere(0.12, color, [ x + Math.cos(a) * 0.13, y + 0.04 + rr() * 0.06, z + Math.sin(a) * 0.13 ], 1)
             }
         }
+        // Christmas: fairy lights draped along both edges of every hedge and bed, a red bow now and then
+        for(const ex of [ - 1, 1 ])
+            for(let z = - length / 2 + 0.15; z <= length / 2 - 0.1; z += 0.32)
+                bulb(m, [ ex * (width / 2 - 0.02), height + 0.12 + Math.abs(Math.sin(z * 4.9)) * 0.08, z ], 0.07)
+        for(let z = - length / 2 + 0.6; z < length / 2; z += 2.2)
+            m.cbox([ 0.22, 0.14, 0.1 ], C.red, [ - width / 2 - 0.02, height + 0.05, z ], [ 0, Math.PI / 2, 0 ])
         return m
     }
 
@@ -1715,7 +1744,7 @@ builders.lombard = (ctx) =>
         const width = spacing - lane - 0.05
         const m = bed(length, width, 0.22, 300 + k)
         m.cylinder(width / 2, width / 2, 0.32, C.moss, [ 0, 0, (atSouth ? 1 : - 1) * length / 2 ], 10)
-        m.sphere(0.3, C.pink, [ 0, 0.45, (atSouth ? 1 : - 1) * length / 2 ], 0)
+        litPine(m, [ 0, 0.3, (atSouth ? 1 : - 1) * length / 2 ], 0.75)        // a lit little Christmas tree in each bend
         nodes.push(fixedNode('lombardBed', m, ctx.at(x, (z0 + z1) / 2), [ { position: [ 0, 0.15, 0 ], size: [ width - 0.25, 0.3, length ] } ]))
     }
     // bed between Hyde St and the first leg, and between the last leg and Grant Ave
@@ -1772,7 +1801,11 @@ builders.lombard = (ctx) =>
     for(let k = 0; k < hairpins; k += 2)
     {
         const x = firstLegX + k * spacing + r
-        nodes.push(dynamicNode('lombardLamp', lampPost(2.2), ctx.at(x, edgeN - 0.6), [ { position: [ 0, 1.1, 0 ], size: [ 0.25, 2.2, 0.25 ] } ], 0.3)) // knockable
+        const lamp = lampPost(2.2)
+        for(let i = 0; i < 9; i++)
+            bulb(lamp, [ Math.cos(i * 1.9) * 0.13, 0.25 + i * 0.22, Math.sin(i * 1.9) * 0.13 ], 0.06)
+        wreath(lamp, [ 0, 1.75, 0.12 ], 0, 0.8)
+        nodes.push(dynamicNode('lombardLamp', lamp, ctx.at(x, edgeN - 0.6), [ { position: [ 0, 1.1, 0 ], size: [ 0.25, 2.2, 0.25 ] } ], 0.3)) // knockable
     }
 
     // Cable car on Hyde St, a kinematic body moving along the line (path in world coordinates)
@@ -1788,6 +1821,27 @@ builders.lombard = (ctx) =>
     car.box([ 2.3, 0.2, 5.2 ], C.red, [ 0, 2.65, 0 ])
     car.box([ 1.6, 0.25, 4.2 ], C.cream, [ 0, 2.85, 0 ])
     car.cbox([ 0.4, 0.2, 0.05 ], C.gold, [ 0, 2.4, - 2.42 ])
+    // Christmas on the cable car: lights along the roof edges and down the corners, a wreath on each end,
+    // garland swags under the windows with red bows, a little lit tree on the roof
+    for(const ex of [ - 1, 1 ])
+    {
+        lightString(car, [ ex * 1.17, 2.78, - 2.55 ], [ ex * 1.17, 2.78, 2.55 ], 0.3, 0, 0.08)
+        for(let z = - 2.2; z < 2.2; z += 1.1)
+        {
+            for(let i = 0; i <= 6; i++)
+                car.sphere(0.07, i % 2 ? C.moss : C.leaf, [ ex * 1.08, 1.7 - Math.sin(i / 6 * Math.PI) * 0.18, z + i * 1.1 / 6 ], 0)
+            car.cbox([ 0.06, 0.14, 0.2 ], C.red, [ ex * 1.09, 1.72, z ])
+        }
+        for(const ez of [ - 1, 1 ])
+            for(let y = 0.4; y < 2.6; y += 0.32)
+                bulb(car, [ ex * 1.08, y, ez * 2.42 ], 0.07)
+    }
+    for(const ez of [ - 1, 1 ])
+    {
+        lightString(car, [ - 1.17, 2.78, ez * 2.6 ], [ 1.17, 2.78, ez * 2.6 ], 0.3, 0, 0.08)
+        wreath(car, [ 0, 1.95, ez * 2.45 ], 0, 1.1)
+    }
+    litPine(car, [ 0, 2.97, 0 ], 0.55)
     for(const z of [ - 1.6, 1.6 ])
         for(const x of [ - 0.8, 0.8 ])
             car.cylinder(0.3, 0.3, 0.2, C.black, [ x, 0.3, z ], 8, [ 0, 0, Math.PI / 2 ])
@@ -2266,7 +2320,7 @@ builders.levis = (ctx) =>
     // concourse ring and light towers on top, gaps at the corners to drive in
     const addStand = (name, px, pz, length, rotationY, seahawks = false) =>
     {
-        const s = new Model()
+        const s = new Model(), fans = new Model()
         const rr = rng(Math.round(px * 7 + pz * 13))
         for(let t = 0; t < 6; t++)
         {
@@ -2279,8 +2333,11 @@ builders.levis = (ctx) =>
                     continue
                 const away = seahawks && x > length * 0.15
                 const c = away ? (rr() < 0.6 ? C.dark : C.sage) : [ C.red, C.red, C.gold, C.snow, C.red ][Math.floor(rr() * 5)]
-                s.cbox([ 0.28, 0.32, 0.22 ], c, [ x, 0.95 + t * 0.85, t * 0.95 - 0.05 ])
-                s.sphere(0.11, [ C.peach, C.wood, C.khaki, C.blush ][Math.floor(rr() * 4)], [ x, 1.22 + t * 0.85, t * 0.95 - 0.05 ], 0)
+                // fans are their own mesh (the 'crowd' material makes them jump on a touchdown); uv.y = each fan's phase
+                const phase = rr()
+                fans.cbox([ 0.28, 0.32, 0.22 ], c, [ x, 0.95 + t * 0.85, t * 0.95 - 0.05 ])
+                fans.sphere(0.11, [ C.peach, C.wood, C.khaki, C.blush ][Math.floor(rr() * 4)], [ x, 1.22 + t * 0.85, t * 0.95 - 0.05 ], 0)
+                fans.parts.slice(- 2).forEach(part => { part.v = phase })
             }
         }
         s.box([ length + 0.4, 0.5, 1.2 ], C.snow, [ 0, 5.9, 5.3 ])                                   // concourse rim
@@ -2288,6 +2345,7 @@ builders.levis = (ctx) =>
         for(let k = 0; k <= length / 3; k++)
             s.box([ 0.25, 6.6, 0.3 ], C.snow, [ - length / 2 + k * 3, 0, 6.2 ])                     // the white steel columns
         nodes.push({ ...fixedNode(name, s, ctx.at(px, pz), [ { position: [ 0, 3, 3 ], size: [ length, 6, 6.2 ] } ]), rotation: [ 0, rotationY, 0 ] })
+        nodes.push({ ...meshNode('levisFans', fans, ctx.at(px, pz), { material: 'crowd' }), rotation: [ 0, rotationY, 0 ] })
     }
     addStand('standNorth', cx, cz - 7.5, 22, Math.PI)
     addStand('standSouth', cx, cz + 7.5, 22, 0)

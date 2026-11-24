@@ -249,7 +249,14 @@ export class StopArea extends Area
                             this.game.world.confetti.pop(new THREE.Vector3(position.x, position.y, position.z))
                             this.game.world.confetti.pop(new THREE.Vector3(position.x, position.y, position.z + 3))
                         }
-                        this.game.notifications.show('<span>Touchdown！49ers 🏈</span>', '', 3, null, 'touchdown')
+                        this.game.notifications.show('<span>TOUCHDOWN 49ERS!!! 🏈</span>', '', 3, null, 'touchdown')
+                        const gameDay = this.game.world.gameDay
+                        if(gameDay)
+                        {
+                            gameDay.cheer?.(1.4)
+                            gameDay.launchVolley?.(8)
+                            gameDay.touchdownCall?.(20)
+                        }
                         this.task?.touchdown()
                         this.game.ticker.wait(3, () => this.game.objects.resetObject(football.object))
                         break

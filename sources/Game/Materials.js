@@ -112,6 +112,18 @@ export class Materials
         
         this.save('palette', material)
 
+        // the Levi's crowd: palette colors (sampled from the middle row; uv.y holds each fan's phase), fans sway a little
+        // all the time and jump up and down, each on their own beat, when crowdJump goes up (a touchdown, see GameDay)
+        this.crowdJump = uniform(0)
+        const phase = uv().y
+        const crowd = new MeshDefaultMaterial({
+            colorNode: texture(this.game.resources.paletteTexture, vec2(uv().x, 0.5)).rgb,
+        })
+        const hop = time.mul(9).add(phase.mul(40)).sin().abs().mul(this.crowdJump).mul(0.5)
+        const sway = time.mul(2.2).add(phase.mul(30)).sin().mul(0.025)
+        crowd.positionNode = positionLocal.add(vec3(0, hop.add(sway), 0))
+        this.save('crowd', crowd)
+
     }
 
     setGradient()

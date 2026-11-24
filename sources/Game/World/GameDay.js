@@ -2,6 +2,7 @@ import * as THREE from 'three/webgpu'
 import { Howler } from 'howler'
 import { color, instanceColor } from 'three/tsl'
 import { Game } from '../Game.js'
+import { MeshDefaultMaterial } from '../Materials/MeshDefaultMaterial.js'
 import { stopsById } from '../../data/worldData.js'
 
 /**
@@ -30,25 +31,118 @@ export class GameDay
 
     material(hex)
     {
-        const m = new THREE.MeshBasicNodeMaterial()
-        m.colorNode = color(hex)
-        return m
+        this.mats = this.mats || new Map()
+        if(!this.mats.has(hex))
+            this.mats.set(hex, new MeshDefaultMaterial({ colorNode: color(hex), hasWater: false }))
+        return this.mats.get(hex)
+    }
+
+    /** a jersey number painted on a little canvas (front and back of each player) */
+    numberTexture(number, ink, outline)
+    {
+        const canvas = document.createElement('canvas')
+        canvas.width = canvas.height = 64
+        const c = canvas.getContext('2d')
+        c.font = '900 46px "Nunito", "Arial Black", sans-serif'
+        c.textAlign = 'center'
+        c.textBaseline = 'middle'
+        c.lineWidth = 6
+        c.strokeStyle = outline
+        c.strokeText(String(number), 32, 35)
+        c.fillStyle = ink
+        c.fillText(String(number), 32, 35)
+        const texture = new THREE.CanvasTexture(canvas)
+        texture.colorSpace = THREE.SRGBColorSpace
+        return texture
     }
 
     setPlayers()
     {
-        const body = new THREE.BoxGeometry(0.32, 0.55, 0.26).translate(0, 0.42, 0)
-        const helmet = new THREE.SphereGeometry(0.15, 8, 6).translate(0, 0.82, 0)
-        const make = (bodyHex, helmetHex) =>
-        {
-            const b = new THREE.InstancedMesh(body, this.material(bodyHex), 11)
-            const h = new THREE.InstancedMesh(helmet, this.material(helmetHex), 11)
-            b.frustumCulled = h.frustumCulled = false
-            this.game.scene.add(b, h)
-            return { b, h }
+        // real-looking players (about 1.4 units tall): helmet with a stripe and facemask, shoulder pads under the
+        // jersey, numbers front and back, team pants and socks, cleats; legs and arms swing as they run
+        const g = {
+            sphere: new THREE.SphereGeometry(1, 16, 12),
+            capsule: new THREE.CapsuleGeometry(1, 1, 4, 10),
+            box: new THREE.BoxGeometry(1, 1, 1),
+            mask: new THREE.TorusGeometry(0.13, 0.012, 4, 12, Math.PI),
+            plane: new THREE.PlaneGeometry(1, 1),
         }
-        this.teams = [ make('#c8102e', '#b3995d'), make('#002244', '#69be28') ]   // 49ers red / gold, Seahawks navy / green
-        this.ball = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 6).scale(1, 1, 1.6), this.material('#6b3a1e'))
+        const kits = [
+            // 49ers: scarlet jersey, gold pants, gold helmet with a red-white-red stripe
+            { jersey: '#c8102e', trim: '#ffffff', pants: '#b3995d', socks: '#c8102e', helmet: '#b3995d', stripe: '#c8102e', mask: '#c8102e', ink: '#ffffff', outline: '#b3995d', numbers: [ 13, 80, 85, 44, 23, 19, 74, 71, 60, 64, 9 ] },
+            // Seahawks: navy jersey, navy pants, navy helmet with action green, grey mask
+            { jersey: '#002244', trim: '#69be28', pants: '#a5acaf', socks: '#002244', helmet: '#002244', stripe: '#69be28', mask: '#a5acaf', ink: '#ffffff', outline: '#69be28', numbers: [ 14, 3, 16, 88, 61, 79, 76, 51, 9, 33, 42 ] },
+        ]
+        const SKIN = [ '#8d5a3b', '#c68a62', '#f0c3a0', '#5e3a28', '#e0a984' ]
+        this.playersGroup = new THREE.Group()
+        this.game.scene.add(this.playersGroup)
+        this.teams = kits.map((kit, team) =>
+        {
+            const players = []
+            for(let i = 0; i < 11; i++)
+            {
+                const root = new THREE.Group()
+                root.scale.setScalar(1.45)
+                this.playersGroup.add(root)
+                const part = (parent, geometry, hex, [ x, y, z ], [ sx, sy, sz ], rotation) =>
+                {
+                    const m = new THREE.Mesh(geometry, typeof hex === 'string' ? this.material(hex) : hex)
+                    m.position.set(x, y, z)
+                    m.scale.set(sx, sy, sz)
+                    if(rotation) m.rotation.set(...rotation)
+                    m.castShadow = true
+                    parent.add(m)
+                    return m
+                }
+                const skin = SKIN[(i * 7 + team * 3) % SKIN.length]
+                // legs on hip pivots: thigh (pants), sock, cleat
+                const legs = [ - 1, 1 ].map(side =>
+                {
+                    const hip = new THREE.Group()
+                    hip.position.set(side * 0.07, 0.42, 0)
+                    root.add(hip)
+                    part(hip, g.capsule, kit.pants, [ 0, - 0.1, 0 ], [ 0.058, 0.1, 0.058 ])
+                    part(hip, g.capsule, kit.socks, [ 0, - 0.27, 0 ], [ 0.045, 0.09, 0.045 ])
+                    part(hip, g.box, '#151515', [ 0, - 0.38, 0.03 ], [ 0.08, 0.05, 0.15 ])
+                    return hip
+                })
+                // torso: jersey over shoulder pads, a belt, sleeves with a trim stripe
+                part(root, g.capsule, kit.jersey, [ 0, 0.6, 0 ], [ 0.13, 0.08, 0.1 ])
+                part(root, g.box, kit.jersey, [ 0, 0.77, 0 ], [ 0.38, 0.1, 0.24 ])           // shoulder pads
+                part(root, g.box, kit.trim, [ 0, 0.775, 0 ], [ 0.385, 0.025, 0.245 ])
+                part(root, g.box, '#222222', [ 0, 0.45, 0 ], [ 0.25, 0.04, 0.19 ])
+                const arms = [ - 1, 1 ].map(side =>
+                {
+                    const shoulder = new THREE.Group()
+                    shoulder.position.set(side * 0.2, 0.76, 0)
+                    root.add(shoulder)
+                    part(shoulder, g.capsule, kit.jersey, [ 0, - 0.06, 0 ], [ 0.05, 0.05, 0.05 ])
+                    part(shoulder, g.box, kit.trim, [ 0, - 0.1, 0 ], [ 0.105, 0.02, 0.105 ])
+                    part(shoulder, g.capsule, skin, [ 0, - 0.2, 0 ], [ 0.04, 0.07, 0.04 ])
+                    part(shoulder, g.sphere, '#ffffff', [ 0, - 0.3, 0 ], [ 0.045, 0.045, 0.045 ])   // gloves
+                    return shoulder
+                })
+                // head and helmet: shell, a center stripe, ear holes, the facemask bars
+                part(root, g.capsule, skin, [ 0, 0.86, 0 ], [ 0.05, 0.03, 0.05 ])
+                part(root, g.sphere, kit.helmet, [ 0, 0.98, - 0.01 ], [ 0.125, 0.12, 0.14 ])
+                part(root, g.box, kit.stripe, [ 0, 1.03, - 0.02 ], [ 0.03, 0.1, 0.26 ], [ 0.2, 0, 0 ])
+                part(root, g.sphere, skin, [ 0, 0.95, 0.09 ], [ 0.08, 0.08, 0.05 ])
+                for(const y of [ 0.93, 0.97 ])
+                    part(root, g.mask, kit.mask, [ 0, y, 0.105 ], [ 0.85, 0.85, 0.85 ], [ Math.PI / 2, 0, 0 ])
+                part(root, g.box, kit.mask, [ 0, 0.94, 0.15 ], [ 0.015, 0.09, 0.015 ])
+                // numbers front and back
+                const numberMat = new THREE.MeshBasicNodeMaterial({ transparent: true })
+                const texture = this.numberTexture(kit.numbers[i], kit.ink, kit.outline)
+                numberMat.colorNode = texture ? undefined : color('#ffffff')
+                numberMat.map = texture
+                numberMat.alphaTest = 0.4
+                part(root, g.plane, numberMat, [ 0, 0.6, 0.106 ], [ 0.2, 0.2, 1 ])
+                part(root, g.plane, numberMat, [ 0, 0.62, - 0.106 ], [ 0.22, 0.22, 1 ], [ 0, Math.PI, 0 ])
+                players.push({ root, legs, arms, last: new THREE.Vector3(), heading: 0, stride: Math.random() * 6 })
+            }
+            return { players }
+        })
+        this.ball = new THREE.Mesh(new THREE.SphereGeometry(0.12, 12, 8).scale(1, 1, 1.6), this.material('#6b3a1e'))
         this.game.scene.add(this.ball)
         this.dummy = new THREE.Object3D()
         this.play = { t: 0, duration: 6, line: 0, dir: 1 }
@@ -66,22 +160,27 @@ export class GameDay
         p.t += delta
         if(p.t > p.duration)
         {
-            // next play: the line moves; touchdown => big cheer + fireworks
+            // next play: the line moves; touchdown => big cheer + fireworks + the call
             p.t = 0
+            const before = p.line
             p.line += p.dir * (3 + Math.random() * 6)
             this.hit()
             if(Math.abs(p.line) > 10)
             {
                 this.cheer(1.2)
                 this.launchVolley(6)
-                this.announce(p.dir > 0 ? 'Touchdown, San Francisco Forty Niners!' : 'Touchdown Seahawks.')
+                if(p.dir > 0)
+                    this.touchdownCall(Math.abs(before))
+                else
+                    this.announce([ { text: 'Seahawks score.', pitch: 0.8, rate: 0.95 } ])
                 p.line = 0
                 p.dir *= - 1
             }
-            else if(Math.random() < 0.4)
+            else if(Math.random() < 0.45)
             {
                 this.cheer(0.5)
-                if(Math.random() < 0.3) this.announce(['First down, Forty Niners!', 'What a catch!', 'And he breaks a tackle!', 'Third and long.'][Math.floor(Math.random() * 4)])
+                if(Math.random() < 0.4 && p.dir > 0)
+                    this.announce([ [ { text: 'FIRST DOWN, Forty Niners!' } ], [ { text: 'OH what a CATCH!' } ], [ { text: 'He breaks a tackle!', rate: 1.2 }, { text: 'Still going!' } ], [ { text: 'Big hit!', rate: 1.2 } ], [ { text: 'Third and long, the crowd is on its feet!' } ] ][Math.floor(Math.random() * 5)])
             }
             setTimeout(() => this.active && this.whistle(), 900)
         }
@@ -90,9 +189,8 @@ export class GameDay
         const carry = p.line + p.dir * run * 5
         for(let team = 0; team < 2; team++)
         {
-            const { b, h } = this.teams[team]
             const offense = team === (p.dir > 0 ? 0 : 1)
-            for(let i = 0; i < 11; i++)
+            this.teams[team].players.forEach((pl, i) =>
             {
                 const lane = (i - 5) * 0.85
                 let x = p.line - (offense ? 1 : - 1) * p.dir * (0.6 + (i % 3 === 0 ? 1.4 : 0))
@@ -112,18 +210,45 @@ export class GameDay
                         z += (Math.sin(run * 4) * 1.2 - z) * k * 0.6
                     }
                 }
-                const bob = p.t > snap ? Math.abs(Math.sin((this.time + i) * 12)) * 0.06 : 0
-                const [ wx, wy, wz ] = this.toWorld(x, z, bob)
-                this.dummy.position.set(wx, wy, wz)
-                this.dummy.rotation.set(0, offense === (p.dir > 0) ? Math.PI / 2 : - Math.PI / 2, 0)
-                this.dummy.updateMatrix()
-                b.setMatrixAt(i, this.dummy.matrix)
-                h.setMatrixAt(i, this.dummy.matrix)
-            }
-            b.instanceMatrix.needsUpdate = h.instanceMatrix.needsUpdate = true
+                const [ wx, wy, wz ] = this.toWorld(x, z)
+                const dx = wx - pl.last.x, dz = wz - pl.last.z
+                const speed = Math.hypot(dx, dz) / Math.max(delta, 0.001)
+                pl.last.set(wx, wy, wz)
+                // face where they're running (or the line of scrimmage while set), swing legs and arms with speed
+                const set = offense === (p.dir > 0) ? Math.PI / 2 : - Math.PI / 2
+                const target = speed > 0.4 && speed < 40 ? Math.atan2(dx, dz) : set
+                let diff = target - pl.heading
+                diff = Math.atan2(Math.sin(diff), Math.cos(diff))
+                pl.heading += diff * Math.min(1, delta * 8)
+                const moving = Math.min(1, speed / 3)
+                pl.stride += delta * (4 + speed * 2.2)
+                const swing = Math.sin(pl.stride) * 0.9 * moving
+                pl.legs[0].rotation.x = swing
+                pl.legs[1].rotation.x = - swing
+                pl.arms[0].rotation.x = - swing * 0.8
+                pl.arms[1].rotation.x = swing * 0.8
+                const crouch = p.t < snap ? 0.25 : 0.12 * moving               // set in a stance before the snap
+                pl.root.rotation.set(crouch, pl.heading, 0, 'YXZ')
+                pl.root.position.set(wx, wy + Math.abs(Math.sin(pl.stride)) * 0.05 * moving, wz)
+            })
         }
-        const [ bx, by, bz ] = this.toWorld(carry + p.dir * 0.2, Math.sin(run * 4) * 1.2, p.t > snap ? 0.55 : 0.12)
+        const [ bx, by, bz ] = this.toWorld(carry + p.dir * 0.2, Math.sin(run * 4) * 1.2, p.t > snap ? 0.85 : 0.12)
         this.ball.position.set(bx, by, bz)
+    }
+
+    /** the big call: counting down the yard lines, then TOUCHDOWN! */
+    touchdownCall(from = 6)
+    {
+        this.crowdJumpTimer = 7          // the whole stadium jumps for a few seconds
+        const lines = []
+        if(from < 8)
+            lines.push({ text: 'He\'s at the thirty!', rate: 1.25, pitch: 1.15 }, { text: 'the twenty!', rate: 1.3, pitch: 1.2 }, { text: 'the ten!', rate: 1.35, pitch: 1.3 })
+        lines.push(
+            { text: 'TOUCHDOWN!', rate: 0.72, pitch: 1.45, volume: 1 },
+            { text: 'TOUCHDOWN FORTY NINERS!!!', rate: 0.95, pitch: 1.35, volume: 1 },
+            { text: 'Oh, what a play! Levi\'s Stadium is ROCKING!', rate: 1.15, pitch: 1.2 },
+        )
+        this.announce(lines, true)
     }
 
     setFireworks()
@@ -325,21 +450,31 @@ export class GameDay
         src.start()
     }
 
-    /** the stadium announcer (the browser's English voice), only when you're right there */
-    announce(text)
+    /** the stadium announcer: an excited male English voice, a sequence of lines, only when you're right there */
+    announce(lines, force = false)
     {
-        if(this.volume < 0.5 || !('speechSynthesis' in window) || document.documentElement.classList.contains('is-audio-muted'))
+        if(!('speechSynthesis' in window) || document.documentElement.classList.contains('is-audio-muted'))
             return
-        if(performance.now() - this.lastCall < 6000)
+        if(!force && this.volume < 0.5)
+            return
+        if(!force && performance.now() - this.lastCall < 6000)
             return
         this.lastCall = performance.now()
-        const u = new SpeechSynthesisUtterance(text)
-        u.lang = 'en-US'
-        u.rate = 1.05
-        u.pitch = 0.8
-        u.volume = Math.min(1, this.volume) * 0.9
+        if(typeof lines === 'string')
+            lines = [ { text: lines } ]
+        const voices = speechSynthesis.getVoices().filter(v => /^en/i.test(v.lang))
+        const voice = [ /Google US English/i, /Aaron|Fred|Daniel|Alex|Rocko|Ralph|Eddy|Reed|Guy|David|Mark|Male/i ].reduce((found, re) => found || voices.find(v => re.test(v.name)), null) || voices[0]
         speechSynthesis.cancel()
-        speechSynthesis.speak(u)
+        for(const line of lines)
+        {
+            const u = new SpeechSynthesisUtterance(line.text)
+            u.lang = 'en-US'
+            if(voice) u.voice = voice
+            u.rate = line.rate ?? 1.15
+            u.pitch = line.pitch ?? 1.15
+            u.volume = line.volume ?? Math.min(1, Math.max(this.volume, force ? 0.8 : 0)) * 0.95
+            speechSynthesis.speak(u)
+        }
     }
 
     whistleUp()
@@ -390,8 +525,7 @@ export class GameDay
         this.active = distance < 90
         this.volume = Math.max(0, Math.min(1, (34 - distance) / 12))   // only right next to the stadium
 
-        for(const team of this.teams)
-            team.b.visible = team.h.visible = this.active
+        this.playersGroup.visible = this.active
         this.ball.visible = this.active
         if(!this.active)
         {
@@ -407,6 +541,13 @@ export class GameDay
         }
 
         this.time += delta
+        const jump = this.game.materials.crowdJump
+        if(jump)
+        {
+            this.crowdJumpTimer = Math.max(0, (this.crowdJumpTimer || 0) - delta)
+            const target = this.crowdJumpTimer > 1 ? 1 : this.crowdJumpTimer
+            jump.value += (target - jump.value) * Math.min(1, delta * 6)
+        }
         this.updatePlayers(delta)
         this.updateFireworks(delta)
 

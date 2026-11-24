@@ -368,6 +368,7 @@ await writeGlb(out('static/areas/areas.glb'), areaNodes, { worldScale: W })
 console.log('areas ok')
 
 const TREE_SPOT = [ 2, 20 ] // the Christmas tree's lawn
+const SUTRO_SPOT = [ - 31, 38 ] // Sutro Tower on Mount Sutro (clear of Dookie's front door)
 /* ---------------- Exclusion zones (no buildings / trees) ---------------- */
 const exclusions = [
     ...Layout.stops.map(s => ({ x: s.position.x, z: s.position.z, r: s.radius * scaleOf(s.id) + 4 })),
@@ -383,7 +384,7 @@ const exclusions = [
     { rect: [ - 97, - 100, - 63, - 68 ] },                          // Napa vineyards
     { rect: [ 52, - 34, 70, - 2 ] },                                // Ferry Building
     ...secrets.map(s => ({ x: s.position.x, z: s.position.z, r: s.radius + 4 })),
-    { x: 46, z: - 24, r: 5 }, { x: 41, z: - 15, r: 5 }, { x: TREE_SPOT[0], z: TREE_SPOT[1], r: 9 }, { x: 46, z: - 35, r: 5 }, { x: - 34, z: 50, r: 4 },
+    { x: 46, z: - 24, r: 5 }, { x: 41, z: - 15, r: 5 }, { x: TREE_SPOT[0], z: TREE_SPOT[1], r: 9 }, { x: 46, z: - 35, r: 5 }, { x: SUTRO_SPOT[0], z: SUTRO_SPOT[1], r: 4 },
 ]
 const excluded = (x, z, margin = 0) => exclusions.some(e => e.rect
     ? x > e.rect[0] - margin && x < e.rect[2] + margin && z > e.rect[1] - margin && z < e.rect[3] + margin
@@ -900,7 +901,21 @@ const footprints = [] // [x, z, w, d, isDowntown] for the map
     for(const [ x, z ] of legs)                                         // lights strung up each leg
         for(let t = 0.04; t < 1; t += 0.05)
             bulb(sutro, [ x * 1.6 + (x * 0.6 - x * 1.6) * t, 14 * t, z * 1.6 + (z * 0.6 - z * 1.6) * t ], 0.14)
-    sceneryNodes.push(fixedNode('sutro', sutro, [ - 34, ground(- 34, 50), 50 ], [ { position: [ 0, 4, 0 ], size: [ 3, 8, 3 ] } ]))
+    if(process.env.FIND_SUTRO)
+    {
+        const spots = []
+        for(let x = - 56; x <= - 30; x += 1) for(let z = 28; z <= 50; z += 1)
+        {
+            let d = 0; while(d < 10 && !nearRoad(x, z, d)) d += 0.5
+            const nearLetters = x > - 72 && x < - 30 && z > 38 && z < 54
+            const nearTennis = x > - 76 && x < - 40 && z < 35
+            if(!nearLetters && !nearTennis && !inSite(x, z, 4) && onLand(x, z)) spots.push([ d, x, z, Math.hypot(x + 29, z - 52).toFixed(1) ])
+        }
+        console.log('sutro spots', spots.sort((a, b) => b[0] - a[0]).slice(0, 8))
+    }
+    const [ sutroX, sutroZ ] = SUTRO_SPOT
+    console.log('sutro tower clear of roads:', !nearRoad(sutroX, sutroZ, 3), 'not in a site:', !inSite(sutroX, sutroZ, 3), 'from Dookie:', Math.hypot(sutroX + 29, sutroZ - 52).toFixed(1))
+    sceneryNodes.push(fixedNode('sutro', sutro, [ sutroX, ground(sutroX, sutroZ), sutroZ ], [ { position: [ 0, 4, 0 ], size: [ 3, 8, 3 ] } ]))
 }
 
 // City blocks: every house is its own light block the car can knock around
@@ -1165,7 +1180,7 @@ const footprints = [] // [x, z, w, d, isDowntown] for the map
         { position: [ 0, 2.4, 0 ], size: [ 7.6, 3.6, 4.8 ] },
     ]), S))
     sceneryNodes.push(scaleNode(fixedNode('gravy', sides, [ x - 7.2 * S, ground(x - 7.2 * S, z - 1), z - 1 ], [ { shape: 'tube', position: [ 0, 0.35, 1.1 ], radius: 0.9, height: 0.7 } ]), S))
-    sceneryNodes.push(scaleNode(fixedNode('pumpkinPie', pie, [ x + 9.3 * S, ground(x + 9.3 * S, z + 2), z + 2 ], [ { shape: 'tube', position: [ 0, 0.3, 0 ], radius: 2.2, height: 0.7 } ]), S))
+    sceneryNodes.push(scaleNode(fixedNode('pumpkinPie', pie, [ x + 12.7 * S, ground(x + 12.7 * S, z + 2), z + 2 ], [ { shape: 'tube', position: [ 0, 0.3, 0 ], radius: 2.2, height: 0.7 } ]), S))
     // sign
     const sign = new Model()
     sign.cylinder(0.12, 0.12, 2.4, C.wood, [ - 1.6, 0, 0 ], 6)
@@ -1287,6 +1302,85 @@ const holidaySpots = []
     }
     sceneryNodes.push(fixedNode('holidayLawns', m, [ 0, 0, 0 ], colliders))
     console.log('holiday lawn props', holidaySpots.length, rejects)
+}
+
+// Parks dressed for the holidays: light canopies (four posts with fairy lights swagged between them and criss-crossing
+// overhead, a lit tree with presents underneath) and extra lit Christmas trees around each park's lawns
+{
+    const r = rng(2412)
+    const m = new Model()
+    const colliders = []
+    const clearOfHouses = (x, z, gap) => footprints.every(([ hx, hz, w, d ]) => Math.abs(x - hx) > w / 2 + gap || Math.abs(z - hz) > d / 2 + gap)
+    const keepOut = [ [ - 73, - 8, - 43, 33 ], [ - 70, 41.5, - 32, 51 ] ]          // tennis courts, JAY ♥ JESSICA strip
+    const placed = []
+    const free = (x, z, d) => placed.every(([ px, pz ]) => Math.hypot(px - x, pz - z) > d) && holidaySpots.every(([ hx, hz ]) => Math.hypot(hx - x, hz - z) > 4)
+    const ok = (x, z, radius) => onLand(x, z) && !nearRoad(x, z, radius + 0.6) && !inSite(x, z, radius + 0.8) && clearOfHouses(x, z, radius + 0.6)
+        && !keepOut.some(([ x0, z0, x1, z1 ]) => x > x0 - radius && x < x1 + radius && z > z0 - radius && z < z1 + radius)
+        && paved(x, z) < 0.05
+    const inPark = (park, x, z) => park.rect
+        ? x > park.rect[0] && x < park.rect[2] && z > park.rect[1] && z < park.rect[3]
+        : ((x - park.ellipse[0]) / park.ellipse[2]) ** 2 + ((z - park.ellipse[1]) / park.ellipse[3]) ** 2 < 0.85
+    const sample = (park) => park.rect
+        ? [ park.rect[0] + r() * (park.rect[2] - park.rect[0]), park.rect[1] + r() * (park.rect[3] - park.rect[1]) ]
+        : [ park.ellipse[0] + (r() * 2 - 1) * park.ellipse[2], park.ellipse[1] + (r() * 2 - 1) * park.ellipse[3] ]
+    const canopy = (x, z) =>
+    {
+        const a = r() * Math.PI, half = 2.2
+        const corners = [ [ - 1, - 1 ], [ 1, - 1 ], [ 1, 1 ], [ - 1, 1 ] ].map(([ u, v ]) =>
+        {
+            const px = x + (u * Math.cos(a) - v * Math.sin(a)) * half, pz = z + (u * Math.sin(a) + v * Math.cos(a)) * half
+            return [ px, ground(px, pz), pz ]
+        })
+        for(const [ px, py, pz ] of corners)
+        {
+            m.cylinder(0.07, 0.09, 2.7, C.wood, [ px, py, pz ], 6)
+            m.sphere(0.12, C.gold, [ px, py + 2.75, pz ], 0)
+            wreath(m, [ px, py + 2.0, pz ], a, 0.6)
+            colliders.push({ shape: 'tube', position: [ px, py + 1.35, pz ], radius: 0.1, height: 2.7 })
+        }
+        const top = (c) => [ c[0], c[1] + 2.6, c[2] ]
+        for(let i = 0; i < 4; i++)
+            lightString(m, top(corners[i]), top(corners[(i + 1) % 4]), 0.3, 0.45, 0.09)
+        lightString(m, top(corners[0]), top(corners[2]), 0.3, 0.8, 0.09)
+        lightString(m, top(corners[1]), top(corners[3]), 0.3, 0.8, 0.09)
+        const y = ground(x, z)
+        litPine(m, [ x, y, z ], 0.85)
+        gifts(m, [ x + 0.8, y, z + 0.4 ], a, 0.6, placed.length)
+        colliders.push({ shape: 'tube', position: [ x, y + 0.9, z ], radius: 0.45, height: 1.8 })
+    }
+    const plan = [ [ 0, 5, 6 ], [ 1, 1, 2 ], [ 2, 2, 3 ], [ 3, 3, 4 ], [ 5, 1, 3 ], [ 6, 2, 4 ], [ 7, 1, 2 ] ]   // [park index, canopies, extra trees]
+    let canopies = 0, trees = 0
+    for(const [ index, nCanopy, nTree ] of plan)
+    {
+        const park = Layout.parks[index]
+        let c = 0, t = 0
+        for(let i = 0; i < 4000 && (c < nCanopy || t < nTree); i++)
+        {
+            const [ x, z ] = sample(park)
+            if(!inPark(park, x, z))
+                continue
+            if(c < nCanopy && ok(x, z, 3) && free(x, z, 8))
+            {
+                canopy(x, z)
+                placed.push([ x, z ])
+                c++
+                continue
+            }
+            if(c >= nCanopy && t < nTree && ok(x, z, 1.2) && free(x, z, 4))
+            {
+                const s = 1.1 + r() * 0.5, y = ground(x, z)
+                litPine(m, [ x, y, z ], s)
+                colliders.push({ shape: 'tube', position: [ x, y + s, z ], radius: 0.5 * s, height: 2 * s })
+                placed.push([ x, z ])
+                t++
+            }
+        }
+        canopies += c
+        trees += t
+    }
+    holidaySpots.push(...placed)
+    sceneryNodes.push(fixedNode('parkLights', m, [ 0, 0, 0 ], colliders))
+    console.log('park canopies', canopies, 'park trees', trees)
 }
 
 await writeGlb(out('static/scenery/scenery.glb'), sceneryNodes, { worldScale: W })
