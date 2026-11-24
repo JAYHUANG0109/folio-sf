@@ -95,35 +95,73 @@ export class Letter
         return `<svg class="ll-garland" viewBox="0 0 ${W} 90" preserveAspectRatio="none" aria-hidden="true"><defs>${gradients}</defs>${needles}<path d="${wire}" fill="none" stroke="#3b3320" stroke-width="1.2"/>${extras}${lights}</svg>`
     }
 
-    /** an original ink crest: a shield quartered with a Christmas tree, a cable car, a heart and a star, a ribbon below */
+    /** an original crest: a gold-edged heraldic shield quartered crimson and green (Golden Gate, Christmas tree,
+     *  snowflake, cable car in gold), a J ♥ D monogram at its heart, a holly wreath around it, a star above, a ribbon below */
     crest()
     {
-        const ink = '#3a2412'
-        return `<svg class="ll-crest" viewBox="0 0 200 190" aria-hidden="true" fill="none" stroke="${ink}" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round">
-            <!-- mantling scrolls -->
-            <path d="M44 34 C24 30 14 46 22 60 C14 52 8 64 16 72 M156 34 C176 30 186 46 178 60 C186 52 192 64 184 72" />
-            <!-- holly crown -->
-            <path d="M74 22 C82 10 94 14 100 6 C106 14 118 10 126 22" />
-            <circle cx="92" cy="15" r="3.2" fill="#9b1b24" stroke="none"/><circle cx="100" cy="11" r="3.2" fill="#9b1b24" stroke="none"/><circle cx="108" cy="15" r="3.2" fill="#9b1b24" stroke="none"/>
-            <!-- shield -->
-            <path d="M46 30 H154 V92 C154 124 128 142 100 152 C72 142 46 124 46 92 Z" fill="rgba(255,245,220,0.25)" stroke-width="2.4"/>
-            <path d="M52 36 H148 V92 C148 120 126 136 100 145 C74 136 52 120 52 92 Z" stroke-width="0.9"/>
-            <path d="M100 36 V145 M52 88 H148" stroke-width="1.4"/>
-            <!-- tree -->
-            <path d="M76 44 L64 64 H70 L60 80 H92 L82 64 H88 Z" fill="rgba(58,36,18,0.12)"/>
-            <path d="M76 39 l2 4 4 0.5 -3 2.6 1 4 -4-2.2 -4 2.2 1-4 -3-2.6 4-0.5z" fill="#b8892e" stroke="none"/>
-            <!-- cable car -->
-            <rect x="110" y="56" width="30" height="18" rx="2"/><path d="M110 62 H140 M117 56 V74 M125 56 V74 M133 56 V74 M108 74 H142 M125 56 V48 M114 48 H136"/>
-            <circle cx="116" cy="77" r="2.4"/><circle cx="134" cy="77" r="2.4"/>
-            <!-- heart -->
-            <path d="M76 132 C60 120 58 106 68 102 C74 100 76 106 76 106 C76 106 78 100 84 102 C94 106 92 120 76 132 Z" fill="#9b1b24" stroke="#5e0e14"/>
-            <!-- star -->
-            <path d="M124 100 l4.5 9.5 10.5 1.2 -7.8 7 2.2 10.3 -9.4-5.3 -9.4 5.3 2.2-10.3 -7.8-7 10.5-1.2z" fill="#b8892e" stroke="#6b4b12"/>
+        const gold = 'url(#cr-gold)', ink = '#3a2412'
+        // the holly wreath: leaves and berries around an arc on each side
+        let wreath = ''
+        for(const side of [ - 1, 1 ])
+            for(let i = 0; i < 9; i++)
+            {
+                const t = i / 8, a = Math.PI * (0.62 + t * 0.62)
+                const x = 110 + side * Math.cos(a) * - 84, y = 104 + Math.sin(a) * 84 * - 1 + 10
+                const rot = side * (t * 112 - 30)
+                wreath += `<g transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) rotate(${rot.toFixed(1)})"><path d="M0 -11 C5 -7 3 -2 7 0 C3 2 5 7 0 11 C-5 7 -3 2 -7 0 C-3 -2 -5 -7 0 -11Z" fill="${i % 2 ? '#2b6236' : '#1f4d2b'}" stroke="#163d22" stroke-width="0.7"/></g>`
+                if(i % 3 === 1)
+                    wreath += `<circle cx="${(x + side * 5).toFixed(1)}" cy="${(y + 4).toFixed(1)}" r="3.2" fill="#b3122b"/><circle cx="${(x + side * 8).toFixed(1)}" cy="${(y + 1).toFixed(1)}" r="2.8" fill="#8e0f22"/>`
+            }
+        const shield = 'M58 46 H162 V112 C162 146 136 166 110 176 C84 166 58 146 58 112 Z'
+        return `<svg class="ll-crest" viewBox="0 0 220 230" aria-hidden="true">
+            <defs>
+                <linearGradient id="cr-gold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f8e3a0"/><stop offset="0.45" stop-color="#c9a24a"/><stop offset="0.7" stop-color="#f1d58a"/><stop offset="1" stop-color="#8f6a22"/></linearGradient>
+                <linearGradient id="cr-red" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#a51d2b"/><stop offset="1" stop-color="#6c0d18"/></linearGradient>
+                <linearGradient id="cr-green" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2f6b3d"/><stop offset="1" stop-color="#173d22"/></linearGradient>
+                <clipPath id="cr-clip"><path d="${shield}"/></clipPath>
+            </defs>
+            ${wreath}
+            <!-- the star on top, with rays -->
+            <g transform="translate(110 22)">
+                <path d="M0 -15 L4.4 -4.6 L15 -4.6 L6.5 2.3 L9.6 13 L0 6.8 L-9.6 13 L-6.5 2.3 L-15 -4.6 L-4.4 -4.6 Z" fill="${gold}" stroke="#7a5617" stroke-width="0.8"/>
+                <path d="M0 -24 V-18 M0 18 V22 M-22 0 H-18 M18 0 H22" stroke="#c9a24a" stroke-width="1.2" stroke-linecap="round"/>
+            </g>
+            <!-- shield: quarters, gold border -->
+            <g clip-path="url(#cr-clip)">
+                <rect x="58" y="46" width="52" height="64" fill="url(#cr-red)"/><rect x="110" y="46" width="52" height="64" fill="url(#cr-green)"/>
+                <rect x="58" y="110" width="52" height="70" fill="url(#cr-green)"/><rect x="110" y="110" width="52" height="70" fill="url(#cr-red)"/>
+                <path d="M110 46 V180 M58 110 H162" stroke="${gold}" stroke-width="3"/>
+            </g>
+            <path d="${shield}" fill="none" stroke="${gold}" stroke-width="5"/>
+            <path d="${shield}" fill="none" stroke="#5c4012" stroke-width="0.8" transform="translate(110 110) scale(0.93) translate(-110 -110)"/>
+            <!-- Golden Gate (top left) -->
+            <g fill="none" stroke="${gold}" stroke-width="1.8" stroke-linecap="round">
+                <path d="M69 98 V64 M74 98 V64 M95 98 V64 M100 98 V64 M66 90 H104"/>
+                <path d="M62 66 C72 82 92 82 102 66 M69 66 H74 M95 66 H100 M69 74 H74 M95 74 H100"/>
+                <path d="M78 82 V90 M84 84 V90 M90 82 V90" stroke-width="1"/>
+            </g>
+            <!-- Christmas tree (top right) -->
+            <path d="M136 58 L124 76 H130 L120 92 H152 L142 76 H148 Z" fill="${gold}" stroke="#7a5617" stroke-width="0.6"/>
+            <rect x="133" y="92" width="6" height="7" fill="${gold}"/>
+            <!-- snowflake (bottom left) -->
+            <g stroke="${gold}" stroke-width="1.8" stroke-linecap="round" transform="translate(84 140)">
+                <path d="M0 -16 V16 M-14 -8 L14 8 M-14 8 L14 -8"/>
+                <path d="M-4 -12 L0 -8 L4 -12 M-4 12 L0 8 L4 12 M-12 -2 L-8 -4 L-11 -8 M12 2 L8 4 L11 8 M-12 2 L-8 4 L-11 8 M12 -2 L8 -4 L11 -8" stroke-width="1.2"/>
+            </g>
+            <!-- cable car (bottom right) -->
+            <g fill="none" stroke="${gold}" stroke-width="1.6" stroke-linejoin="round">
+                <rect x="120" y="126" width="32" height="18" rx="2"/>
+                <path d="M120 132 H152 M128 126 V144 M136 126 V144 M144 126 V144 M117 144 H155 M136 126 V118 M124 118 H148"/>
+                <circle cx="126" cy="148" r="2.6" fill="${gold}"/><circle cx="146" cy="148" r="2.6" fill="${gold}"/>
+            </g>
+            <!-- the monogram at the heart of the shield -->
+            <circle cx="110" cy="110" r="17" fill="#f3e6c4" stroke="${gold}" stroke-width="3"/>
+            <path d="M110 120 C98 112 95 104 101 101 C105 99 108 102 110 105 C112 102 115 99 119 101 C125 104 122 112 110 120 Z" fill="#9b1b24" stroke="#5e0e14" stroke-width="0.8"/>
             <!-- ribbon -->
-            <path d="M28 150 C60 172 140 172 172 150 L180 166 C140 188 60 188 20 166 Z" fill="rgba(255,245,220,0.35)" stroke-width="1.6"/>
-            <path d="M28 150 L14 148 L22 160 L16 170 L20 166 M172 150 L186 148 L178 160 L184 170 L180 166" stroke-width="1.4"/>
-            <path id="ll-ribbon-path" d="M32 162 C64 181 136 181 168 162" stroke="none"/>
-            <text font-family="Cinzel, serif" font-size="9" letter-spacing="1.4" fill="${ink}" stroke="none"><textPath href="#ll-ribbon-path" startOffset="50%" text-anchor="middle">AMOR · NIX · CIVITAS</textPath></text>
+            <path d="M34 188 L22 184 L30 196 L22 206 L42 204 Z M186 188 L198 184 L190 196 L198 206 L178 204 Z" fill="#6c0d18" stroke="#3e0710" stroke-width="0.8"/>
+            <path d="M38 186 C76 206 144 206 182 186 L180 204 C142 222 78 222 40 204 Z" fill="url(#cr-red)" stroke="${gold}" stroke-width="1.6"/>
+            <path id="ll-ribbon-path" d="M44 197 C80 214 140 214 176 197" fill="none"/>
+            <text font-family="Cinzel, serif" font-weight="700" font-size="12.5" letter-spacing="3" fill="#fbe7a8"><textPath href="#ll-ribbon-path" startOffset="50%" text-anchor="middle">AMOR VINCIT</textPath></text>
         </svg>`
     }
 
@@ -161,8 +199,6 @@ export class Letter
                     <span class="ll-flap"></span>
                     <span class="ll-address">
                         <em>To 朵婕</em>
-                        <span>The Passenger Seat</span>
-                        <span>The Little Blue Car</span>
                         <span>San Francisco, California</span>
                     </span>
                     <span class="ll-seal"><span>J</span></span>
@@ -175,12 +211,10 @@ export class Letter
                     ${this.crest()}
                     <h2 class="ll-office"><span>The Christmas Office</span><span class="ll-office-2"><small>of</small> San Francisco</span></h2>
                     <p class="ll-head">Head of Office: J</p>
-                    <p class="ll-orders">(Order of the Cable Car, First Class, Keeper of the Snacks, Driver of the Little Blue Car, Supreme Hugger)</p>
                     <p class="ll-greeting"></p>
                     <div class="ll-body"></div>
                     <p class="ll-closing">Yours, always,</p>
                     <p class="ll-signature"></p>
-                    <p class="ll-sigline">Head of the Christmas Office · 你的專屬司機</p>
                     ${this.holly('ll-holly-corner')}
                     <button class="ll-close" type="button">收到了</button>
                     <span class="ll-glare"></span>
@@ -279,7 +313,7 @@ export class Letter
             }
             lift.on += (lift.target - lift.on) * 0.08
             // while hovered, lean toward the pointer on the card itself (pressing down where you point, lifting the rest)
-            const hx = lift.on * (lift.px - 0.5) * 2, hy = lift.on * (lift.py - 0.5) * 2
+            const hx = - lift.on * (lift.px - 0.5) * 2, hy = - lift.on * (lift.py - 0.5) * 2   // the spot under the pointer comes toward you
             tilt.x += (tilt.tx * (1 - lift.on) + hx * 1.1 - tilt.x) * 0.07
             tilt.y += (tilt.ty * (1 - lift.on) + hy * 1.1 - tilt.y) * 0.07
             stage.style.setProperty('--lift', `${(lift.on * 34).toFixed(1)}px`)

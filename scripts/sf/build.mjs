@@ -447,7 +447,18 @@ const footprints = [] // [x, z, w, d, isDowntown] for the map
         const length = curve.getLength()
         const count = Math.ceil(length / 0.8)
         const pts = curve.getSpacedPoints(count)
-        const half = street.width * (street.highway ? 0.45 : 0.4)
+        const fullHalf = street.width * (street.highway ? 0.45 : 0.4)
+        // a highway narrowing into a normal street: the width eases over the taper length (0 = full highway, 1 = street)
+        const taperAt = (i) =>
+        {
+            if(!street.taper) return 0
+            const along = (i / count) * length
+            const d = street.taper.at === 'end' ? length - along : along
+            const k = Math.max(0, Math.min(1, 1 - d / street.taper.length))
+            return k * k * (3 - 2 * k)
+        }
+        const halfAt = (i) => { const k = taperAt(i); return fullHalf + (street.taper ? (street.taper.width * 0.4 - fullHalf) * k : 0) }
+        const half = fullHalf
         const centerYs = []
         const blocked = pts.map(p => inSite(p.x, p.z, half * 0.6))
         let previous = - 1
@@ -462,16 +473,17 @@ const footprints = [] // [x, z, w, d, isDowntown] for the map
             }
             const t = curve.getTangentAt(i / count)
             const n = new THREE.Vector3(- t.z, 0, t.x).normalize()
-            const cy = Math.max(roadY(p.x, p.z, t.x, t.z), roadY(p.x + n.x * half, p.z + n.z * half, t.x, t.z), roadY(p.x - n.x * half, p.z - n.z * half, t.x, t.z))
+            const h = halfAt(i)
+            const cy = Math.max(roadY(p.x, p.z, t.x, t.z), roadY(p.x + n.x * h, p.z + n.z * h, t.x, t.z), roadY(p.x - n.x * h, p.z - n.z * h, t.x, t.z))
             centerYs.push(cy)
             if(previous < 0)
-                previous = pushRamp(p, t, n, half, i / count, - 1)
-            const current = pushSection(p.x, p.z, n.x, n.z, cy, half, i / count)
+                previous = pushRamp(p, t, n, h, i / count, - 1)
+            const current = pushSection(p.x, p.z, n.x, n.z, cy, h, i / count)
             connectSections(previous, current) // counter clockwise seen from above
             previous = current
             // end of this run: ramp down
             if(i === pts.length - 1 || blocked[i + 1])
-                connectSections(current, pushRamp(p, t, n, half, i / count, 1))
+                connectSections(current, pushRamp(p, t, n, h, i / count, 1))
         })
 
         // markings
@@ -483,14 +495,18 @@ const footprints = [] // [x, z, w, d, isDowntown] for the map
             const t = curve.getTangentAt(i / count)
             const n = { x: - t.z, z: t.x }
             const y = centerYs[i] + 0.015
-            if(street.highway)
+            if(street.highway && taperAt(i) < 0.6)
             {
-                // double yellow center line, white dashed lanes
+                // double yellow center line, white dashed lanes (the lane lines draw in as the road widens)
+                const h = halfAt(i)
                 for(const o of [ - 0.16, 0.16 ])
                     quad(p.x + n.x * o, y, p.z + n.z * o, t.x, t.z, spacing + 0.05, 0.12, C.gold)
-                if(i % 3 === 0)
-                    for(const o of [ - half * 0.5, half * 0.5 ])
+                if(i % 3 === 0 && taperAt(i) < 0.25)
+                    for(const o of [ - h * 0.5, h * 0.5 ])
                         quad(p.x + n.x * o, y, p.z + n.z * o, t.x, t.z, 1.2, 0.14, C.snow)
+                // solid white edge lines, like a real highway
+                for(const o of [ - h + 0.22, h - 0.22 ])
+                    quad(p.x + n.x * o, y, p.z + n.z * o, t.x, t.z, spacing + 0.05, 0.1, C.snow)
             }
             else if(i % 3 === 0)
             {

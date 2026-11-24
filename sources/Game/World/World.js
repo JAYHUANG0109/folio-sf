@@ -77,7 +77,8 @@ export class World
             this.bricks = new Bricks()
             this.fences = new Fences()
             this.benches = new Benches()
-            this.poleLights = new PoleLights()
+            if(placements.poleLights?.length)       // none left once the roads got wider: skip instead of crashing
+                this.poleLights = new PoleLights()
             this.lanterns = new Lanterns()
             this.scenery = new Scenery()
             this.areas = new Areas()

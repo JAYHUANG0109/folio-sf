@@ -145,8 +145,8 @@ wine = #7d1420
 
     .ll-address
         position absolute
-        left 9%
-        bottom 12%
+        left 10%
+        bottom 16%
         z-index 1
         display flex
         flex-direction column
@@ -160,8 +160,8 @@ wine = #7d1420
         em
             font-style normal
             font-family "Pinyon Script", "Noto Serif TC", serif
-            font-size 26px
-            margin-bottom 2px
+            font-size 30px
+            margin-bottom 4px
 
     // red sealing wax, irregular, with an embossed J
     .ll-seal
@@ -226,7 +226,7 @@ wine = #7d1420
         max-width 540px
         padding 30px 48px 24px
         border-radius 2px
-        text-align left
+        text-align center
         background radial-gradient(ellipse 70% 55% at 50% 45%, rgba(255, 248, 225, 0.85), transparent 70%), radial-gradient(circle at 12% 88%, rgba(150, 100, 40, 0.22), transparent 22%), radial-gradient(circle at 88% 14%, rgba(150, 100, 40, 0.18), transparent 20%), radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(120, 75, 25, 0.45) 100%), linear-gradient(175deg, #efdfba, #e2cb9c 55%, #d6bb87)
         box-shadow 0 1px 0 #d4bb88, 0 2px 0 #cbb07c, 0 3px 0 #c1a46f, 0 40px 80px rgba(0, 0, 0, 0.6), 0 12px 24px rgba(0, 0, 0, 0.3)
         transform translateY(150px) translateZ(-130px) rotateX(-60deg) scale(0.8)
@@ -284,8 +284,8 @@ wine = #7d1420
 
     .ll-crest
         display block
-        width 128px
-        margin 22px auto 2px
+        width 150px
+        margin 34px auto 2px
         transform translateZ(34px)
         filter drop-shadow(0 1px 0 rgba(255, 250, 230, 0.5))
 
@@ -314,7 +314,7 @@ wine = #7d1420
         font-family "Cinzel", serif
         font-size 12px
         letter-spacing 0.12em
-        margin-top 4px !important
+        margin 4px 0 18px !important
         transform translateZ(18px)
 
     .ll-orders
@@ -332,7 +332,7 @@ wine = #7d1420
         font-size 30px
         line-height 1.1
         color wine
-        margin-bottom 8px !important
+        margin-bottom 12px !important
         transform translateZ(22px)
 
     .ll-body
@@ -351,7 +351,7 @@ wine = #7d1420
     .ll-closing
         font-style italic
         font-size 16px
-        margin-top 6px !important
+        margin-top 16px !important
         transform translateZ(16px)
 
     .ll-signature
@@ -359,9 +359,9 @@ wine = #7d1420
         font-size 34px
         line-height 1.1
         color wine
-        margin 2px 0 0 12px !important
-        transform translateZ(26px) rotate(-3deg)
-        transform-origin left center
+        margin 10px 0 4px !important
+        transform translateZ(26px) rotate(-2deg)
+        transform-origin center
 
     .ll-sigline
         font-family "IM Fell English", "Noto Serif TC", serif
@@ -393,9 +393,10 @@ wine = #7d1420
         color wine
         background linear-gradient(180deg, rgba(255, 250, 235, 0.7), rgba(225, 205, 160, 0.7))
         transform translateZ(22px)
-        transition box-shadow 0.2s ease
+        transition box-shadow 0.25s ease, transform 0.25s ease
         &:hover
-            box-shadow 0 4px 12px rgba(125, 20, 32, 0.25)
+            transform translateZ(60px) scale(1.06)          // pops up toward you, inviting the click
+            box-shadow 0 14px 26px rgba(125, 20, 32, 0.35)
 
     .ll-sparkles
         position absolute
@@ -477,7 +478,7 @@ wine = #7d1420
 @media (max-height: 820px)
     .love-letter
         .ll-crest
-            width 104px
+            width 124px
             margin-top 14px
         .ll-body p
             line-height 1.7
@@ -488,7 +489,7 @@ wine = #7d1420
         .ll-paper
             padding 30px 22px 22px
         .ll-crest
-            width 100px
+            width 118px
         .ll-office
             font-size 17px
         .ll-body p

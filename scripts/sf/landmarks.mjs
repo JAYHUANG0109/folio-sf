@@ -624,7 +624,7 @@ builders.sfo = (ctx) =>
     for(let i = 0; i < 8; i++)
         runway.box([ 0.5, 0.04, 2 ], C.snow, [ 0, 0, i * 4 ])
     nodes.push(meshNode('runway', runway, ctx.at(76, 52)))
-    nodes.push(...letters(ctx, 'SFO', C.bridge, 58, 62, - 0.3, 0.45))
+    nodes.push(...letters(ctx, 'SFO', C.bridge, 57.5, 65.2, 0, 0.45))   // between the AirTrain columns (z 63 and 67.5), clear of both
     return nodes
 }
 

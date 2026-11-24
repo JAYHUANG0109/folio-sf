@@ -117,7 +117,9 @@ export const parks = [
  */
 export const streets = [
     // Embarcadero, along the waterfront
-    { points: [[-6, -50], [10, -50], [24, -50], [38, -49], [48, -43], [54, -34], [57, -24], [55, -12], [56, 4], [60, 20], [60, 40], [57, 54], [58, 62]], width: 5.4, asphalt: true },
+    { points: [[-6, -50], [10, -50], [24, -50], [38, -49], [48, -43], [54, -34], [57, -24], [55, -12]], width: 5.4, asphalt: true },
+    // ...and from the Ferry Building down to SFO it's a highway (it narrows smoothly back into the Embarcadero at the Ferry Building)
+    { points: [[55, -12], [56, 4], [60, 20], [60, 40], [57, 54], [58, 62]], width: 7, asphalt: true, highway: true, taper: { at: 'start', width: 5.4, length: 10 } },
     // Market St, in two parts around the (bigger) Union Square
     { points: [[55, -16], [46, -8], [43, -2], [44, 5]], width: 5.4, asphalt: true },
     { points: [[21, 26], [19, 30], [14, 32.5], [2, 38], [-6, 41]], width: 5.4, asphalt: true },
@@ -142,7 +144,7 @@ export const streets = [
     // Palace of Fine Arts loop
     { points: [[-40, -46], [-40, -41]], width: 4.4, asphalt: true },
     // Great Highway, Ocean Beach
-    { points: [[-63, -47.5], [-72, -45], [-80, -38], [-82, -10], [-82, 30], [-80, 60], [-70, 84]], width: 5.4, asphalt: true, highway: true },
+    { points: [[-63, -47.5], [-72, -45], [-80, -38], [-82, -10], [-82, 30], [-80, 60], [-70, 84]], width: 7, asphalt: true, highway: true, taper: { at: 'end', width: 4.4, length: 14 } }, // eases down into the normal road by the turkey
     // round the north side of the stadium, from the coast road to the 101 (no dead ends at the stadium)
     { points: [[-24, 84], [-22, 74], [-18, 63], [-8, 57], [8, 56], [24, 56.5], [36, 57.5], [44, 58]], width: 4.4, asphalt: true },
     // Peninsula road west of Levi's
