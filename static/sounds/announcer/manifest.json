@@ -1,1 +1,29 @@
-{}
+{
+  "catch": [
+    "catch-1.mp3",
+    "catch-2.mp3"
+  ],
+  "countdown": [
+    "countdown-1.mp3",
+    "countdown-2.mp3"
+  ],
+  "fieldgoal": [
+    "fieldgoal-1.mp3"
+  ],
+  "firstdown": [
+    "firstdown-1.mp3",
+    "firstdown-2.mp3"
+  ],
+  "fumble": [
+    "fumble-1.mp3"
+  ],
+  "interception": [
+    "interception-1.mp3",
+    "interception-2.mp3"
+  ],
+  "touchdown": [
+    "touchdown-1.mp3",
+    "touchdown-2.mp3",
+    "touchdown-3.mp3"
+  ]
+}

@@ -11,7 +11,7 @@
  */
 import fs from 'node:fs'
 import path from 'node:path'
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
 
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../..')
 const input = path.join(root, 'recordings/announcer')
@@ -36,20 +36,31 @@ for(const file of files.sort())
     }
     takes[name] = (takes[name] || 0) + 1
     const outName = `${name}-${takes[name]}.mp3`
+    // find where the speech starts and ends (gaps inside the line are kept), with a small cushion either side
+    const source = path.join(input, file)
+    const duration = parseFloat(execFileSync('ffprobe', [ '-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', source ]).toString())
+    const detect = spawnSync('ffmpeg', [ '-i', source, '-af', 'silencedetect=noise=-38dB:d=0.25', '-f', 'null', '-' ]).stderr.toString()
+    const silences = [ ...detect.matchAll(/silence_start: ([0-9.]+)[\s\S]*?(?:silence_end: ([0-9.]+)|$)/g) ].map(m => [ parseFloat(m[1]), m[2] ? parseFloat(m[2]) : duration ])
+    let start = 0, end = duration
+    if(silences.length && silences[0][0] < 0.05)
+        start = silences[0][1]
+    const last = silences[silences.length - 1]
+    if(last && last[1] >= duration - 0.05 && last[0] > start)
+        end = last[0]
+    start = Math.max(0, start - 0.25)
+    end = Math.min(duration, end + 0.3)
     const filters = [
-        'silenceremove=start_periods=1:start_threshold=-42dB:start_silence=0.05',
-        'areverse',
-        'silenceremove=start_periods=1:start_threshold=-42dB:start_silence=0.12',
-        'areverse',
+        `atrim=start=${start.toFixed(3)}:end=${end.toFixed(3)}`,
+        'asetpts=PTS-STARTPTS',
         'highpass=f=90',
         'acompressor=threshold=-20dB:ratio=4:attack=5:release=120:makeup=4',
+        'aecho=0.9:0.7:70|140:0.22|0.1',          // the stadium PA bouncing off the stands
         'loudnorm=I=-14:TP=-1.5:LRA=9',
-        'aecho=0.85:0.6:70|140:0.22|0.1',          // the stadium PA bouncing off the stands
-        'afade=t=out:st=0:d=0.01',
+        'apad=pad_dur=0.25',                       // let the echo ring out
     ]
-    execFileSync('ffmpeg', [ '-y', '-loglevel', 'error', '-i', path.join(input, file), '-ac', '1', '-ar', '44100', '-af', filters.filter(f => !f.startsWith('afade')).join(','), '-b:a', '128k', path.join(output, outName) ])
+    execFileSync('ffmpeg', [ '-y', '-loglevel', 'error', '-i', source, '-ac', '1', '-ar', '44100', '-af', filters.join(','), '-b:a', '128k', path.join(output, outName) ])
+    console.log('announcer:', file, '->', outName, `(speech ${start.toFixed(2)}s to ${end.toFixed(2)}s of ${duration.toFixed(2)}s)`)
     ;(manifest[name] = manifest[name] || []).push(outName)
-    console.log('announcer:', file, '->', outName)
 }
 
 fs.writeFileSync(path.join(output, 'manifest.json'), JSON.stringify(manifest, null, 2))

@@ -317,7 +317,7 @@ export class GameDay
                 this.launchVolley(6)
                 this.touchdownCall(p.kind === 'bigplay' ? 3 : 9)
             }
-            else
+            else if(!Object.keys(this.clips || {}).length)
                 this.announce([ { text: 'Seahawks score.', pitch: 0.85, rate: 0.95 } ])
             p.line = 0
             turnover()
@@ -393,6 +393,9 @@ export class GameDay
     call(name, lines, force = false)
     {
         if(this.playClip(name, force))
+            return
+        // once Jay's recordings are in, moments without a recording stay quiet (no robot voice mixed with his)
+        if(Object.keys(this.clips || {}).length)
             return
         this.announce(lines, force)
     }
