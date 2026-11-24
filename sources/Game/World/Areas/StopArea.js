@@ -476,11 +476,12 @@ export class StopArea extends Area
             const winter = this.game.environment?.seasonId() === 'winter' ? 1 : 0
             if(plane.lift === undefined)
                 plane.lift = winter
-            plane.lift += (winter - plane.lift) * Math.min(1, delta * 0.5)
+            plane.lift += (winter - plane.lift) * Math.min(1, delta * 0.35)
             const f = plane.lift
-            // lifted ~1.4 off the apron, bobbing 0.6 up and down over ~7 s, with a gentle roll and pitch
+            // lifted high in the sky: above the terminal roof (~8.5) and below the tower's deck (~22, the reindeer),
+            // so nothing covers it; bobbing 0.6 up and down over ~7 s, with a gentle roll and pitch
             plane.position.copy(plane.base)
-            plane.position.y += (1.4 + Math.sin(k * 0.9) * 0.6) * f
+            plane.position.y += (9.2 + Math.sin(k * 0.9) * 0.6) * f
             plane.euler.set(Math.sin(k * 0.9 + 1.2) * 0.025 * f, 0, Math.sin(k * 0.6) * 0.03 * f)
             plane.sway.setFromEuler(plane.euler)
             const q = plane.quaternion.clone().multiply(plane.sway)
