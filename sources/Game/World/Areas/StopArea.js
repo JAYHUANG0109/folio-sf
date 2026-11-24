@@ -1,4 +1,6 @@
 import * as THREE from 'three/webgpu'
+import { color, uniform, attribute } from 'three/tsl'
+import { Howler } from 'howler'
 import { Area } from './Area.js'
 import { InteractivePoints } from '../../InteractivePoints.js'
 import { StopCard } from './StopCard.js'
@@ -122,6 +124,8 @@ export class StopArea extends Area
         network.edges.forEach((edge, i) => edge.points.forEach(([ x, , z ]) => { const d = Math.hypot(x + 17, z + 30); if(d < best) { best = d; start = i } }))
         this.cableCar = {
             body: object.physical.body,
+            visual: object.visual?.object3D,
+            knocked: null, cooldown: 0,
             network, adjacency,
             edge: start, forward: true,
             points: network.edges[start].points.map(p => new THREE.Vector3(...p)),
@@ -173,10 +177,223 @@ export class StopArea extends Area
             car.pauseTimer = 3              // end of the line: a pause, then back the other way
     }
 
+    /** the player's car always wins: the cable car flies off, smokes and flashes red, then hops back onto its track */
+    setCableCarEffects()
+    {
+        const car = this.cableCar
+        // red warning flash: a glowing red shell over the car
+        const flashMaterial = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false })
+        flashMaterial.colorNode = color('#ff2a1a')
+        flashMaterial.opacityNode = uniform(0)
+        car.flashOpacity = flashMaterial.opacityNode
+        car.flash = new THREE.Mesh(new THREE.BoxGeometry(2.35, 3.05, 5.25).translate(0, 1.5, 0), flashMaterial)
+        car.flash.visible = false
+        car.visual?.add(car.flash)
+        // smoke puffs: a small pool reused forever
+        const smokeMaterial = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false })
+        smokeMaterial.colorNode = color('#5a5a5f')
+        smokeMaterial.opacityNode = attribute('instanceOpacity', 'float')
+        car.puffs = Array.from({ length: 60 }, () => ({ life: 0, max: 1, p: new THREE.Vector3(), v: new THREE.Vector3(), s: 0 }))
+        car.smoke = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 1), smokeMaterial, car.puffs.length)
+        car.smokeOpacity = new THREE.InstancedBufferAttribute(new Float32Array(car.puffs.length), 1)
+        car.smoke.geometry.setAttribute('instanceOpacity', car.smokeOpacity)
+        car.smoke.frustumCulled = false
+        car.smoke.count = car.puffs.length
+        this.game.scene.add(car.smoke)
+        car.smokeDummy = new THREE.Object3D()
+        car.vents = [ [ 0, 2.9, 1.8 ], [ 0, 2.9, - 1.8 ], [ 0.9, 1.8, 2.3 ], [ - 0.9, 1.2, - 2.3 ], [ 1.05, 2.2, 0 ], [ - 1.05, 0.8, 0.6 ] ].map(v => new THREE.Vector3(...v))
+        car.nextPuff = 0
+    }
+
+    knockCableCar(player, playerSpeed)
+    {
+        const car = this.cableCar
+        const RAPIER = this.game.RAPIER
+        const vehicle = this.game.physicalVehicle
+        // fly away from the player's car, in the direction it was driving
+        const away = new THREE.Vector3(car.position.x - player.x, 0, car.position.z - player.z).normalize()
+        const forward = new THREE.Vector3(1, 0, 0).applyQuaternion(vehicle.quaternion).setY(0).normalize()
+        const dir = away.multiplyScalar(0.5).add(forward.multiplyScalar(0.5)).normalize()
+        const push = 6 + Math.min(Math.abs(playerSpeed), 16) * 0.9
+        car.body.setBodyType(RAPIER.RigidBodyType.Dynamic, true)
+        car.body.setLinvel({ x: dir.x * push, y: 6 + Math.random() * 3, z: dir.z * push }, true)
+        car.body.setAngvel({ x: (Math.random() - 0.5) * 5, y: (Math.random() - 0.5) * 3, z: (Math.random() - 0.5) * 6 }, true)
+        car.knocked = { time: 0, down: 4 + Math.random() * 1.5, recover: 0 }
+        this.boing(1)
+        if(car.flash) car.flash.visible = true
+    }
+
+    /** a cartoon "boing": a springy pitch bend with a wobble, no explosion */
+    boing(strength = 1)
+    {
+        const ctx = Howler.ctx
+        if(!ctx || !Howler.masterGain || ctx.state !== 'running' || document.documentElement.classList.contains('is-audio-muted'))
+            return
+        const player = this.game.player.position, car = this.cableCar.position
+        const volume = Math.max(0, Math.min(1, (40 - Math.hypot(player.x - car.x, player.z - car.z)) / 25)) * 0.45 * strength
+        if(volume <= 0)
+            return
+        const t = ctx.currentTime + 0.01
+        const o = ctx.createOscillator()
+        o.type = 'triangle'
+        o.frequency.setValueAtTime(140, t)
+        o.frequency.exponentialRampToValueAtTime(520, t + 0.12)
+        o.frequency.exponentialRampToValueAtTime(180, t + 0.55)
+        const wobble = ctx.createOscillator()
+        wobble.frequency.setValueAtTime(18, t)
+        wobble.frequency.linearRampToValueAtTime(7, t + 0.55)
+        const depth = ctx.createGain()
+        depth.gain.value = 45
+        wobble.connect(depth).connect(o.frequency)
+        const g = ctx.createGain()
+        g.gain.setValueAtTime(0.0001, t)
+        g.gain.exponentialRampToValueAtTime(volume, t + 0.02)
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.6)
+        o.connect(g).connect(Howler.masterGain)
+        o.start(t); wobble.start(t)
+        o.stop(t + 0.65); wobble.stop(t + 0.65)
+    }
+
+    updateCableCarKnock(delta)
+    {
+        const car = this.cableCar
+        const k = car.knocked
+        k.time += delta
+        const t = this.game.ticker.elapsed
+        // red flashing, faster and stronger the longer it lies there
+        const urgency = Math.min(1, k.time / k.down)
+        if(car.flashOpacity)
+            car.flashOpacity.value = (0.12 + urgency * 0.25) * (0.5 + 0.5 * Math.sin(t * (6 + urgency * 10)))
+        if(k.time < k.down)
+            return false
+        // wait while the player's car sits where it would land (it never lands on, or shoves, the player)
+        if(!k.recover)
+        {
+            const player = this.game.player.position
+            if(Math.hypot(player.x - car.position.x, player.z - car.position.z) < 6.5)
+            {
+                k.waited = (k.waited || 0) + 0.5
+                k.down = k.time + 0.5
+                // waited long enough: come back a bit further along the track instead, clear of the player
+                if(k.waited > 8)
+                {
+                    for(let step = 0; step < 40 && Math.hypot(player.x - car.position.x, player.z - car.position.z) < 9; step++)
+                    {
+                        if(car.index >= car.points.length - 2)
+                            this.nextCableCarEdge()
+                        car.index = Math.min(car.index + 1, car.points.length - 1)
+                        car.t = 0
+                        car.position.copy(car.points[car.index])
+                    }
+                    car.pauseTimer = 0
+                    k.waited = 0
+                }
+                return false
+            }
+            this.boing(0.7)
+        }
+        // pop back up: rise from where it fell, turning upright, then drop onto the track and carry on
+        if(!k.recover)
+        {
+            const RAPIER = this.game.RAPIER
+            const p = car.body.translation(), r = car.body.rotation()
+            k.from = new THREE.Vector3(p.x, p.y, p.z)
+            k.fromQ = new THREE.Quaternion(r.x, r.y, r.z, r.w)
+            car.body.setBodyType(RAPIER.RigidBodyType.KinematicPositionBased, true)
+            k.recover = 0.0001
+        }
+        k.recover += delta / 0.9
+        const e = Math.min(1, k.recover)
+        const ease = e * e * (3 - 2 * e)
+        const pos = k.from.clone().lerp(car.position, ease)
+        pos.y += Math.sin(e * Math.PI) * 2.5
+        const q = k.fromQ.clone().slerp(car.quaternion, ease)
+        car.body.setNextKinematicTranslation(pos)
+        car.body.setNextKinematicRotation(q)
+        if(e >= 1)
+        {
+            car.knocked = null
+            car.cooldown = 2.5
+            if(car.flash) car.flash.visible = false
+        }
+        return true
+    }
+
+    updateCableCarSmoke(delta)
+    {
+        const car = this.cableCar
+        if(!car.smoke)
+            return
+        // new puffs from the vents while it's knocked over
+        if(car.knocked && car.knocked.time < car.knocked.down + 0.6 && car.visual)
+        {
+            car.nextPuff -= delta
+            while(car.nextPuff <= 0)
+            {
+                car.nextPuff += 0.05
+                const puff = car.puffs.find(pf => pf.life <= 0)
+                if(!puff) break
+                const vent = car.vents[Math.floor(Math.random() * car.vents.length)]
+                puff.p.copy(vent).applyMatrix4(car.visual.matrixWorld)
+                puff.v.set((Math.random() - 0.5) * 0.8, 1.6 + Math.random() * 1.4, (Math.random() - 0.5) * 0.8)
+                puff.max = puff.life = 1.4 + Math.random() * 1.2
+                puff.s = 0.25 + Math.random() * 0.25
+            }
+        }
+        car.puffs.forEach((puff, i) =>
+        {
+            const d = car.smokeDummy
+            if(puff.life > 0)
+            {
+                puff.life -= delta
+                puff.p.addScaledVector(puff.v, delta)
+                puff.v.multiplyScalar(1 - delta * 0.6)
+                const age = 1 - Math.max(0, puff.life) / puff.max
+                d.position.copy(puff.p)
+                d.scale.setScalar(puff.s * (1 + age * 3.2))
+                car.smokeOpacity.array[i] = Math.max(0, 0.55 * (1 - age)) * Math.min(1, age * 8)
+            }
+            else
+            {
+                d.scale.setScalar(0.0001)
+                car.smokeOpacity.array[i] = 0
+            }
+            d.updateMatrix()
+            car.smoke.setMatrixAt(i, d.matrix)
+        })
+        car.smoke.instanceMatrix.needsUpdate = true
+        car.smokeOpacity.needsUpdate = true
+    }
+
     updateCableCar()
     {
         const car = this.cableCar
         const delta = Math.min(this.game.ticker.deltaScaled, 0.1)
+        if(!car.smoke)
+            this.setCableCarEffects()
+        this.updateCableCarSmoke(delta)
+        if(car.knocked)
+        {
+            this.updateCableCarKnock(delta)
+            return
+        }
+        car.cooldown = Math.max(0, car.cooldown - delta)
+        if(car.cooldown > 0)
+        {
+            const player = this.game.player.position
+            if(Math.hypot(player.x - car.position.x, player.z - car.position.z) < 6)
+                return                          // just back on the track: wait for the player to drive off first
+        }
+        // the player's car touches it: the cable car is the one that goes flying (never the other way round)
+        const player = this.game.player.position
+        const ox = player.x - car.position.x, oz = player.z - car.position.z
+        const along = Math.abs(ox * Math.sin(car.yaw ?? 0) + oz * Math.cos(car.yaw ?? 0))
+        const across = Math.abs(ox * Math.cos(car.yaw ?? 0) - oz * Math.sin(car.yaw ?? 0))
+        if(car.cooldown <= 0 && along < 4.2 && across < 2.9 && Math.abs(player.y - car.position.y) < 3)
+        {
+            this.knockCableCar(player, this.game.physicalVehicle.speed || 0)
+            return
+        }
         if(car.pauseTimer > 0)
         {
             car.pauseTimer -= delta
