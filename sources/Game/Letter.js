@@ -122,23 +122,29 @@ export class Letter
             <div class="ll-backdrop"></div>
             <div class="ll-bokeh" aria-hidden="true"></div>
             <div class="ll-snow" aria-hidden="true"></div>
-            <button class="ll-envelope" type="button" aria-label="打開信">
-                <span class="ll-pocket"></span>
-                <span class="ll-flap"></span>
-                <span class="ll-seal"><span>J</span></span>
-                ${this.holly('ll-holly-seal')}
-                <span class="ll-to"><em>To</em> 朵婕</span>
-                <span class="ll-hint">輕點，打開這封信</span>
-            </button>
-            <article class="ll-paper" aria-live="polite">
-                ${this.garland()}
-                ${this.holly('ll-holly-corner')}
-                <p class="ll-eyebrow">Merry Christmas</p>
-                <p class="ll-greeting"></p>
-                <div class="ll-body"></div>
-                <p class="ll-signature"></p>
-                <button class="ll-close" type="button">收到了</button>
-            </article>
+            <div class="ll-stage">
+                <button class="ll-envelope" type="button" aria-label="打開信">
+                    <span class="ll-back"></span>
+                    <span class="ll-pocket"></span>
+                    <span class="ll-flap"></span>
+                    <span class="ll-seal"><span>J</span></span>
+                    ${this.holly('ll-holly-seal')}
+                    <span class="ll-to"><em>To</em> 朵婕</span>
+                    <span class="ll-glare"></span>
+                </button>
+                <article class="ll-paper" aria-live="polite">
+                    ${this.garland()}
+                    ${this.holly('ll-holly-corner')}
+                    <p class="ll-eyebrow">Merry Christmas</p>
+                    <p class="ll-greeting"></p>
+                    <div class="ll-body"></div>
+                    <p class="ll-signature"></p>
+                    <button class="ll-close" type="button">收到了</button>
+                    <span class="ll-glare"></span>
+                </article>
+                <div class="ll-sparkles" aria-hidden="true"></div>
+            </div>
+            <span class="ll-hint">輕點，打開這封信</span>
         `
         root.querySelector('.ll-greeting').textContent = LETTER.greeting
         const body = root.querySelector('.ll-body')
@@ -181,11 +187,62 @@ export class Letter
         document.body.append(root)
         requestAnimationFrame(() => root.classList.add('is-visible'))
 
+        // 3D tilt: follows the pointer (eased); with no pointer around it sways gently by itself
+        const stage = root.querySelector('.ll-stage')
+        const tilt = { x: 0, y: 0, tx: 0, ty: 0, last: 0, gx: 50, gy: 30 }
+        root.addEventListener('pointermove', (event) =>
+        {
+            const rect = stage.getBoundingClientRect()
+            const nx = (event.clientX - (rect.left + rect.width / 2)) / (window.innerWidth / 2)
+            const ny = (event.clientY - (rect.top + rect.height / 2)) / (window.innerHeight / 2)
+            tilt.tx = Math.max(- 1, Math.min(1, nx))
+            tilt.ty = Math.max(- 1, Math.min(1, ny))
+            tilt.last = performance.now()
+        })
+        const animate = (now) =>
+        {
+            if(!root.isConnected)
+                return
+            if(now - tilt.last > 2500)
+            {
+                tilt.tx = Math.sin(now / 2600) * 0.55
+                tilt.ty = Math.sin(now / 3400 + 1) * 0.35
+            }
+            tilt.x += (tilt.tx - tilt.x) * 0.06
+            tilt.y += (tilt.ty - tilt.y) * 0.06
+            stage.style.setProperty('--ry', `${(tilt.x * 16).toFixed(2)}deg`)
+            stage.style.setProperty('--rx', `${(- tilt.y * 12).toFixed(2)}deg`)
+            stage.style.setProperty('--gx', `${(50 + tilt.x * 45).toFixed(1)}%`)
+            stage.style.setProperty('--gy', `${(35 + tilt.y * 40).toFixed(1)}%`)
+            requestAnimationFrame(animate)
+        }
+        requestAnimationFrame(animate)
+
+        // a burst of gold sparkles from the seal when it opens
+        const burst = () =>
+        {
+            const box = root.querySelector('.ll-sparkles')
+            for(let i = 0; i < 70; i++)
+            {
+                const spark = document.createElement('span')
+                const a = Math.random() * Math.PI * 2, d = 90 + Math.random() * 220
+                spark.style.setProperty('--dx', `${Math.cos(a) * d}px`)
+                spark.style.setProperty('--dy', `${Math.sin(a) * d - 60}px`)
+                spark.style.setProperty('--z', `${40 + Math.random() * 120}px`)
+                spark.style.setProperty('--s', `${4 + Math.random() * 8}px`)
+                spark.style.animationDelay = `${Math.random() * 0.25}s`
+                spark.style.background = [ '#ffe7a3', '#f4c95d', '#fff6d8', '#ff8a8a' ][i % 4]
+                box.append(spark)
+            }
+            setTimeout(() => box.replaceChildren(), 2600)
+        }
+
         const open = () =>
         {
             if(root.classList.contains('is-open'))
                 return
             root.classList.add('is-open')
+            burst()
             setTimeout(() => root.querySelector('.ll-close').focus({ preventScroll: true }), 1400)
         }
         const close = () =>

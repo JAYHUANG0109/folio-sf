@@ -12,6 +12,8 @@
     transition opacity 0.8s ease
     font-family "Noto Serif TC", "Cormorant Garamond", "LXGW WenKai TC", serif
     overflow hidden
+    perspective 1000px
+    perspective-origin 50% 45%
 
     &.is-visible
         opacity 1
@@ -57,10 +59,22 @@
             animation-iteration-count infinite
 
     /* ---------- the envelope ---------- */
+    // the 3D stage: tilts with the pointer; envelope and card live inside it
+    .ll-stage
+        grid-area 1 / 1
+        position relative
+        z-index 2
+        display grid
+        place-items center
+        transform-style preserve-3d
+        transform rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg))
+        will-change transform
+
     .ll-envelope
         grid-area 1 / 1
         position relative
         z-index 2
+        transform-style preserve-3d
         width 86vw
         max-width 380px
         aspect-ratio 1.5
@@ -171,7 +185,9 @@
         position absolute
         left 0
         right 0
-        bottom -42px
+        bottom 18%
+        z-index 3
+        transition opacity 0.4s ease
         text-align center
         font-size 14px
         color rgba(241, 220, 156, 0.8)
@@ -184,20 +200,21 @@
     .ll-paper
         grid-area 1 / 1
         position relative
-        z-index 2
+        z-index 3
+        transform-style preserve-3d
         width 92vw
         max-width 520px
         max-height 94vh
-        overflow auto
         padding 96px 46px 26px
         border-radius 4px
         color #3b2418
         background radial-gradient(ellipse at 30% 0%, rgba(255, 255, 255, 0.9), transparent 60%), radial-gradient(ellipse at 100% 100%, rgba(214, 178, 90, 0.12), transparent 55%), linear-gradient(175deg, #fffaf0, #f6ecd8)
-        box-shadow 0 40px 90px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(160, 120, 60, 0.25)
-        transform translateY(70px) scale(0.92)
+        // a thick card stock edge (stacked shadows) and a deep, soft drop shadow
+        box-shadow 0 1px 0 #efe3c8, 0 2px 0 #e6d7b6, 0 3px 0 #ddcca6, 0 4px 0 #d3c096, 0 5px 0 #cbb68a, 0 40px 80px rgba(0, 0, 0, 0.55), 0 12px 24px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(160, 120, 60, 0.25)
+        transform translateY(140px) translateZ(-120px) rotateX(-58deg) scale(0.8)
         opacity 0
         pointer-events none
-        transition transform 1s cubic-bezier(0.2, 0.8, 0.2, 1) 0.5s, opacity 0.6s ease 0.5s
+        transition transform 1.35s cubic-bezier(0.16, 0.9, 0.25, 1.05) 0.55s, opacity 0.5s ease 0.55s
 
         // an inset double gold border, like a foil-stamped card
         &::before
@@ -310,9 +327,10 @@
     &.is-open
         .ll-envelope
             animation none
-            transform translateY(160px) scale(0.86)
+            transform translateY(200px) translateZ(-260px) rotateX(25deg) scale(0.8)
             opacity 0
             pointer-events none
+            transition transform 0.9s ease, opacity 0.3s ease 0.15s
         .ll-flap
             transform rotateX(180deg)
         .ll-seal
@@ -321,9 +339,11 @@
         .ll-holly-seal
             opacity 0
         .ll-paper
-            transform translateY(0) scale(1)
+            transform translateY(0) translateZ(0) rotateX(0) scale(1)
             opacity 1
             pointer-events auto
+        .ll-hint
+            opacity 0
 
 @keyframes ll-float
     0%, 100%
@@ -366,3 +386,109 @@
         .ll-signature
             font-size 30px
             padding-right 40px
+
+/* ---------- 3D layers & effects ---------- */
+.love-letter
+    // the layers of the card float at different depths (parallax as it tilts)
+    .ll-garland
+        transform translateZ(46px)
+    .ll-holly-corner
+        transform translateZ(38px) rotate(-14deg) scaleX(-1)
+    .ll-eyebrow
+        transform translateZ(26px)
+    .ll-greeting
+        transform translateZ(30px)
+    .ll-body
+        transform translateZ(16px)
+    .ll-signature
+        transform translateZ(28px)
+    .ll-close
+        transform translateZ(22px)
+    .ll-seal
+        transform translateZ(30px)
+    .ll-holly-seal
+        transform translateZ(42px) rotate(-18deg)
+    .ll-to
+        transform translateZ(14px)
+
+    // the envelope has a back face too
+    .ll-back
+        position absolute
+        inset 0
+        border-radius 6px
+        background linear-gradient(155deg, #6a0f1d, #3e0710)
+        transform translateZ(-6px)
+        box-shadow 0 0 0 1px rgba(214, 178, 90, 0.4)
+    .ll-flap
+        transform-style preserve-3d
+        backface-visibility hidden
+
+    // moving light: a soft specular glare that follows the tilt
+    .ll-glare
+        position absolute
+        inset 0
+        border-radius inherit
+        pointer-events none
+        z-index 5
+        background radial-gradient(circle at var(--gx, 50%) var(--gy, 30%), rgba(255, 255, 255, 0.38), rgba(255, 255, 255, 0.06) 32%, transparent 60%)
+        mix-blend-mode soft-light
+        transform translateZ(50px)
+
+    // gold foil shimmer on the eyebrow and the card's inner border
+    .ll-eyebrow
+        background linear-gradient(100deg, #9c7424 20%, #f6dc8a 38%, #fff4cf 45%, #c9a24a 55%, #9c7424 75%)
+        background-size 250% 100%
+        -webkit-background-clip text
+        background-clip text
+        color transparent
+        animation ll-foil 4.5s ease-in-out infinite
+    .ll-paper::before
+        border-image linear-gradient(100deg, #b88c34, #f6dc8a, #b88c34, #e8c773, #b88c34) 1
+        animation ll-foil-border 6s linear infinite
+
+    // the opening burst
+    .ll-sparkles
+        position absolute
+        left 50%
+        top 50%
+        width 0
+        height 0
+        z-index 6
+        transform-style preserve-3d
+        pointer-events none
+        span
+            position absolute
+            width var(--s)
+            height var(--s)
+            border-radius 50%
+            box-shadow 0 0 10px 3px rgba(255, 220, 140, 0.95), 0 0 22px 6px rgba(255, 190, 90, 0.5)
+            opacity 0
+            animation ll-burst 2.2s cubic-bezier(0.1, 0.7, 0.3, 1) forwards
+
+    // the seal breaks in two as it opens
+    &.is-open .ll-seal
+        transform translateZ(60px) scale(1.4) rotate(-25deg)
+
+@keyframes ll-foil
+    0%, 100%
+        background-position 100% 0
+    50%
+        background-position 0 0
+
+@keyframes ll-foil-border
+    0%
+        filter hue-rotate(0deg) brightness(1)
+    50%
+        filter hue-rotate(-8deg) brightness(1.25)
+    100%
+        filter hue-rotate(0deg) brightness(1)
+
+@keyframes ll-burst
+    0%
+        opacity 0
+        transform translate3d(0, 0, 0) scale(0.4)
+    12%
+        opacity 1
+    100%
+        opacity 0
+        transform translate3d(var(--dx), var(--dy), var(--z)) scale(1)
