@@ -16,7 +16,7 @@ export const stops = [
         note: '飛了六個小時，終於到了。從這裡開始，一站一站開過去。',
         position: { x: 62, z: 68 },
         radius: 11,
-        respawn: { x: 54, z: 64, rotation: Math.PI * 0.75 },
+        respawn: { x: 51, z: 60, rotation: Math.PI * 0.75 },   // clear of the SFO letters (they stand at about x 55-61, z 67)
         task: { type: 'letters', text: '把 SFO 大字母撞倒' },
     },
     {
