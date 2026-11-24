@@ -817,8 +817,8 @@ const streetLampSpots = []
         m.box([ 0.8, 0.8, 0.26 ], C.snow, [ 1.6, 4.1, 0 ])
         return m
     }
-    sceneryNodes.push({ ...fixedNode('signNapa', highwaySign([ 2.4, 1.6, 2 ], C.moss), [ - 58, ground(- 58, - 93.5), - 93.5 ], [ { position: [ 0, 2.1, 0 ], size: [ 4.6, 4.2, 0.4 ] } ]), rotation: [ 0, 0, 0 ] }) // beside the road, not on it
-    sceneryNodes.push({ ...fixedNode('sign101', highwaySign([ 2.4, 2 ], C.moss), [ 51.5, ground(51.5, 49), 49 ], [ { position: [ 0, 2.1, 0 ], size: [ 4.6, 4.2, 0.4 ] } ]), rotation: [ 0, 0.3, 0 ] })
+    sceneryNodes.push({ ...dynamicNode('signNapa', highwaySign([ 2.4, 1.6, 2 ], C.moss), [ - 58, ground(- 58, - 93.5), - 93.5 ], [ { position: [ 0, 2.1, 0 ], size: [ 4.6, 4.2, 0.4 ] } ], 1), rotation: [ 0, 0, 0 ] }) // beside the road, not on it
+    sceneryNodes.push({ ...dynamicNode('sign101', highwaySign([ 2.4, 2 ], C.moss), [ 51.5, ground(51.5, 49), 49 ], [ { position: [ 0, 2.1, 0 ], size: [ 4.6, 4.2, 0.4 ] } ], 1), rotation: [ 0, 0.3, 0 ] })
 }
 
 // Skyline landmarks
@@ -1289,8 +1289,8 @@ const streetLampSpots = []
         { shape: 'tube', position: [ 0, 0.35, 0 ], radius: 6.3, height: 0.7 },
         { position: [ 0, 2.4, 0 ], size: [ 7.6, 3.6, 4.8 ] },
     ]), S))
-    sceneryNodes.push(scaleNode(fixedNode('gravy', sides, [ x - 7.2 * S, ground(x - 7.2 * S, z - 1), z - 1 ], [ { shape: 'tube', position: [ 0, 0.35, 1.1 ], radius: 0.9, height: 0.7 } ]), S))
-    sceneryNodes.push(scaleNode(fixedNode('pumpkinPie', pie, [ x + 12.7 * S, ground(x + 12.7 * S, z + 2), z + 2 ], [ { shape: 'tube', position: [ 0, 0.3, 0 ], radius: 2.2, height: 0.7 } ]), S))
+    sceneryNodes.push(scaleNode(dynamicNode('gravy', sides, [ x - 7.2 * S, ground(x - 7.2 * S, z - 1), z - 1 ], [ { shape: 'tube', position: [ 0, 0.35, 1.1 ], radius: 0.9, height: 0.7 } ]), S))
+    sceneryNodes.push(scaleNode(dynamicNode('pumpkinPie', pie, [ x + 12.7 * S, ground(x + 12.7 * S, z + 2), z + 2 ], [ { shape: 'tube', position: [ 0, 0.3, 0 ], radius: 2.2, height: 0.7 } ]), S))
     // sign
     const sign = new Model()
     sign.cylinder(0.12, 0.12, 2.4, C.wood, [ - 1.6, 0, 0 ], 6)
@@ -1366,8 +1366,6 @@ for(const dog of dogsData)
 const holidaySpots = []
 {
     const r = rng(1124)
-    const m = new Model()
-    const colliders = []
     const clearOfHouses = (x, z, gap) => footprints.every(([ hx, hz, w, d ]) => Math.abs(x - hx) > w / 2 + gap || Math.abs(z - hz) > d / 2 + gap)
     const rejects = {}
     const kinds = [ 'pine', 'pine', 'pine', 'harvest', 'harvest', 'snowman', 'gifts', 'canes', 'pumpkins' ]
@@ -1379,6 +1377,8 @@ const holidaySpots = []
         if(holidaySpots.some(([ hx, hz ]) => Math.hypot(hx - x, hz - z) < 5))
             continue
         const kind = kinds[holidaySpots.length % kinds.length]
+        const m = new Model()
+        const colliders = []
         const y = ground(x, z), ry = r() * Math.PI * 2
         holidaySpots.push([ x, z ])
         if(kind === 'pine')
@@ -1409,17 +1409,34 @@ const holidaySpots = []
                 const a = k / 6 * Math.PI * 2 + ry, rr = 0.5 + (k % 2) * 0.5
                 pumpkin(m, [ x + Math.cos(a) * rr, ground(x + Math.cos(a) * rr, z + Math.sin(a) * rr), z + Math.sin(a) * rr ], 1 + (k % 3) * 0.35, [ C.orange, C.orange, C.gold, C.snow ][k % 4])
             }
+        // every piece is its own light prop the car can knock away (the model is moved to be centered on its spot)
+        if(!colliders.length)
+            colliders.push({ shape: 'tube', position: [ x, y + 0.5, z ], radius: kind === 'canes' ? 0.5 : 1.1, height: 1 })
+        const toLocal = new THREE.Matrix4().makeTranslation(- x, - y, - z)
+        for(const part of m.parts)
+            part.matrix = toLocal.clone().multiply(part.matrix)
+        const local = colliders.map(c => ({ ...c, position: [ c.position[0] - x, c.position[1] - y, c.position[2] - z ] }))
+        sceneryNodes.push(dynamicNode('holidayProp', m, [ round(x), round(y), round(z) ], local, 0.35))
     }
-    sceneryNodes.push(fixedNode('holidayLawns', m, [ 0, 0, 0 ], colliders))
-    console.log('holiday lawn props', holidaySpots.length, rejects)
+        console.log('holiday lawn props', holidaySpots.length, rejects)
 }
 
 // Parks dressed for the holidays: light canopies (four posts with fairy lights swagged between them and criss-crossing
 // overhead, a lit tree with presents underneath) and extra lit Christmas trees around each park's lawns
 {
     const r = rng(2412)
-    const m = new Model()
-    const colliders = []
+    let m = new Model(), colliders = []
+    // emit what's been built as one knockable piece centered at (x, z), then start a fresh one
+    const emit = (x, z, mass) =>
+    {
+        const y = ground(x, z)
+        const toLocal = new THREE.Matrix4().makeTranslation(- x, - y, - z)
+        for(const part of m.parts)
+            part.matrix = toLocal.clone().multiply(part.matrix)
+        sceneryNodes.push(dynamicNode('parkProp', m, [ round(x), round(y), round(z) ], colliders.map(c => ({ ...c, position: [ c.position[0] - x, c.position[1] - y, c.position[2] - z ] })), mass))
+        m = new Model()
+        colliders = []
+    }
     const clearOfHouses = (x, z, gap) => footprints.every(([ hx, hz, w, d ]) => Math.abs(x - hx) > w / 2 + gap || Math.abs(z - hz) > d / 2 + gap)
     const keepOut = [ [ - 73, - 8, - 43, 33 ], [ - 70, 41.5, - 32, 51 ] ]          // tennis courts, JAY ♥ JESSICA strip
     const placed = []
@@ -1472,6 +1489,7 @@ const holidaySpots = []
             if(c < nCanopy && ok(x, z, 3) && free(x, z, 8))
             {
                 canopy(x, z)
+                emit(x, z, 1.2)
                 placed.push([ x, z ])
                 c++
                 continue
@@ -1481,6 +1499,7 @@ const holidaySpots = []
                 const s = 1.1 + r() * 0.5, y = ground(x, z)
                 litPine(m, [ x, y, z ], s)
                 colliders.push({ shape: 'tube', position: [ x, y + s, z ], radius: 0.5 * s, height: 2 * s })
+                emit(x, z, 0.4)
                 placed.push([ x, z ])
                 t++
             }
@@ -1489,8 +1508,7 @@ const holidaySpots = []
         trees += t
     }
     holidaySpots.push(...placed)
-    sceneryNodes.push(fixedNode('parkLights', m, [ 0, 0, 0 ], colliders))
-    console.log('park canopies', canopies, 'park trees', trees)
+        console.log('park canopies', canopies, 'park trees', trees)
 }
 
 await writeGlb(out('static/scenery/scenery.glb'), sceneryNodes, { worldScale: W })
