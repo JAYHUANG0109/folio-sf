@@ -440,12 +440,17 @@ export class GameDay
         const takes = this.clips?.[name]
         if(!takes?.length || document.documentElement.classList.contains('is-audio-muted'))
             return null
+        // the announcer is only heard near the stadium (this.volume fades to 0 by ~34 units away);
+        // force skips the cooldown between calls, it never makes a far-away call audible
+        const loud = this.userCall
+        if(!loud && this.volume < 0.2)
+            return null
         if(!force && (this.volume < 0.35 || performance.now() - this.lastCall < 3000))
             return null
         this.lastCall = performance.now()
         const take = takes[Math.floor(Math.random() * takes.length)]
         take.howl = take.howl || new Howl({ src: [ `sounds/announcer/${take.file}` ], volume: 1 })
-        take.howl.volume(Math.min(1, Math.max(this.volume, force ? 0.85 : 0)))
+        take.howl.volume(Math.min(1, loud ? Math.max(this.volume, 0.85) : this.volume))
         if(onEnd)
             take.howl.once('end', onEnd)
         take.howl.play()
@@ -463,8 +468,13 @@ export class GameDay
         this.announce(lines, force)
     }
 
-    touchdownCall(from = 6, countdown = null)
+    touchdownCall(from = 6, countdown = null, user = false)
     {
+        // the player's own touchdown (they're on the field): full volume for a few seconds
+        this.userCall = user
+        clearTimeout(this.userCallTimer)
+        if(user)
+            this.userCallTimer = setTimeout(() => { this.userCall = false }, 12000)
         this.crowdJumpTimer = 7          // the whole stadium jumps for a few seconds
         if(this.clips?.touchdown?.length)
         {
@@ -718,7 +728,7 @@ export class GameDay
     {
         if(!('speechSynthesis' in window) || document.documentElement.classList.contains('is-audio-muted'))
             return
-        if(!force && this.volume < 0.5)
+        if(!this.userCall && this.volume < (force ? 0.2 : 0.5))
             return
         if(!force && performance.now() - this.lastCall < 6000)
             return
@@ -735,7 +745,7 @@ export class GameDay
             if(voice) u.voice = voice
             u.rate = line.rate ?? 1.15
             u.pitch = line.pitch ?? 1.15
-            u.volume = line.volume ?? Math.min(1, Math.max(this.volume, force ? 0.8 : 0)) * 0.95
+            u.volume = Math.min(1, this.userCall ? Math.max(this.volume, 0.8) : this.volume) * (line.volume ?? 0.95)
             speechSynthesis.speak(u)
         }
     }

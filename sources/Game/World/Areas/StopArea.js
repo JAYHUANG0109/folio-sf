@@ -311,7 +311,7 @@ export class StopArea extends Area
                         {
                             gameDay.cheer?.(1.4)
                             gameDay.launchVolley?.(8)
-                            gameDay.touchdownCall?.(20)
+                            gameDay.touchdownCall?.(20, null, true)
                             gameDay.jumbotron?.event('touchdown', { team: 'sf', user: true })
                         }
                         this.task?.touchdown()
