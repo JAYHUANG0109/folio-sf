@@ -654,6 +654,99 @@ const footprints = [] // [x, z, w, d, isDowntown] for the map
     sceneryNodes.push({ ...meshNode('boardwalkLights', bulbs, [ o.x, oy, o.z ]), mesh: { geometry: bulbs.geometry(), material: 'emissiveOrangeRadialGradient' } })
 }
 
+// Cable car network: every mainland street as a graph (junctions = nodes, street pieces between them = edges),
+// so the cable car can wander the whole city at random (StopArea.setCableCar). Not the bridge, Marin, Napa or Alcatraz.
+{
+    const streets = Layout.streets.filter(st => st.asphalt && st.points.every(([ x, z ]) => z > - 60))
+    const step = 0.6
+    const lines = streets.map(st =>
+    {
+        const curve = new THREE.CatmullRomCurve3(st.points.map(([ x, z ]) => new THREE.Vector3(x, 0, z)), false, 'centripetal')
+        return curve.getSpacedPoints(Math.max(2, Math.ceil(curve.getLength() / step))).map(p => [ p.x, p.z ])
+    })
+    const splits = lines.map(line => new Set([ 0, line.length - 1 ]))
+    const junctions = []
+    const nearestIndex = (line, x, z) =>
+    {
+        let best = 0, bestD = Infinity
+        line.forEach(([ px, pz ], i) => { const d = Math.hypot(px - x, pz - z); if(d < bestD) { bestD = d; best = i } })
+        return [ best, bestD ]
+    }
+    for(let i = 0; i < lines.length; i++)
+        for(let j = i + 1; j < lines.length; j++)
+        {
+            // crossings / touching: the closest approach of every run where the two streets come within 1.5 units
+            let run = null
+            const flush = () => { if(run) { splits[i].add(run.a); splits[j].add(run.b); junctions.push(run.p) } run = null }
+            lines[i].forEach(([ x, z ], a) =>
+            {
+                const [ b, d ] = nearestIndex(lines[j], x, z)
+                if(d < 1.5)
+                {
+                    if(!run || d < run.d) run = { a, b, d, p: [ (x + lines[j][b][0]) / 2, (z + lines[j][b][1]) / 2 ], last: a, ...(run ? { a: d < run.d ? a : run.a, b: d < run.d ? b : run.b } : {}) }
+                    run.last = a
+                }
+                else if(run && a - run.last > 3)
+                    flush()
+            })
+            flush()
+            // T junctions: a street ending near (but not on) the other one
+            for(const [ from, to ] of [ [ i, j ], [ j, i ] ])
+                for(const end of [ 0, lines[from].length - 1 ])
+                {
+                    const [ x, z ] = lines[from][end]
+                    const [ b, d ] = nearestIndex(lines[to], x, z)
+                    if(d >= 1.5 && d < 4)
+                    {
+                        splits[to].add(b)
+                        junctions.push([ x, z ])
+                    }
+                }
+        }
+    // nodes: junction points merged within 3 units, plus dead ends
+    const nodes = []
+    const nodeAt = (x, z) =>
+    {
+        let found = nodes.findIndex(([ nx, nz ]) => Math.hypot(nx - x, nz - z) < 4.2)
+        if(found < 0) { nodes.push([ x, z ]); found = nodes.length - 1 }
+        return found
+    }
+    junctions.forEach(([ x, z ]) => nodeAt(x, z))
+    const edges = []
+    lines.forEach((line, li) =>
+    {
+        const cuts = [ ...splits[li] ].sort((a, b) => a - b)
+        for(let k = 1; k < cuts.length; k++)
+        {
+            const piece = line.slice(cuts[k - 1], cuts[k] + 1)
+            if(piece.length < 3)
+                continue
+            const a = nodeAt(...piece[0]), b = nodeAt(...piece[piece.length - 1])
+            if(a === b)
+                continue
+            // keep every 2nd point (about 1.2 units apart), on the road surface
+            const pts = piece.filter((_, n) => n % 2 === 0 || n === piece.length - 1).map(([ x, z ], n, all) =>
+            {
+                const q = all[Math.min(n + 1, all.length - 1)], r = all[Math.max(n - 1, 0)]
+                const tx = q[0] - r[0], tz = q[1] - r[1], tl = Math.hypot(tx, tz) || 1
+                return [ round(x * W), round(roadY(x, z, tx / tl, tz / tl) * W + 0.02), round(z * W) ]
+            })
+            edges.push({ a, b, points: pts })
+        }
+    })
+    // only the part of the graph connected to Hyde St (the cable car's home), so it never gets stranded
+    const adjacency = nodes.map(() => [])
+    edges.forEach((e, i) => { adjacency[e.a].push(i); adjacency[e.b].push(i) })
+    let hyde = 0
+    nodes.forEach(([ x, z ], n) => { if(adjacency[n].length && Math.hypot(x + 17, z + 26) < Math.hypot(nodes[hyde][0] + 17, nodes[hyde][1] + 26)) hyde = n })
+    const reached = new Set([ hyde ])
+    const queue = [ hyde ]
+    while(queue.length) { const n = queue.shift(); for(const ei of adjacency[n]) for(const m of [ edges[ei].a, edges[ei].b ]) if(!reached.has(m)) { reached.add(m); queue.push(m) } }
+    const kept = edges.filter(e => reached.has(e.a))
+    fs.writeFileSync(out('sources/data/cableCarNetwork.json'), JSON.stringify({ nodes: nodes.map(([ x, z ]) => [ round(x * W), round(z * W) ]), edges: kept }))
+    console.log('cable car network:', nodes.length, 'nodes,', kept.length, 'edges', `(${edges.length - kept.length} unreachable dropped),`, Math.round(kept.reduce((t, e) => t + e.points.length * 1.2, 0)), 'units of track')
+}
+
 // Street lamps along every street: globe lamps on both sides, staggered; they glow after dark with a pool of light below
 {
     const posts = new Model()

@@ -4,6 +4,7 @@ import { InteractivePoints } from '../../InteractivePoints.js'
 import { StopCard } from './StopCard.js'
 import { StopTask } from './StopTask.js'
 import { stops } from '../../../data/worldData.js'
+import cableCarNetwork from '../../../data/cableCarNetwork.json'
 
 /**
  * One trip stop: a landmark area with a passport stamp, a card and a sign.
@@ -105,69 +106,124 @@ export class StopArea extends Area
     setCableCar()
     {
         const reference = this.references.items.get('cableCar')?.[0]
-        if(!reference || !reference.userData.object?.physical)
+        const object = reference?.userData.object
+        if(!object?.physical)
             return
+        // it roams the whole city, so it must not hide with the Lombard area
+        const visual = object.visual?.object3D
+        if(visual && this.objects?.hideable)
+            this.objects.hideable = this.objects.hideable.filter(o => o !== visual)
 
-        const path = (reference.userData.path || []).map(([ x, y, z ]) => new THREE.Vector3(x, y, z))
-        if(path.length < 2)
-            return
-
-        const lengths = [ 0 ]
-        for(let i = 1; i < path.length; i++)
-            lengths.push(lengths[i - 1] + path[i].distanceTo(path[i - 1]))
-
+        const network = cableCarNetwork
+        const adjacency = network.nodes.map(() => [])
+        network.edges.forEach((edge, i) => { adjacency[edge.a].push(i); adjacency[edge.b].push(i) })
+        // start on Hyde St (the edge closest to the top of Lombard)
+        let start = 0, best = Infinity
+        network.edges.forEach((edge, i) => edge.points.forEach(([ x, , z ]) => { const d = Math.hypot(x + 17, z + 30); if(d < best) { best = d; start = i } }))
         this.cableCar = {
-            body: reference.userData.object.physical.body,
-            path,
-            lengths,
-            total: lengths[lengths.length - 1],
-            distance: 0,
-            direction: 1,
-            speed: 3.6,
-            pause: 3,
+            body: object.physical.body,
+            network, adjacency,
+            edge: start, forward: true,
+            points: network.edges[start].points.map(p => new THREE.Vector3(...p)),
+            index: 0, t: 0,
+            speed: 4.2,
             pauseTimer: 2,
             position: new THREE.Vector3(),
             quaternion: new THREE.Quaternion(),
             euler: new THREE.Euler(0, 0, 0, 'YXZ'),
+            yaw: null, pitch: 0,
         }
-
         // keep it moving even when the area is off screen
         this.game.ticker.events.on('tick', () => this.updateCableCar(), 10)
+    }
+
+    /** at the end of a street piece: pick the next one at random (straight on is likelier, U-turns only at dead ends) */
+    nextCableCarEdge()
+    {
+        const car = this.cableCar
+        const edge = car.network.edges[car.edge]
+        const node = car.forward ? edge.b : edge.a
+        const here = car.points[car.points.length - 1]
+        const before = car.points[Math.max(0, car.points.length - 4)]
+        const heading = new THREE.Vector2(here.x - before.x, here.z - before.z).normalize()
+        const options = car.adjacency[node].filter(i => i !== car.edge)
+        let choice = car.edge
+        if(options.length)
+        {
+            const weights = options.map(i =>
+            {
+                const e = car.network.edges[i]
+                const pts = e.a === node ? e.points : [ ...e.points ].reverse()
+                const ahead = pts[Math.min(4, pts.length - 1)]
+                const dir = new THREE.Vector2(ahead[0] - pts[0][0], ahead[2] - pts[0][2]).normalize()
+                return 0.35 + Math.max(0, heading.dot(dir)) * 1.6
+            })
+            let roll = Math.random() * weights.reduce((a, b) => a + b, 0)
+            choice = options[weights.findIndex(w => (roll -= w) <= 0)] ?? options[0]
+        }
+        const next = car.network.edges[choice]
+        car.forward = next.a === node
+        car.edge = choice
+        const pts = (car.forward ? next.points : [ ...next.points ].reverse()).map(p => new THREE.Vector3(...p))
+        // carry on smoothly from where it is now
+        car.points = [ car.position.clone(), ...pts ]
+        car.index = 0
+        car.t = 0
+        if(!options.length)
+            car.pauseTimer = 3              // end of the line: a pause, then back the other way
     }
 
     updateCableCar()
     {
         const car = this.cableCar
-        const delta = this.game.ticker.deltaScaled
-
+        const delta = Math.min(this.game.ticker.deltaScaled, 0.1)
         if(car.pauseTimer > 0)
         {
             car.pauseTimer -= delta
             return
         }
-
-        car.distance += car.direction * car.speed * delta
-        if(car.distance >= car.total || car.distance <= 0)
+        // travel along the points
+        let travel = car.speed * delta
+        while(travel > 0)
         {
-            car.distance = THREE.MathUtils.clamp(car.distance, 0, car.total)
-            car.direction *= -1
-            car.pauseTimer = car.pause
+            if(car.index >= car.points.length - 1)
+            {
+                this.nextCableCarEdge()
+                if(car.pauseTimer > 0)
+                    break
+                continue
+            }
+            const a = car.points[car.index], b = car.points[car.index + 1]
+            const length = Math.max(0.0001, a.distanceTo(b))
+            const left = (1 - car.t) * length
+            if(travel < left)
+            {
+                car.t += travel / length
+                travel = 0
+            }
+            else
+            {
+                travel -= left
+                car.index++
+                car.t = 0
+            }
         }
-
-        // locate segment
-        let i = 1
-        while(i < car.lengths.length - 1 && car.lengths[i] < car.distance)
-            i++
-        const a = car.path[i - 1]
-        const b = car.path[i]
-        const t = (car.distance - car.lengths[i - 1]) / Math.max(0.0001, car.lengths[i] - car.lengths[i - 1])
-        car.position.lerpVectors(a, b, t)
-
-        const dz = b.z - a.z
-        const dy = b.y - a.y
-        car.euler.set(Math.atan2(dy, Math.abs(dz)) * Math.sign(dz) * -1, 0, 0)
+        const a = car.points[Math.min(car.index, car.points.length - 1)]
+        const b = car.points[Math.min(car.index + 1, car.points.length - 1)]
+        car.position.lerpVectors(a, b, car.t)
+        // face along the road (its long side is the z axis), easing round the corners, tilting with the slope
+        const ahead = car.points[Math.min(car.index + 2, car.points.length - 1)]
+        const dx = ahead.x - car.position.x, dz = ahead.z - car.position.z, dy = ahead.y - car.position.y
+        if(Math.hypot(dx, dz) > 0.05)
+        {
+            const yaw = Math.atan2(dx, dz)
+            if(car.yaw === null) car.yaw = yaw
+            let diff = Math.atan2(Math.sin(yaw - car.yaw), Math.cos(yaw - car.yaw))
+            car.yaw += diff * Math.min(1, delta * 4)
+            car.pitch += (- Math.atan2(dy, Math.hypot(dx, dz)) - car.pitch) * Math.min(1, delta * 4)
+        }
+        car.euler.set(car.pitch, car.yaw ?? 0, 0)
         car.quaternion.setFromEuler(car.euler)
-
         car.body.setNextKinematicTranslation(car.position)
         car.body.setNextKinematicRotation(car.quaternion)
     }
