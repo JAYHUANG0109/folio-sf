@@ -31,6 +31,7 @@ import { PoleLights } from './PoleLights.js'
 import { Lanterns } from './Lanterns.js'
 import { Fences } from './Fences.js'
 import { Benches } from './Benches.js'
+import { StreetLamps } from './StreetLamps.js'
 import { Scenery } from './Scenery.js'
 import { relocate, placements } from './placements.js'
 
@@ -77,6 +78,8 @@ export class World
             this.bricks = new Bricks()
             this.fences = new Fences()
             this.benches = new Benches()
+            if(placements.streetLamps?.length && this.game.resources.streetLampsModel)
+                this.streetLamps = new StreetLamps()
             if(placements.poleLights?.length)       // none left once the roads got wider: skip instead of crashing
                 this.poleLights = new PoleLights()
             this.lanterns = new Lanterns()

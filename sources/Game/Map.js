@@ -9,6 +9,7 @@ const dogMarkerCss = /* css */`
 .map-dog .map-dog-arrow { position: absolute; left: -7px; top: -29px; width: 0; height: 0; border-left: 7px solid transparent; border-right: 7px solid transparent; border-bottom: 11px solid var(--ring); transform-origin: 7px 29px; }
 .map-dog .map-dog-name { position: absolute; left: 0; top: 18px; transform: translateX(-50%); padding: 1px 8px; border-radius: 999px; background: var(--fill); color: #fff; border: 2px solid var(--ring); font-size: 13px; white-space: nowrap; font-family: "LXGW WenKai TC", "Noto Sans TC", "PingFang TC", sans-serif; }
 .map-dog.is-home .map-dog-pin { opacity: 0.85; }
+.map-cablecar .map-dog-pin { display: grid; place-items: center; font-size: 19px; line-height: 1; }
 .map-dog-house { position: absolute; transform: translate(-50%, -135%); padding: 1px 8px; border-radius: 6px; background: rgba(255, 248, 238, 0.92); color: #3a2a20; border: 2px solid var(--ring); font-size: 12px; white-space: nowrap; pointer-events: none; font-family: "LXGW WenKai TC", "Noto Sans TC", "PingFang TC", sans-serif; }
 @media only screen and (max-width: 600px) { .map-dog .map-dog-pin { width: 22px; height: 22px; left: -11px; top: -11px; font-size: 12px; } .map-dog .map-dog-name, .map-dog-house { font-size: 10px; } }
 `
@@ -190,6 +191,30 @@ export class Map
 
             return { id: data.id, element, arrow: element.querySelector('.map-dog-arrow') }
         })
+
+        // the cable car's live position (it roams every mainland street)
+        const car = document.createElement('div')
+        car.className = 'map-dog map-cablecar'
+        car.style.setProperty('--fill', '#b3122b')
+        car.style.setProperty('--ring', '#f1c84a')
+        car.innerHTML = `<div class="map-dog-arrow"></div><div class="map-dog-pin">🚋</div><div class="map-dog-name">叮噹車</div>`
+        this.element.append(car)
+        this.cableCarMarker = { element: car, arrow: car.querySelector('.map-dog-arrow') }
+    }
+
+    updateCableCar()
+    {
+        const car = this.game.world?.areas?.lombard?.cableCar
+        const marker = this.cableCarMarker
+        if(!marker)
+            return
+        marker.element.style.display = car ? '' : 'none'
+        if(!car)
+            return
+        const position = this.worldToMap({ x: car.position.x, z: car.position.z })
+        marker.element.style.left = `${(position.x * 100).toFixed(2)}%`
+        marker.element.style.top = `${(position.y * 100).toFixed(2)}%`
+        marker.arrow.style.transform = `rotate(${(Math.PI - (car.yaw ?? 0)).toFixed(3)}rad)`
     }
 
     updateDogs()
@@ -296,6 +321,7 @@ export class Map
             return
 
         this.updateDogs()
+        this.updateCableCar()
 
         const playerRoundedX = Math.round(this.game.player.position.x)
         const playerRoundedY = Math.round(this.game.player.position.z)

@@ -126,7 +126,7 @@ export class StopArea extends Area
             edge: start, forward: true,
             points: network.edges[start].points.map(p => new THREE.Vector3(...p)),
             index: 0, t: 0,
-            speed: 4.2,
+            speed: 2.6,              // game time runs at 2x: about 5 units a second, an easy cable car pace
             pauseTimer: 2,
             position: new THREE.Vector3(),
             quaternion: new THREE.Quaternion(),

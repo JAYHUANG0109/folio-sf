@@ -763,11 +763,11 @@ const footprints = [] // [x, z, w, d, isDowntown] for the map
     console.log('cable car network:', nodes.length, 'nodes,', kept.length, 'edges', `(${edges.length - kept.length} unreachable dropped),`, Math.round(kept.reduce((t, e) => t + e.points.length * 1.2, 0)), 'units of track')
 }
 
-// Street lamps along every street: globe lamps on both sides, staggered; they glow after dark with a pool of light below
+// Street lamps along every street: globe lamps on both sides, staggered; they glow after dark with a pool of light below.
+// Each lamp is a light knockable prop (sources/Game/World/StreetLamps.js): one model, instanced at every spot.
+const streetLampSpots = []
 {
-    const posts = new Model()
     const pools = []
-    const colliders = []
     for(const street of Layout.streets.filter(st => st.asphalt))
     {
         const curve = new THREE.CatmullRomCurve3(street.points.map(([ x, z ]) => new THREE.Vector3(x, 0, z)), false, 'centripetal')
@@ -782,23 +782,24 @@ const footprints = [] // [x, z, w, d, isDowntown] for the map
             if(nearRoad(x, z, 0.5) || inSite(x, z, 1) || !onLand(x, z) || Math.abs(x) > 92 || Math.abs(z) > 92 || (x > - 70 && x < - 32 && z > 41.5 && z < 51))
                 continue
             const y = ground(x, z)
-            posts.cylinder(0.07, 0.1, 2.6, C.dark, [ x, y, z ], 6)
-            posts.cylinder(0.14, 0.1, 0.18, C.dark, [ x, y + 2.6, z ], 6)
-            posts.sphere(0.26, C.lamp, [ x, y + 2.95, z ], 1)
-            for(let k = 0; k < 7; k++)                                     // fairy lights spiralling up the post
-                posts.sphere(0.09, C.fairy, [ x + Math.cos(k * 1.9) * 0.13, y + 0.4 + k * 0.32, z + Math.sin(k * 1.9) * 0.13 ], 0)
-            posts.add(new THREE.TorusGeometry(0.28, 0.07, 5, 12), C.moss, [ x, y + 2.25, z ], [ 0, Math.atan2(d.x, d.z), 0 ])   // wreath
-            posts.cbox([ 0.2, 0.14, 0.06 ], C.red, [ x, y + 2.05, z ])
+            streetLampSpots.push([ round(x * W), round(y * W), round(z * W), round(Math.atan2(d.x, d.z)), 1 ])
             pools.push([ x, y + 0.04, z ])
-            colliders.push({ shape: 'tube', position: [ x, y + 1.3, z ], radius: 0.12, height: 2.6 })
         }
     }
-    sceneryNodes.push(fixedNode('streetLamps', posts, [ 0, 0, 0 ], colliders))
-    const g = new THREE.BufferGeometry()
-    const parts = pools.map(([ x, y, z ]) => new THREE.CircleGeometry(3.4, 20).rotateX(- Math.PI / 2).translate(x, y, z))
-    const merged = mergeGeometries(parts)
+    // the lamp model, standing at the origin (the wreath faces along local z)
+    const lamp = new Model()
+    lamp.cylinder(0.07, 0.1, 2.6, C.dark, [ 0, 0, 0 ], 6)
+    lamp.cylinder(0.14, 0.1, 0.18, C.dark, [ 0, 2.6, 0 ], 6)
+    lamp.sphere(0.26, C.lamp, [ 0, 2.95, 0 ], 1)
+    for(let k = 0; k < 7; k++)                                     // fairy lights spiralling up the post
+        lamp.sphere(0.09, C.fairy, [ Math.cos(k * 1.9) * 0.13, 0.4 + k * 0.32, Math.sin(k * 1.9) * 0.13 ], 0)
+    lamp.add(new THREE.TorusGeometry(0.28, 0.07, 5, 12), C.moss, [ 0, 2.25, 0 ])   // wreath
+    lamp.cbox([ 0.2, 0.14, 0.06 ], C.red, [ 0, 2.05, 0 ])
+    fs.mkdirSync(out('static/streetLamps'), { recursive: true })
+    await writeGlb(out('static/streetLamps/streetLamps.glb'), [ dynamicNode('streetLamp', lamp, [ 0, 0, 0 ], [ { shape: 'tube', position: [ 0, 1.5, 0 ], radius: 0.14, height: 3 } ], 0.2) ], { worldScale: W })
+    const merged = mergeGeometries(pools.map(([ x, y, z ]) => new THREE.CircleGeometry(3.4, 20).rotateX(- Math.PI / 2).translate(x, y, z)))
     sceneryNodes.push({ name: 'lampPools', position: [ 0, 0, 0 ], mesh: { geometry: merged, material: 'lampPool' } })
-    console.log('street lamps', pools.length)
+    console.log('street lamps', streetLampSpots.length, '(knockable)')
 }
 
 // Highway signs: 101 north to Napa (11/28 day trip), 101 south to SFO and Levi's
@@ -1511,7 +1512,7 @@ console.log('respawns ok')
 /* ---------------- Placements (vegetation + props) ---------------- */
 {
     const r = rng(2026)
-    const placements = { redwoods: [], oakTrees: [], birchTrees: [], cherryTrees: [], bushes: [], flowers: [], benches: [], lanterns: [], poleLights: [], explosiveCrates: [], bricks: [], fences: [], tornado: [] }
+    const placements = { streetLamps: streetLampSpots, redwoods: [], oakTrees: [], birchTrees: [], cherryTrees: [], bushes: [], flowers: [], benches: [], lanterns: [], poleLights: [], explosiveCrates: [], bricks: [], fences: [], tornado: [] }
     // props keep their real size: world positions, offsets in world units
     const push = (list, x, z, dy = 0, rotation = 0, scale = 1) => list.push([ round(x * W), round(groundWorld(x, z) + dy), round(z * W), round(rotation), round(scale) ])
     const trees = []
