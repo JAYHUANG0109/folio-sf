@@ -112,12 +112,12 @@ export class Materials
 
         // Levi's floodlights at night: soft light beams pouring from the towers, and a bright wash over the field
         const flood = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide })
-        flood.outputNode = vec4(color('#fff6dc').mul(uv().y.pow(1.8).mul(0.12).add(0.012).mul(this.nightUniform)), 1)
+        flood.outputNode = vec4(color('#fff6dc').mul(uv().y.pow(1.8).mul(0.085).add(0.008).mul(this.nightUniform)), 1)
         flood.fog = false
         this.save('floodBeam', flood)
         const floodPool = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })
         const centered = uv().sub(0.5).mul(vec2(1, 1.6)).length().mul(2)
-        floodPool.outputNode = vec4(color('#f4fbff').mul(float(1).sub(centered.pow(3)).clamp(0, 1).mul(0.42).mul(this.nightUniform)), 1)
+        floodPool.outputNode = vec4(color('#f4fbff').mul(float(1).sub(centered.pow(3)).clamp(0, 1).mul(0.17).mul(this.nightUniform)), 1)
         floodPool.fog = false
         this.save('floodPool', floodPool)
         

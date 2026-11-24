@@ -3,6 +3,7 @@ import { Howl, Howler } from 'howler'
 import { color, instanceColor } from 'three/tsl'
 import { Game } from '../Game.js'
 import { MeshDefaultMaterial } from '../Materials/MeshDefaultMaterial.js'
+import { Jumbotron } from './Jumbotron.js'
 import { stopsById } from '../../data/worldData.js'
 
 /**
@@ -23,6 +24,7 @@ export class GameDay
         this.active = false
 
         this.setPlayers()
+        this.jumbotron = new Jumbotron(this)
         this.setAnnouncerClips()
         this.setFireworks()
         this.setSound()
@@ -70,9 +72,9 @@ export class GameDay
         }
         const kits = [
             // 49ers: scarlet jersey, gold pants, gold helmet with a red-white-red stripe
-            { jersey: '#c8102e', trim: '#ffffff', pants: '#b3995d', socks: '#c8102e', helmet: '#b3995d', stripe: '#c8102e', mask: '#c8102e', ink: '#ffffff', outline: '#b3995d', numbers: [ 13, 80, 85, 44, 23, 19, 74, 71, 60, 64, 9 ] },
+            { jersey: '#c8102e', trim: '#ffffff', pants: '#b3995d', socks: '#c8102e', helmet: '#b3995d', stripe: '#c8102e', mask: '#c8102e', ink: '#ffffff', outline: '#b3995d', numbers: [ 13, 80, 85, 44, 19, 23, 74, 71, 60, 64, 9 ] },
             // Seahawks: navy jersey, navy pants, navy helmet with action green, grey mask
-            { jersey: '#002244', trim: '#69be28', pants: '#a5acaf', socks: '#002244', helmet: '#002244', stripe: '#69be28', mask: '#a5acaf', ink: '#ffffff', outline: '#69be28', numbers: [ 14, 3, 16, 88, 61, 79, 76, 51, 9, 33, 42 ] },
+            { jersey: '#002244', trim: '#69be28', pants: '#a5acaf', socks: '#002244', helmet: '#002244', stripe: '#69be28', mask: '#a5acaf', ink: '#ffffff', outline: '#69be28', numbers: [ 14, 3, 16, 88, 61, 9, 76, 51, 79, 33, 42 ] },
         ]
         const SKIN = [ '#8d5a3b', '#c68a62', '#f0c3a0', '#5e3a28', '#e0a984' ]
         this.playersGroup = new THREE.Group()
@@ -293,11 +295,13 @@ export class GameDay
             if(p.good)
             {
                 this.cheer(niners ? 1 : 0.1)
-                if(niners) { this.call('fieldgoal', [ { text: 'The kick is up...', rate: 1 }, { text: 'and it is GOOD!', pitch: 1.35 } ]) }
+                if(!niners) this.jumbotron.score.sea += 3
+                if(niners) { this.jumbotron.event('fieldgoal', { team: 'sf' }); this.call('fieldgoal', [ { text: 'The kick is up...', rate: 1 }, { text: 'and it is GOOD!', pitch: 1.35 } ]) }
             }
             else if(!niners)
             {
                 this.cheer(1)
+                this.jumbotron.event('missed')
                 this.call('missed', [ { text: 'NO GOOD! Wide right!', pitch: 1.3 } ])
             }
             p.line = 0
@@ -317,6 +321,7 @@ export class GameDay
             if(!niners)
             {
                 this.cheer(1.1)
+                this.jumbotron.event(p.kind)
                 this.call(p.kind, p.kind === 'interception'
                     ? [ { text: 'PICKED OFF!', pitch: 1.4, rate: 1.1 }, { text: 'Interception, San Francisco!' } ]
                     : [ { text: 'FUMBLE!', pitch: 1.4 }, { text: 'And the Niners recover!' } ])
@@ -330,10 +335,13 @@ export class GameDay
             if(niners)
             {
                 this.cheer(1.3)
+                this.jumbotron.event('touchdown', { team: 'sf', number: 23 })
                 this.launchVolley(10)
                 this.touchdownCall(99, p.countdownHowl)
             }
-            else if(!Object.keys(this.clips || {}).length)
+            else
+                this.jumbotron.event('touchdown', { team: 'sea', number: 9 })
+            if(!niners && !Object.keys(this.clips || {}).length)
                 this.announce([ { text: 'Seahawks score.', pitch: 0.85, rate: 0.95 } ])
             p.line = 0
             turnover()
@@ -343,6 +351,7 @@ export class GameDay
         if(p.kind === 'sack' && !niners)
         {
             this.cheer(0.9)
+            this.jumbotron.event('sack')
             this.call('sack', [ { text: 'SACKED! Bosa gets there!', pitch: 1.3 } ])
         }
         const gainedYards = p.gain
@@ -365,7 +374,7 @@ export class GameDay
             p.down++
             if(p.down > 4)
             {
-                if(niners === false) { this.cheer(1); this.call('stop', [ { text: 'STOPPED! Turnover on downs!', pitch: 1.3 } ]) }
+                if(niners === false) { this.cheer(1); this.jumbotron.event('stop'); this.call('stop', [ { text: 'STOPPED! Turnover on downs!', pitch: 1.3 } ]) }
                 turnover()
             }
             else if(Math.random() < 0.25 && !niners)
@@ -375,6 +384,39 @@ export class GameDay
                 this.cheer(0.4)
                 this.call('catch', [ { text: 'Nice grab!' } ])
             }
+        }
+    }
+
+    /** the video boards' dark backs fill the screen when the camera swings right behind one: hide that board then */
+    hideBoardsFromBehind()
+    {
+        if(!this.boards)
+        {
+            this.boards = []
+            this.game.scene.traverse(o => { if(/^videoBoard/.test(o.name) && o.isMesh) this.boards.push(o) })
+            if(!this.boards.length && this.time < 30)
+                this.boards = null
+            if(!this.boards)
+                return
+        }
+        const camera = this.game.view.camera.position
+        const car = this.game.player.position
+        const line = new THREE.Vector3().subVectors(car, camera)
+        const length = line.length()
+        line.divideScalar(length)
+        for(const [ i, side ] of [ - 1, 1 ].entries())
+        {
+            // the board center; hidden when it sits on the line of sight from the camera to the car, from its back side
+            const board = new THREE.Vector3(this.center.x + side * 20.5 * this.scale, this.center.y + 7.9 * this.scale, this.center.z)
+            const along = board.clone().sub(camera).dot(line)
+            const closest = camera.clone().addScaledVector(line, along)
+            const fromBack = side * (camera.x - board.x) > 0
+            const behind = fromBack && along > 0 && along < length && closest.distanceTo(board) < 7.5 * this.scale
+            const screen = this.jumbotron.screens[i]
+            for(const b of this.boards)
+                if(Math.sign(b.getWorldPosition(this.tempBoard || (this.tempBoard = new THREE.Vector3())).x - this.center.x) === side)
+                    b.visible = !behind
+            screen.visible = this.active && !behind
         }
     }
 
@@ -718,6 +760,7 @@ export class GameDay
         this.volume = Math.max(0, Math.min(1, (34 - distance) / 12))   // only right next to the stadium
 
         this.playersGroup.visible = this.active
+        this.hideBoardsFromBehind()
         this.ball.visible = this.active
         if(!this.active)
         {
@@ -733,6 +776,7 @@ export class GameDay
         }
 
         this.time += delta
+        this.jumbotron.update(delta)
         const jump = this.game.materials.crowdJump
         if(jump)
         {

@@ -256,6 +256,7 @@ export class StopArea extends Area
                             gameDay.cheer?.(1.4)
                             gameDay.launchVolley?.(8)
                             gameDay.touchdownCall?.(20)
+                            gameDay.jumbotron?.event('touchdown', { team: 'sf', user: true })
                         }
                         this.task?.touchdown()
                         this.game.ticker.wait(3, () => this.game.objects.resetObject(football.object))

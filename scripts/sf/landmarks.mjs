@@ -2379,7 +2379,7 @@ builders.levis = (ctx) =>
     {
         const g = mergeGeometries(beams)
         nodes.push({ name: 'floodBeams', position: ctx.at(cx, cz), mesh: { geometry: g, material: 'floodBeam' } })
-        const pool = new THREE.PlaneGeometry(28, 15).rotateX(- Math.PI / 2).translate(0, 0.09, 0)
+        const pool = new THREE.PlaneGeometry(28, 15).rotateX(- Math.PI / 2).translate(0, 0.17, 0)   // just above the SF logo (no z-fighting)
         nodes.push({ name: 'floodPool', position: ctx.at(cx, cz), mesh: { geometry: pool, material: 'floodPool' } })
     }
 
@@ -2411,9 +2411,6 @@ builders.levis = (ctx) =>
             b.box([ 0.5, 6.5, 0.5 ], C.dark, [ z, 0, 0 ])
         b.box([ 8.4, 3.4, 0.5 ], C.dark, [ 0, 6.2, 0 ])
         b.box([ 8, 3, 0.1 ], C.black, [ 0, 6.4, 0.25 ])
-        b.box([ 8, 0.5, 0.11 ], C.red, [ 0, 6.4, 0.26 ])
-        pixelText(b, '49ERS', C.gold, [ 0, 7.25, 0.33 ], 0.26, { depth: 0.06 })
-        pixelText(b, 'SF 24  SEA 17', C.snow, [ 0, 5.35, 0.33 ], 0.13, { depth: 0.06 })
         b.box([ 8, 0.5, 0.11 ], C.dark, [ 0, 5.2, 0.26 ])
         nodes.push({ ...fixedNode('videoBoard', b, ctx.at(cx + side * 20.5, cz), [ { position: [ - 2.6, 3.25, 0 ], size: [ 0.5, 6.5, 0.5 ] }, { position: [ 2.6, 3.25, 0 ], size: [ 0.5, 6.5, 0.5 ] } ]), rotation: [ 0, - side * Math.PI / 2, 0 ] })
     }
