@@ -200,6 +200,44 @@ export class Map
         car.innerHTML = `<div class="map-dog-arrow"></div><div class="map-dog-pin">🚋</div><div class="map-dog-name">叮噹車</div>`
         this.element.append(car)
         this.cableCarMarker = { element: car, arrow: car.querySelector('.map-dog-arrow') }
+
+        // the Alcatraz ferry, and Santa's reindeer plane while it tours the map in winter
+        const live = (emoji, label, fill, ring) =>
+        {
+            const element = document.createElement('div')
+            element.className = 'map-dog map-cablecar'
+            element.style.setProperty('--fill', fill)
+            element.style.setProperty('--ring', ring)
+            element.innerHTML = `<div class="map-dog-arrow"></div><div class="map-dog-pin">${emoji}</div><div class="map-dog-name">${label}</div>`
+            element.style.display = 'none'
+            this.element.append(element)
+            return { element, arrow: element.querySelector('.map-dog-arrow') }
+        }
+        this.ferryMarker = live('⛴️', '渡輪', '#1f3550', '#ffffff')
+        this.santaMarker = live('🎅', '聖誕老公公', '#c8202b', '#f1c84a')
+    }
+
+    placeMarker(marker, position, yaw)
+    {
+        if(!marker)
+            return
+        marker.element.style.display = position ? '' : 'none'
+        if(!position)
+            return
+        const p = this.worldToMap({ x: position.x, z: position.z })
+        marker.element.style.left = `${(p.x * 100).toFixed(2)}%`
+        marker.element.style.top = `${(p.y * 100).toFixed(2)}%`
+        marker.arrow.style.transform = `rotate(${(Math.PI - yaw).toFixed(3)}rad)`
+    }
+
+    updateVehicles()
+    {
+        const ferry = this.game.world?.ferry
+        this.placeMarker(this.ferryMarker, ferry?.position ?? null, ferry?.yaw ?? 0)
+        const plane = this.game.world?.evaPlane
+        // shown while Santa is up and about (parked and asleep at the gate the rest of the year)
+        const santaUp = plane && (plane.flying || this.game.environment?.seasonId() === 'winter')
+        this.placeMarker(this.santaMarker, santaUp ? plane.position : null, plane ? plane.yaw + Math.PI : 0)
     }
 
     updateCableCar()
@@ -322,6 +360,7 @@ export class Map
 
         this.updateDogs()
         this.updateCableCar()
+        this.updateVehicles()
 
         const playerRoundedX = Math.round(this.game.player.position.x)
         const playerRoundedY = Math.round(this.game.player.position.z)

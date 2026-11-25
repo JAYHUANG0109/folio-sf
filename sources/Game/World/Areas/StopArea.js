@@ -453,41 +453,145 @@ export class StopArea extends Area
     {
         let reference = null
         this.references.items.forEach((value, name) => { if(!reference && name.startsWith('evaPlane')) reference = value[0] })
-        const body = reference?.userData.object?.physical?.body
+        const object = reference?.userData.object
+        const body = object?.physical?.body
         if(!body)
             return
+        // it flies all over the map in winter, so it must not hide with the SFO area
+        const visual = object.visual?.object3D
+        if(visual && this.objects?.hideable)
+            this.objects.hideable = this.objects.hideable.filter(o => o !== visual)
+
         const t = body.translation(), r = body.rotation()
+        const baseQuaternion = new THREE.Quaternion(r.x, r.y, r.z, r.w)
+        const baseYaw = new THREE.Euler().setFromQuaternion(baseQuaternion, 'YXZ').y
+        // Santa's winter tour: a loop round the whole map, starting and ending at the gate (counterclockwise:
+        // up the bay past the Ferry Building, along the north waterfront past Pier 39 and Alcatraz, round the
+        // Presidio, down Ocean Beach, over the turkey hill, past Levi's and home to SFO)
+        const route = [
+            [ t.x, t.z ], [ 66, 80 ], [ 76, 66 ], [ 80, 48 ], [ 76, 28 ], [ 70, 10 ], [ 66, - 6 ], [ 76, - 20 ], [ 70, - 42 ],
+            [ 54, - 60 ], [ 34, - 68 ], [ 14, - 64 ], [ - 10, - 62 ], [ - 36, - 60 ], [ - 50, - 52 ], [ - 58, - 32 ], [ - 76, - 20 ],
+            [ - 78, 10 ], [ - 74, 40 ], [ - 62, 58 ], [ - 40, 72 ], [ - 16, 58 ], [ 10, 54 ], [ 34, 58 ], [ 46, 70 ],
+        ]
+        const curve = new THREE.CatmullRomCurve3(route.map(([ x, z ]) => new THREE.Vector3(x, 0, z)), true, 'centripetal')
         const plane = {
             body,
             base: new THREE.Vector3(t.x, t.y, t.z),
-            quaternion: new THREE.Quaternion(r.x, r.y, r.z, r.w),
+            quaternion: baseQuaternion,
             position: new THREE.Vector3(),
-            sway: new THREE.Quaternion(),
             euler: new THREE.Euler(0, 0, 0, 'YXZ'),
+            current: baseQuaternion.clone(),
             time: 0,
+            curve,
+            length: curve.getLength(),
+            distance: 0,              // along the route, 0 = parked at the gate
+            speed: 0,
+            yaw: baseYaw,
+            roll: 0,
+            pitch: 0,
+            altitude: t.y + 9.2,
+            clearance: - Infinity,
+            flying: false,
         }
         this.game.world.evaPlane = plane
+
+        // what's under the route just ahead (buildings, towers, hills, trees): the plane climbs over anything tall
+        const RAPIER = this.game.RAPIER
+        const ray = new RAPIER.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: - 1, z: 0 })
+        const FLAGS = RAPIER.QueryFilterFlags.EXCLUDE_KINEMATIC | RAPIER.QueryFilterFlags.EXCLUDE_SENSORS
+        const topAt = (x, z) =>
+        {
+            ray.origin.x = x
+            ray.origin.y = 90
+            ray.origin.z = z
+            const hit = this.game.physics.world.castRay(ray, 90, true, FLAGS)
+            return hit ? 90 - hit.timeOfImpact : - Infinity
+        }
+        const point = new THREE.Vector3(), tangent = new THREE.Vector3()
+        let frame = 0
+        const CRUISE = 9
+        const FLOAT = 9.2            // above the terminal roof (~8.5) and below the tower's deck (~22, the reindeer)
+
         this.game.ticker.events.on('tick', () =>
         {
-            const delta = this.game.ticker.deltaScaled
+            const delta = Math.min(0.05, this.game.ticker.deltaScaled)
             plane.time += delta
             const k = plane.time
-            // winter only: it lifts off and floats like Santa's sleigh; the rest of the year it rests still at the gate
-            const winter = this.game.environment?.seasonId() === 'winter' ? 1 : 0
+            // winter: lift off at the gate, then fly the tour round the map, again and again.
+            // Any other season: finish the loop home to the gate, settle down and rest there (Santa goes to sleep)
+            const winter = this.game.environment?.seasonId() === 'winter'
+            const home = plane.distance === 0 && plane.speed < 0.01
             if(plane.lift === undefined)
-                plane.lift = winter
-            plane.lift += (winter - plane.lift) * Math.min(1, delta * 0.35)
+                plane.lift = winter ? 1 : 0
+            plane.lift += ((winter || !home ? 1 : 0) - plane.lift) * Math.min(1, delta * 0.35)
+
+            let targetSpeed = 0
+            if(winter)
+                targetSpeed = plane.lift > 0.96 ? CRUISE : 0
+            else if(!home)
+                targetSpeed = Math.min(CRUISE * 1.4, Math.max(1.2, (plane.length - plane.distance) * 0.45))     // slows into the gate
+            plane.speed += (targetSpeed - plane.speed) * Math.min(1, delta * 0.6)
+            if(plane.speed > 0.01 || plane.distance > 0)
+            {
+                plane.distance += plane.speed * delta
+                if(plane.distance >= plane.length - (winter ? 0 : 0.05))
+                {
+                    if(winter)
+                        plane.distance -= plane.length
+                    else
+                    {
+                        plane.distance = 0
+                        plane.speed = 0
+                    }
+                }
+            }
+            plane.flying = plane.distance > 0 || plane.speed > 0.01
+
+            const u = plane.distance / plane.length
+            curve.getPointAt(u, point)
+            curve.getTangentAt(u, tangent)
+
+            // altitude: the float height, or higher to clear whatever is under the next stretch of the route
+            if(plane.flying && frame++ % 3 === 0)
+            {
+                let top = - Infinity
+                const nx = - tangent.z, nz = tangent.x
+                for(const ahead of [ 0, 8, 16, 26 ])
+                {
+                    const a = curve.getPointAt(((plane.distance + ahead) % plane.length) / plane.length)
+                    for(const side of [ - 8, 0, 8 ])
+                        top = Math.max(top, topAt(a.x + nx * side, a.z + nz * side))
+                }
+                plane.clearance = top
+            }
+            if(!plane.flying)
+                plane.clearance = - Infinity
+            const targetAltitude = Math.max(plane.base.y + FLOAT, plane.clearance + 2.4)
+            const previousAltitude = plane.altitude
+            plane.altitude += (targetAltitude - plane.altitude) * Math.min(1, delta * (targetAltitude > plane.altitude ? 1.6 : 0.5))
+            const climb = delta > 0 ? (plane.altitude - previousAltitude) / delta : 0
+
+            // heading along the route (parked: the gate's heading), banking into the turns, nose up when climbing
+            const targetYaw = plane.flying ? Math.atan2(- tangent.x, - tangent.z) : baseYaw
+            let turn = targetYaw - plane.yaw
+            turn = Math.atan2(Math.sin(turn), Math.cos(turn))
+            const yawStep = turn * Math.min(1, delta * 2.2)
+            plane.yaw += yawStep
+            const yawRate = delta > 0 ? yawStep / delta : 0
+            plane.roll += (THREE.MathUtils.clamp(yawRate * 0.55, - 0.4, 0.4) - plane.roll) * Math.min(1, delta * 2)
+            plane.pitch += (THREE.MathUtils.clamp(climb * 0.06, - 0.15, 0.25) - plane.pitch) * Math.min(1, delta * 2)
+
             const f = plane.lift
-            // lifted high in the sky: above the terminal roof (~8.5) and below the tower's deck (~22, the reindeer),
-            // so nothing covers it; bobbing 0.6 up and down over ~7 s, with a gentle roll and pitch
-            plane.position.copy(plane.base)
-            plane.position.y += (9.2 + Math.sin(k * 0.9) * 0.6) * f
-            plane.euler.set(Math.sin(k * 0.9 + 1.2) * 0.025 * f, 0, Math.sin(k * 0.6) * 0.03 * f)
-            plane.sway.setFromEuler(plane.euler)
-            const q = plane.quaternion.clone().multiply(plane.sway)
+            const bob = Math.sin(k * 0.9) * 0.6
+            plane.position.set(point.x, plane.base.y + (plane.altitude - plane.base.y + bob) * f, point.z)
+            plane.euler.set(
+                (Math.sin(k * 0.9 + 1.2) * 0.025 + plane.pitch) * f,
+                plane.yaw,
+                (Math.sin(k * 0.6) * 0.03 + plane.roll) * f
+            )
+            plane.current.setFromEuler(plane.euler)
             body.setNextKinematicTranslation(plane.position)
-            body.setNextKinematicRotation(q)
-            plane.current = q
+            body.setNextKinematicRotation(plane.current)
         }, 10)
     }
 

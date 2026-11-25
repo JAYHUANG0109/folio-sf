@@ -1,5 +1,5 @@
 /**
- * The 13 stops of the SF trip, in trip order.
+ * The 14 stops of the SF trip, in trip order.
  * Single source of truth for:
  *  - scripts/sf/build.mjs (terrain, landmark models, respawns, map)
  *  - sources/Game/World/Areas/StopArea.js (zones, stamps, cards)
@@ -18,6 +18,17 @@ export const stops = [
         radius: 11,
         respawn: { x: 51, z: 69, rotation: Math.PI * 0.75 },   // on the apron between the SFO letters (z ~64) and the plane's wing (z ~73), off the road
         task: { type: 'letters', text: '把 SFO 大字母撞倒' },
+    },
+    {
+        id: 'mira',
+        name: 'MIRA',
+        en: 'MIRA · 280 Spear St',
+        date: '11/24（二）',
+        note: '我們在舊金山的家。Studio Gang 設計的白色大樓，一層層凸窗像在轉圈往上長，走路十分鐘就到渡輪大廈。',
+        position: { x: 50, z: 3 },
+        radius: 6,
+        respawn: { x: 43.8, z: 1, rotation: - Math.PI * 0.5 },   // on Market St, facing the front door
+        task: { type: 'collect', text: '把 3 個行李箱搬回 MIRA', icon: 'suitcase', points: [ [ 45.5, - 3 ], [ 51.5, - 3.5 ], [ 46.3, 9 ] ] },
     },
     {
         id: 'ferryBuilding',

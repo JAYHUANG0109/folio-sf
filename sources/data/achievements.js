@@ -14,6 +14,7 @@ import { stops } from './stops.js'
 // Short stamp descriptions (titles come from stops.js)
 const stampDescriptions = {
     sfo:              '落地舊金山，旅程開始囉。',
+    mira:             '到家了！行李放好，從窗戶看海灣。',
     ferryBuilding:    '在海灣邊吃點好吃的。',
     unionSquare:      '在大聖誕樹下溜冰。',
     chinatown:        '穿過龍門，逛逛燈籠街。',

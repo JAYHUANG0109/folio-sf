@@ -288,9 +288,11 @@ export class Santa
         const t = this.time
 
         // awake in winter, asleep the rest of the year (eases between the two when the season changes)
+        // (and still awake while he flies home after winter, until the plane is back at the gate)
+        const awake = winter || !!plane?.flying
         if(this.awake === null)
-            this.awake = winter ? 1 : 0
-        this.awake += ((winter ? 1 : 0) - this.awake) * Math.min(1, dt * 0.8)
+            this.awake = awake ? 1 : 0
+        this.awake += ((awake ? 1 : 0) - this.awake) * Math.min(1, dt * 0.8)
         const a = this.awake, sleep = 1 - a
         const asleep = a < 0.5
 

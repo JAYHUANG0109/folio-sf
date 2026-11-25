@@ -19,7 +19,7 @@ export const secretStore = {
 secretStore.load()
 
 /**
- * Hidden places north of the Golden Gate (Napa, Muir Woods). Not part of the 13 stops.
+ * Hidden places north of the Golden Gate (Napa, Muir Woods). Not part of the 14 stops.
  */
 export class SecretArea extends Area
 {

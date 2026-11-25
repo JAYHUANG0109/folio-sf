@@ -121,9 +121,9 @@ export class StopCard
     {
         this.element.classList.add('is-finale')
         this.element.innerHTML = /* html */`
-            <div class="stop-card-top"><span class="stop-card-label">13 / 13</span><span class="stop-card-date">${trip.dates}</span></div>
+            <div class="stop-card-top"><span class="stop-card-label">14 / 14</span><span class="stop-card-date">${trip.dates}</span></div>
             <div class="stop-card-name">給 ${trip.partnerName}</div>
-            <div class="stop-card-note">十三站，一站都沒少。<br>從機場到網球場，這是我們的舊金山，先開過一遍了。<br>小可跟 Dookie 也來送行。<br>11/24，真的舊金山見。</div>
+            <div class="stop-card-note">十四站，一站都沒少。<br>從機場到網球場，這是我們的舊金山，先開過一遍了。<br>小可跟 Dookie 也來送行。<br>11/24，真的舊金山見。</div>
             <div class="stop-card-foot"><span>♥ ${trip.authorName}</span><span>金門大橋北邊還藏著兩個秘密景點</span></div>
         `
         this.open(20)

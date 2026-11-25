@@ -1,6 +1,6 @@
 /**
  * Car paints. Basic colors are always available; every site has its own color, unlocked by stamping that stop;
- * flames unlock with all 13 stamps, abyssal (stars) with every achievement.
+ * flames unlock with all 14 stamps, abyssal (stars) with every achievement.
  * `name` is what gets saved (localStorage 'achievementsReward'), 'red' is the historical slot of the light blue default.
  */
 export const paints = [
@@ -15,6 +15,7 @@ export const paints = [
     { name: 'violet',  label: '葡萄紫', colors: [ '#d9b8ff', '#6a3fd0' ] },
     // one color per site: stamp that stop to unlock it
     { name: 'sfo',          stop: 'sfo',              label: '跑道夜燈',   colors: [ '#7df9ff', '#1b3a8a' ] },
+    { name: 'mira',         stop: 'mira',             label: '珍珠白窗',   colors: [ '#f6f8fb', '#6f8fae' ] },
     { name: 'ferry',        stop: 'ferryBuilding',    label: '鐘樓砂岩',   colors: [ '#fff4d6', '#c9a66b' ] },
     { name: 'xmas',         stop: 'unionSquare',      label: '聖誕紅綠',   colors: [ '#3fd182', '#c4142d' ] },
     { name: 'lantern',      stop: 'chinatown',        label: '燈籠紅金',   colors: [ '#ffd23f', '#e0201b' ] },

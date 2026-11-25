@@ -4,6 +4,7 @@
  */
 export const siteScale = {
     default: 1.5,
+    mira: 1,               // modelled at world size (a slim tower in a tight spot between Market St and the Embarcadero)
     goldenGate: 1,         // the bridge spans the strait, already big
     palaceOfFineArts: 1,   // modelled at 1.5x directly
     lombard: 1,            // the zigzag is painted into the terrain

@@ -4,7 +4,7 @@ import { Game } from '../Game.js'
 import { StopCard } from './Areas/StopCard.js'
 
 /**
- * The ending, when the 13th stamp is collected:
+ * The ending, when the last (14th) stamp is collected:
  * a glowing heart rises above the car, confetti, both dogs run over, then the last card.
  */
 export class Finale

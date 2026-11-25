@@ -184,7 +184,7 @@ export class Achievements
                 return `${stop ? `${stop.label} ${stop.name}` : ''}<br />蓋章解鎖`
             }
             if(paint.allStops)
-                return '蓋滿 13 個章解鎖'
+                return '蓋滿 14 個章解鎖'
             return '完成全部成就解鎖'
         }
         const swatch = (paint) => /* html */`

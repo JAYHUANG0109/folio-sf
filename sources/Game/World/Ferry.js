@@ -42,6 +42,8 @@ export class Ferry
         const p = this.curve.getPointAt(t), d = this.curve.getTangentAt(t)
         const y = this.game.water.surfaceElevation + 0.25 + Math.sin(performance.now() / 700) * 0.06
         this.object.position.set(p.x, y, p.z)
+        this.position = p
+        this.yaw = Math.atan2(d.x, d.z)                 // map heading (0 = south)
         this.object.rotation.set(Math.sin(performance.now() / 900) * 0.02, Math.atan2(- d.x, - d.z), 0)
         // wake: foam left behind, widening and fading
         this.history.unshift(new THREE.Vector3(p.x - d.x * 3, this.game.water.surfaceElevation + 0.03, p.z - d.z * 3))

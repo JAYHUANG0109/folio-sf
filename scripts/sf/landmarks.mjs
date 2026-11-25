@@ -1,5 +1,5 @@
 /**
- * The 13 stop landmarks.
+ * The 14 stop landmarks.
  * Each builder receives a context and returns children for the stop's area node.
  * Positions given to ctx.at() are WORLD x/z; it returns the area-local position resting on the ground.
  */
@@ -7,7 +7,7 @@ import * as THREE from 'three'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import { Model, C, meshNode, fixedNode, dynamicNode, kinematicNode, refNode, rng } from './kit.mjs'
 import * as Layout from './layout.mjs'
-import { bulb, lightString, litPine, wreath } from './holiday.mjs'
+import { bulb, lightString, litPine, wreath, gifts, candyCane } from './holiday.mjs'
 
 /* ---------- shared pieces ---------- */
 
@@ -625,6 +625,127 @@ builders.sfo = (ctx) =>
         runway.box([ 0.5, 0.04, 2 ], C.snow, [ 0, 0, i * 4 ])
     nodes.push(meshNode('runway', runway, ctx.at(76, 52)))
     nodes.push(...letters(ctx, 'SFO', C.bridge, 57.5, 65.2, 0, 0.45))   // between the AirTrain columns (z 63 and 67.5), clear of both
+    return nodes
+}
+
+/**
+ * MIRA, 280 Spear St (Studio Gang, 2020): where we stay. A slender white tower of stacked floor plates whose
+ * folded bay windows step round the building floor by floor, so the whole facade seems to twist as it rises;
+ * a rounded white crown on top, a glass lobby under a canopy at the base, and the older red brick block beside it.
+ * Dressed for Christmas: a spiral of fairy lights following the twist, a lit wreath and a star on the crown,
+ * a little tree, presents and candy canes at the front door. Site scale 1 (modelled at world size).
+ */
+builders.mira = (ctx) =>
+{
+    const nodes = []
+    const cx = 50, cz = 3
+    const tower = new Model()
+    const W = 4.2                     // floor plate
+    const LOBBY = 1.3, FLOOR = 0.8, FLOORS = 20
+    const rr = rng(280)
+    // lobby: a glass storey under a white canopy (front door faces the city, -x)
+    tower.box([ W - 0.3, LOBBY, W - 0.3 ], C.window)
+    tower.box([ W + 0.1, 0.12, W + 0.1 ], C.snow, [ 0, LOBBY, 0 ])
+    tower.box([ 1.2, 0.1, 2.4 ], C.snow, [ - W / 2 - 0.55, LOBBY - 0.25, 0 ])                       // entrance canopy
+    for(const z of [ - 1.05, 1.05 ])
+        tower.cylinder(0.05, 0.05, LOBBY - 0.25, C.snow, [ - W / 2 - 1.05, 0, z ], 6)
+    tower.cbox([ 0.06, 0.8, 0.9 ], C.dark, [ - W / 2 + 0.12, 0.4, 0 ])                               // the doors
+    {
+        const sign = new Model()
+        pixelText(sign, 'MIRA', C.dark, [ 0, 0, 0 ], 0.07, { depth: 0.03 })
+        tower.merge(sign, [ - W / 2 - 1.17, LOBBY - 0.08, 0 ], [ 0, - Math.PI / 2, 0 ])
+    }
+    // the floors: a white slab edge, a band of glass (some rooms lit, some not), and the folded bay windows: little
+    // glass prisms poking out of every face, their positions sliding along the face from floor to floor (the twist)
+    const faces = [ [ 1, 0 ], [ 0, 1 ], [ - 1, 0 ], [ 0, - 1 ] ]
+    const glass = () => { const v = rr(); return v < 0.28 ? C.window : v < 0.45 ? C.stone : C.sky }     // lit rooms, sky reflections, blue glass
+    const twist = (i, f, j) => Math.sin(i * 0.32 + f * 1.3 + j * 2.1) * 0.42
+    for(let i = 0; i < FLOORS; i++)
+    {
+        const y = LOBBY + 0.12 + i * FLOOR
+        tower.box([ W, 0.12, W ], C.snow, [ 0, y + FLOOR - 0.12, 0 ])                                // slab edge
+        tower.box([ W - 0.25, FLOOR - 0.12, W - 0.25 ], C.snow, [ 0, y, 0 ])                          // core
+        faces.forEach(([ nx, nz ], f) =>
+        {
+            const ux = - nz, uz = nx                    // along the face
+            // flat glazing between the bays
+            for(let p = 0; p < 4; p++)
+            {
+                const u = - 1.5 + p
+                tower.cbox(nx ? [ 0.04, FLOOR - 0.3, 0.8 ] : [ 0.8, FLOOR - 0.3, 0.04 ], glass(),
+                    [ nx * (W / 2 - 0.1) + ux * u, y + (FLOOR - 0.12) / 2, nz * (W / 2 - 0.1) + uz * u ])
+            }
+            // three bays per face: a glass prism (a square turned 45 degrees, half of it sticking out) with a white
+            // plate over it, which is what gives the facade its zigzag of white edges
+            for(let j = 0; j < 3; j++)
+            {
+                const u = (j - 1) * 1.3 + twist(i, f, j)
+                const px = nx * (W / 2 - 0.12) + ux * u, pz = nz * (W / 2 - 0.12) + uz * u
+                tower.cbox([ 0.62, FLOOR - 0.14, 0.62 ], glass(), [ px, y + (FLOOR - 0.14) / 2, pz ], [ 0, Math.PI / 4, 0 ])
+                tower.cbox([ 0.8, 0.12, 0.8 ], C.snow, [ px, y + FLOOR - 0.08, pz ], [ 0, Math.PI / 4, 0 ])
+                tower.cbox([ 0.07, FLOOR - 0.14, 0.07 ], C.snow, [ px + nx * 0.42, y + (FLOOR - 0.14) / 2, pz + nz * 0.42 ])   // white mullion on the fold
+            }
+        })
+    }
+    const TOP = LOBBY + 0.12 + FLOORS * FLOOR
+    // the crown: a rounded white cap set back on the roof
+    tower.box([ W - 0.4, 0.15, W - 0.4 ], C.snow, [ 0, TOP, 0 ])
+    tower.box([ 2.6, 1.5, 1.2 ], C.snow, [ 0.2, TOP + 0.15, 0 ])                                  // a stadium shape in plan
+    for(const z of [ - 0.6, 0.6 ])
+        tower.cylinder(1.3, 1.3, 1.5, C.snow, [ 0.2, TOP + 0.15, z ], 20)
+    nodes.push(fixedNode('miraTower', tower, ctx.at(cx, cz), [
+        { position: [ 0, (TOP + 1.7) / 2, 0 ], size: [ W, TOP + 1.7, W ] },
+        { position: [ - W / 2 - 0.55, LOBBY - 0.2, 0 ], size: [ 1.2, 0.1, 2.4 ] },
+    ]))
+
+    // the brick block next door (south): five storeys of red brick with rows of windows and a cornice
+    const brick = new Model()
+    const BW = 4.2, BD = 3, BH = 4.4
+    brick.box([ BW, BH, BD ], C.brick)
+    brick.box([ BW + 0.15, 0.2, BD + 0.15 ], C.stone, [ 0, BH, 0 ])
+    for(let row = 0; row < 5; row++)
+        for(let col = 0; col < 5; col++)
+        {
+            const y = 0.5 + row * 0.8, u = - 1.6 + col * 0.8
+            brick.cbox([ 0.04, 0.45, 0.4 ], row === 0 || (row + col) % 3 ? C.window : C.dark, [ - BW / 2 - 0.01, y, (u / 1.6) * 1.15 ])
+            brick.cbox([ 0.4, 0.45, 0.04 ], (row + col) % 2 ? C.window : C.dark, [ u * 0.95, y, BD / 2 + 0.01 ])
+        }
+    nodes.push(fixedNode('miraBrick', brick, ctx.at(cx, cz + W / 2 + BD / 2 + 0.3), [ { position: [ 0, BH / 2, 0 ], size: [ BW, BH, BD ] } ]))
+
+    // Christmas: a garland of lights spiralling up the tower with the twist
+    const deco = new Model()
+    {
+        const turns = 2.2, n = 260
+        for(let k = 0; k < n; k++)
+        {
+            const t = k / n
+            const a = t * turns * Math.PI * 2
+            // walk round the square: point on the square perimeter at angle a
+            const c = Math.cos(a), s = Math.sin(a)
+            const m = Math.max(Math.abs(c), Math.abs(s))
+            const r = W / 2 + 0.45
+            bulb(deco, [ c / m * r, LOBBY + 0.4 + t * (TOP - LOBBY - 0.6), s / m * r ], 0.09)
+        }
+    }
+    // lights along the canopy edge and down its posts, a wreath over the door, a tree, presents and candy canes
+    lightString(deco, [ - W / 2 - 1.15, LOBBY - 0.2, - 1.2 ], [ - W / 2 - 1.15, LOBBY - 0.2, 1.2 ], 0.25, 0.06, 0.07)
+    for(const z of [ - 1.05, 1.05 ])
+        lightString(deco, [ - W / 2 - 1.05, 0.1, z ], [ - W / 2 - 1.05, LOBBY - 0.25, z ], 0.2, 0, 0.06)
+    wreath(deco, [ - W / 2 - 0.02, 1.0, 0 ], Math.PI / 2, 0.9)
+    litPine(deco, [ - W / 2 - 1.4, 0, - 1.9 ], 1.2)
+    gifts(deco, [ - W / 2 - 1.0, 0, - 2.6 ], 0.4, 0.9, 3)
+    for(const z of [ - 1.35, 1.35 ])
+        candyCane(deco, [ - W / 2 - 1.55, 0, z ], 0, 0.9)
+    // a big wreath on the crown, facing the city, and one facing the bay
+    wreath(deco, [ 0.2 - 1.33, TOP + 0.85, 0 ], Math.PI / 2, 2.2)
+    wreath(deco, [ 0.2 + 1.33, TOP + 0.85, 0 ], Math.PI / 2, 2.2)
+    // lights on the brick block's roofline come from the site lights (build.mjs); a line across its front too
+    nodes.push(meshNode('miraDeco', deco, ctx.at(cx, cz)))
+    // the star on top, glowing
+    const star = christmasStar()
+    const starGeometry = star.geometry()
+    starGeometry.scale(0.45, 0.45, 0.45)
+    nodes.push({ ...meshNode('miraStar', star, ctx.at(cx + 0.2, cz, TOP + 2.6)), mesh: { geometry: starGeometry, material: 'emissiveOrangeRadialGradient' } })
     return nodes
 }
 
@@ -1371,33 +1492,126 @@ builders.alcatraz = (ctx) =>
                 dock.cylinder(0.07, 0.07, 1, C.wood, [ x, - 1, z ], 5)
         nodes.push(fixedNode('alcatrazDock', dock, ctx.atWorld([ 9, 0.25 - 0.12 * k, - 70.2 ]), [ { position: [ 0, 0.06, 0 ], size: [ 2.4, 0.12, 1.2 ] } ]))
 
-        // the Alcatraz Cruises ferry (sails around the bay, see Ferry.js): black hull, white decks, window bands
+        // the Alcatraz Cruises ferry (sails around the bay, see Ferry.js; bow toward -z, y 0 is ~0.25 above the water):
+        // a real ship's hull drawn from a plan outline (rounded transom, straight sides, a fine curved bow) with a red
+        // boot top at the waterline, black topsides and a white rub rail; two decks of white cabins with rounded fronts
+        // and wraparound window bands that light up at night, an open aft deck and a sun deck with railings and
+        // passengers, the wheelhouse forward with its radar mast, lifebuoys, the stern flag, ALCATRAZ CRUISES on
+        // both sides of the hull, and dressed overall in Christmas lights from the bow to the mast to the stern
         const boat = new Model()
-        boat.box([ 1.3, 0.45, 3.6 ], C.black, [ 0, - 0.3, 0 ])                             // hull
-        boat.cone(0.65, 0.9, C.black, [ 0, - 0.08, - 2.25 ], 4, [ - Math.PI / 2, Math.PI / 4, 0 ])
-        boat.box([ 1.32, 0.08, 3.62 ], C.snow, [ 0, 0.15, 0 ])                             // white rub rail
-        boat.box([ 1.25, 0.55, 3.3 ], C.snow, [ 0, 0.2, 0.1 ])                             // main deck cabin
-        boat.box([ 1.27, 0.22, 3.0 ], C.dark, [ 0, 0.38, 0.15 ])                           // windows
-        boat.box([ 1.15, 0.5, 2.7 ], C.snow, [ 0, 0.75, 0.3 ])                             // upper deck
-        boat.box([ 1.17, 0.18, 2.4 ], C.dark, [ 0, 0.9, 0.35 ])
-        boat.box([ 0.9, 0.4, 0.8 ], C.snow, [ 0, 1.25, - 0.45 ])                           // wheelhouse
-        boat.box([ 0.92, 0.15, 0.82 ], C.dark, [ 0, 1.4, - 0.45 ])
+        /** plan outline (x, z): rounded transom at zs, sides at ±hw down to the shoulder, then a pointed or rounded bow at zb */
+        const outline = (hw, zs, shoulder, zb, { round = false, r = 0.18 } = {}) =>
+        {
+            const pts = []
+            for(let i = 0; i <= 4; i++)                     // transom corner, starboard
+            {
+                const a = i / 4 * Math.PI / 2
+                pts.push([ hw - r + Math.sin(a) * r, zs - r + Math.cos(a) * r ])
+            }
+            const n = 10
+            for(let i = 0; i <= n; i++)                     // shoulder to the stem
+            {
+                const t = i / n
+                pts.push(round
+                    ? [ hw * Math.cos(t * Math.PI / 2), shoulder + (zb - shoulder) * Math.sin(t * Math.PI / 2) ]
+                    : [ hw * (1 - t * t), shoulder + (zb - shoulder) * t ])
+            }
+            const half = pts.slice()
+            for(let i = half.length - 2; i >= 0; i--)       // mirror to port
+                pts.push([ - half[i][0], half[i][1] ])
+            return pts
+        }
+        const slab = (pts, y0, y1, color, grow = 0) =>
+        {
+            const shape = new THREE.Shape(pts.map(([ x, z ]) => new THREE.Vector2(x * (1 + grow), - z * (1 + grow * 0.6))))
+            const g = new THREE.ExtrudeGeometry(shape, { depth: y1 - y0, bevelEnabled: false, curveSegments: 4 })
+            g.rotateX(- Math.PI / 2)
+            boat.add(g, color, [ 0, y0, 0 ])
+        }
+        const hull = outline(0.7, 1.85, - 0.85, - 2.45)
+        slab(outline(0.6, 1.75, - 0.85, - 2.3), - 0.45, - 0.22, C.red)                  // boot top
+        slab(outline(0.66, 1.8, - 0.85, - 2.38), - 0.22, 0.0, C.black)                 // lower hull, a touch narrower: flare
+        slab(hull, 0.0, 0.22, C.black)                                                  // topsides
+        slab(hull, 0.22, 0.28, C.snow, 0.03)                                            // rub rail
+        slab(hull, 0.28, 0.3, C.stone)                                                  // main deck
+        // main cabin: rounded front, windows all round (they glow after dark)
+        const cabin1 = outline(0.62, 1.65, - 0.55, - 1.45, { round: true, r: 0.12 })
+        slab(cabin1, 0.3, 0.86, C.snow)
+        slab(cabin1, 0.44, 0.72, C.window, 0.015)
+        slab(cabin1, 0.86, 0.91, C.snow, 0.05)                                         // deck above, overhanging
+        // upper cabin, shorter: the open aft deck behind it
+        const cabin2 = outline(0.56, 0.95, - 0.45, - 1.2, { round: true, r: 0.12 })
+        slab(cabin2, 0.91, 1.34, C.snow)
+        slab(cabin2, 1.0, 1.22, C.window, 0.015)
+        slab(cabin2, 1.34, 1.38, C.snow, 0.05)                                         // sun deck
+        // wheelhouse forward on the sun deck, raked windows, an overhanging roof
+        const wheel = outline(0.4, - 0.5, - 0.9, - 1.17, { round: true, r: 0.08 })
+        slab(wheel, 1.38, 1.72, C.snow)
+        slab(wheel, 1.5, 1.66, C.dark, 0.02)
+        slab(wheel, 1.72, 1.77, C.snow, 0.08)
+        // radar mast on the wheelhouse roof: post, crossbar, the radar bar and a light
+        boat.cylinder(0.025, 0.03, 0.55, C.snow, [ 0, 1.77, - 0.7 ], 6)
+        boat.cbox([ 0.5, 0.03, 0.03 ], C.snow, [ 0, 2.12, - 0.7 ])
+        boat.cbox([ 0.36, 0.035, 0.06 ], C.dark, [ 0, 2.25, - 0.7 ], [ 0, 0.5, 0 ])
+        boat.sphere(0.035, C.lamp, [ 0, 2.35, - 0.7 ], 0)
+        // two small funnels aft on the sun deck
+        for(const side of [ - 1, 1 ])
+        {
+            boat.cylinder(0.06, 0.07, 0.24, C.snow, [ side * 0.28, 1.38, 0.62 ], 8)
+            boat.cylinder(0.065, 0.065, 0.05, C.black, [ side * 0.28, 1.6, 0.62 ], 8)
+        }
+        // railings: posts and a top rail along the edges of the sun deck, the aft deck and round the bow
+        const railing = (pts, y, h = 0.16, every = 2) =>
+        {
+            for(let i = 0; i < pts.length - 1; i++)
+            {
+                const [ ax, az ] = pts[i], [ bx, bz ] = pts[i + 1]
+                boat.beam([ ax, y + h, az ], [ bx, y + h, bz ], 0.018, C.snow)
+                if(i % every === 0)
+                    boat.cylinder(0.012, 0.012, h, C.snow, [ ax, y, az ], 4)
+            }
+        }
+        const scaled = (pts, k) => pts.map(([ x, z ]) => [ x * k, z ])
+        const sun = scaled(cabin2, 1.03)
+        railing([ ...sun, sun[0] ], 1.38)                                               // sun deck, all round
+        railing([ [ 0.6, 0.97 ], [ 0.63, 1.5 ], [ 0.5, 1.68 ], [ - 0.5, 1.68 ], [ - 0.63, 1.5 ], [ - 0.6, 0.97 ] ], 0.91, 0.16, 1)   // open aft deck
+        railing(scaled(hull, 0.97).filter(([ , z ]) => z < - 1.25), 0.3, 0.18, 1)       // round the bow
+        // lifebuoys on the main cabin sides
+        for(const side of [ - 1, 1 ])
+            for(const z of [ - 0.15, 1.05 ])
+                boat.add(new THREE.TorusGeometry(0.07, 0.025, 4, 10), C.orange, [ side * 0.63, 0.62, z ], [ 0, Math.PI / 2, 0 ])
+        // ALCATRAZ CRUISES in white along the black topsides
         for(const side of [ - 1, 1 ])
         {
             const label = new Model()
-            pixelText(label, 'ALCATRAZ CRUISES', C.dark, [ 0, 0, 0 ], 0.035, { depth: 0.02 })
-            boat.merge(label, [ side * 0.59, 1.04, 0.35 ], [ 0, side * Math.PI / 2, 0 ])
-            boat.box([ 0.03, 0.12, 2.6 ], C.snow, [ side * 0.56, 1.25, 0.3 ])           // top deck railing
+            pixelText(label, 'ALCATRAZ CRUISES', C.snow, [ 0, 0, 0 ], 0.032, { depth: 0.02 })
+            boat.merge(label, [ side * 0.71, 0.03, 0.4 ], [ 0, side * Math.PI / 2, 0 ])
         }
+        // stern flag: a raked pole off the transom, the stars and stripes
+        boat.beam([ 0, 0.3, 1.78 ], [ 0, 0.95, 1.95 ], 0.015, C.dark)
+        for(let i = 0; i < 5; i++)
+            boat.cbox([ 0.01, 0.04, 0.3 ], i % 2 ? C.snow : C.red, [ 0, 0.75 + i * 0.04, 2.08 ])
+        boat.cbox([ 0.012, 0.1, 0.13 ], C.sky, [ 0, 0.89, 1.99 ])
+        // passengers: on the open aft deck and the sun deck, bundled up
         const rp = rng(1934)
-        for(let k = 0; k < 10; k++)                                                        // passengers on the top deck
+        const person = (x, y, z, i) =>
         {
-            const x = (rp() - 0.5) * 0.9, z = 0.2 + rp() * 1.6
-            boat.cbox([ 0.12, 0.2, 0.1 ], [ C.red, C.sky, C.gold, C.snow, C.pink ][k % 5], [ x, 1.35, z ])
-            boat.sphere(0.06, [ C.peach, C.khaki, C.wood ][k % 3], [ x, 1.5, z ], 0)
+            boat.cylinder(0.045, 0.055, 0.17, [ C.red, C.sky, C.gold, C.snow, C.pink, C.leaf ][i % 6], [ x, y, z ], 6)
+            boat.sphere(0.045, [ C.peach, C.khaki, C.wood ][i % 3], [ x, y + 0.22, z ], 0)
+            if(i % 3 === 0)
+                boat.cone(0.045, 0.08, C.red, [ x, y + 0.26, z ], 6)            // santa hats on a few
         }
-        boat.cylinder(0.02, 0.02, 0.6, C.dark, [ 0, 1.6, - 0.45 ], 4)                     // mast and flag
-        boat.cbox([ 0.01, 0.15, 0.25 ], C.red, [ 0, 2.1, - 0.33 ])
+        for(let i = 0; i < 6; i++)
+            person((rp() - 0.5) * 0.8, 0.91, 1.05 + rp() * 0.45, i)
+        for(let i = 0; i < 7; i++)
+            person((rp() - 0.5) * 0.75, 1.38, - 0.3 + rp() * 1.05, i + 6)
+        // Christmas: dressed overall, a string of lights from the bow up to the mast and down to the flag pole,
+        // more along the sun deck edges, and a wreath on the wheelhouse front
+        lightString(boat, [ 0, 0.5, - 2.4 ], [ 0, 2.2, - 0.7 ], 0.12, 0.1, 0.03)
+        lightString(boat, [ 0, 2.2, - 0.7 ], [ 0, 0.95, 1.95 ], 0.12, 0.18, 0.03)
+        for(const side of [ - 1, 1 ])
+            lightString(boat, [ side * 0.58, 1.56, - 0.4 ], [ side * 0.58, 1.56, 0.95 ], 0.1, 0.02, 0.025)
+        wreath(boat, [ 0, 1.46, - 1.2 ], 0, 0.35)
         nodes.push(meshNode('alcatrazFerry', boat, ctx.atWorld([ 20, 0, - 74 ])))
     }
 

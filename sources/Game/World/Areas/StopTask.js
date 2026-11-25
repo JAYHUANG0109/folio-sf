@@ -61,6 +61,17 @@ function makeToken(icon)
         add(new THREE.BoxGeometry(0.12, 0.8, 0.08), '#e4a90c', [ 0, - 0.1, 0 ])
         add(new THREE.BoxGeometry(0.25, 0.1, 0.08), '#e4a90c', [ 0.12, - 0.35, 0 ])
     }
+    else if(icon === 'suitcase')
+    {
+        // a hard shell suitcase: body, handle, wheels, a luggage tag
+        add(new THREE.BoxGeometry(0.75, 0.95, 0.38), '#e0508c', [ 0, 0, 0 ])
+        add(new THREE.BoxGeometry(0.77, 0.06, 0.4), '#f7d5e5', [ 0, 0.18, 0 ])
+        add(new THREE.BoxGeometry(0.77, 0.06, 0.4), '#f7d5e5', [ 0, - 0.18, 0 ])
+        add(new THREE.TorusGeometry(0.13, 0.035, 4, 10, Math.PI), '#3a3140', [ 0, 0.48, 0 ])
+        for(const x of [ - 0.28, 0.28 ])
+            add(new THREE.CylinderGeometry(0.06, 0.06, 0.06, 8), '#3a3140', [ x, - 0.5, 0 ], [ Math.PI / 2, 0, 0 ])
+        add(new THREE.BoxGeometry(0.16, 0.1, 0.02), '#ffd23f', [ 0.12, 0.42, 0.2 ])
+    }
     else if(icon === 'iceCream')
     {
         add(new THREE.ConeGeometry(0.25, 0.7, 8), '#b36d45', [ 0, - 0.3, 0 ], [ Math.PI, 0, 0 ])

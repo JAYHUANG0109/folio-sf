@@ -178,7 +178,7 @@ export class Guide
         const tasksDone = taskStore.done.size
         const next = this.target
             ? `<div class="hud-next"><span class="hud-label">下一站 · ${this.target.label}</span><span class="hud-name">${this.target.name}</span><span class="hud-distance">${distance} m</span></div>`
-            : `<div class="hud-next"><span class="hud-label">完成</span><span class="hud-name">13 站都到了 ♥</span></div>`
+            : `<div class="hud-next"><span class="hud-label">完成</span><span class="hud-name">14 站都到了 ♥</span></div>`
         const taskLine = current && task
             ? `<div class="hud-task${task.done ? ' is-done' : ''}">${current.label} ${task.done ? '✓ ' : '任務：'}${task.text}${!task.done && task.status ? `（${task.status}）` : ''}</div>`
             : ''

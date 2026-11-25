@@ -164,6 +164,7 @@ console.log('terrain ok')
 const frustumOverrides = {
     goldenGate: { x: - 62, z: - 63, radius: 30 },
     ferryBuilding: { x: 66, z: - 14, radius: 26 },
+    mira: { x: 50, z: 4, radius: 16 },
     lombard: { x: 6, z: - 36, radius: 28 },
     napa: { x: - 79, z: - 84, radius: 14 },
     pier39: { x: 32, z: - 60, radius: 16 },

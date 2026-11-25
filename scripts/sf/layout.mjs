@@ -73,6 +73,7 @@ export const pads = [
     [65, 69, 15, 21, 0],      // SFO (bigger airport)
     [12, 79, 12, 18, 0],      // Levi's
     [59, -18, 6, 10, 0],      // Ferry Building
+    [50, 3.5, 3.5, 6, 0],     // MIRA (280 Spear St)
     [34, 13, 6, 10, 0],       // Union Square
     [24, -13, 9, 14, 0.3],    // Chinatown: flat street level under the shops and the gate
     [36, -54, 4, 7, 0],       // Pier 39 shore
@@ -159,6 +160,7 @@ export const streets = [
 export const plazas = [
     { rect: [20, 3, 47, 28] },       // Union Square
     { ellipse: [59, -18, 7, 6] },    // Ferry Building
+    { rect: [45.5, -0.5, 47.6, 6.5] }, // MIRA's front drive
     { rect: [48, 56, 82, 86] },      // SFO forecourt and apron
     { ellipse: [-62, -86.5, 4, 5] }, // Vista Point, straight ahead off the bridge
     { rect: [18, -29, 30, 1] },      // Chinatown: Grant Ave as a wide pedestrian street
