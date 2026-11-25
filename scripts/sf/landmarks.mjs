@@ -631,7 +631,8 @@ builders.sfo = (ctx) =>
 /**
  * MIRA, 280 Spear St (Studio Gang, 2020): where we stay. A slender white tower of stacked floor plates whose
  * folded bay windows step round the building floor by floor, so the whole facade seems to twist as it rises;
- * a rounded white crown on top, a glass lobby under a canopy at the base, and the older red brick block beside it.
+ * a rounded white crown on top, a double height glass lobby under a canopy at the base. As tall as the Ferry
+ * Building's clock tower.
  * Dressed for Christmas: a spiral of fairy lights following the twist, a lit wreath and a star on the crown,
  * a little tree, presents and candy canes at the front door. Site scale 1 (modelled at world size).
  */
@@ -640,112 +641,153 @@ builders.mira = (ctx) =>
     const nodes = []
     const cx = 50, cz = 3
     const tower = new Model()
-    const W = 4.2                     // floor plate
-    const LOBBY = 1.3, FLOOR = 0.8, FLOORS = 20
+    const W = 4.4                     // floor plate (square, the bays stick out of it)
+    const LOBBY = 1.7, FLOOR = 0.74, FLOORS = 37
     const rr = rng(280)
-    // lobby: a glass storey under a white canopy (front door faces the city, -x)
-    tower.box([ W - 0.3, LOBBY, W - 0.3 ], C.window)
-    tower.box([ W + 0.1, 0.12, W + 0.1 ], C.snow, [ 0, LOBBY, 0 ])
-    tower.box([ 1.2, 0.1, 2.4 ], C.snow, [ - W / 2 - 0.55, LOBBY - 0.25, 0 ])                       // entrance canopy
-    for(const z of [ - 1.05, 1.05 ])
-        tower.cylinder(0.05, 0.05, LOBBY - 0.25, C.snow, [ - W / 2 - 1.05, 0, z ], 6)
-    tower.cbox([ 0.06, 0.8, 0.9 ], C.dark, [ - W / 2 + 0.12, 0.4, 0 ])                               // the doors
+    const glass = () => { const v = rr(); return v < 0.2 ? C.window : v < 0.62 ? C.slate : C.sky }     // lit rooms, grey-blue glass, sky reflections
+
+    // lobby: a double height glass storey between slim white columns, a white canopy over the door (facing the city, -x)
+    tower.box([ W - 0.4, LOBBY, W - 0.4 ], C.window)
+    for(const [ x, z ] of [ [ - 1, - 1 ], [ - 1, 1 ], [ 1, - 1 ], [ 1, 1 ], [ - 1, 0 ], [ 1, 0 ], [ 0, - 1 ], [ 0, 1 ] ])
+        tower.box([ 0.22, LOBBY, 0.22 ], C.snow, [ x * (W / 2 - 0.15), 0, z * (W / 2 - 0.15) ])
+    tower.box([ W + 0.1, 0.16, W + 0.1 ], C.snow, [ 0, LOBBY, 0 ])
+    tower.box([ 1.3, 0.1, 2.6 ], C.snow, [ - W / 2 - 0.6, LOBBY - 0.35, 0 ])                       // entrance canopy
+    for(const z of [ - 1.15, 1.15 ])
+        tower.cylinder(0.05, 0.05, LOBBY - 0.35, C.snow, [ - W / 2 - 1.15, 0, z ], 6)
+    tower.cbox([ 0.06, 1.0, 1.0 ], C.dark, [ - W / 2 + 0.2, 0.5, 0 ])                                // the doors
     {
         const sign = new Model()
-        pixelText(sign, 'MIRA', C.dark, [ 0, 0, 0 ], 0.07, { depth: 0.03 })
-        tower.merge(sign, [ - W / 2 - 1.17, LOBBY - 0.08, 0 ], [ 0, - Math.PI / 2, 0 ])
+        pixelText(sign, 'MIRA', C.dark, [ 0, 0, 0 ], 0.08, { depth: 0.03 })
+        tower.merge(sign, [ - W / 2 - 1.27, LOBBY - 0.2, 0 ], [ 0, - Math.PI / 2, 0 ])
     }
-    // the floors: a white slab edge, a band of glass (some rooms lit, some not), and the folded bay windows: little
-    // glass prisms poking out of every face, their positions sliding along the face from floor to floor (the twist)
-    const faces = [ [ 1, 0 ], [ 0, 1 ], [ - 1, 0 ], [ 0, - 1 ] ]
-    const glass = () => { const v = rr(); return v < 0.28 ? C.window : v < 0.45 ? C.stone : C.sky }     // lit rooms, sky reflections, blue glass
-    const twist = (i, f, j) => Math.sin(i * 0.32 + f * 1.3 + j * 2.1) * 0.42
+
+    // the facade, floor by floor. Each floor: a white slab edge, a band of glass with white mullions, and the
+    // folded bay windows (a flat front pane, two angled side panes, white plates above and below). The bays sit at
+    // positions along the perimeter that drift a little every floor, so they travel round the corners as the tower
+    // rises: the twist. They stick out further toward the top, so the silhouette flares. One face (the bay side, +x)
+    // has a vertical notch of glass balconies up its middle.
+    const P = W * 4                                      // perimeter
+    const along = (s) =>                                  // perimeter coordinate -> point on the face, outward normal
+    {
+        s = ((s % P) + P) % P
+        const f = Math.floor(s / W), u = s - f * W - W / 2
+        const [ nx, nz ] = [ [ 1, 0 ], [ 0, 1 ], [ - 1, 0 ], [ 0, - 1 ] ][f]
+        return { x: nx * W / 2 - nz * u, z: nz * W / 2 + nx * u, nx, nz, u, f }
+    }
+    const plate = (pts, y, thickness, color) =>
+    {
+        const shape = new THREE.Shape(pts.map(([ x, z ]) => new THREE.Vector2(x, - z)))
+        const g = new THREE.ExtrudeGeometry(shape, { depth: thickness, bevelEnabled: false })
+        g.rotateX(- Math.PI / 2)
+        tower.add(g, color, [ 0, y, 0 ])
+    }
+    const BAYS = 9, BAY = 0.95
     for(let i = 0; i < FLOORS; i++)
     {
-        const y = LOBBY + 0.12 + i * FLOOR
-        tower.box([ W, 0.12, W ], C.snow, [ 0, y + FLOOR - 0.12, 0 ])                                // slab edge
-        tower.box([ W - 0.25, FLOOR - 0.12, W - 0.25 ], C.snow, [ 0, y, 0 ])                          // core
-        faces.forEach(([ nx, nz ], f) =>
+        const y = LOBBY + 0.16 + i * FLOOR
+        const h = FLOOR - 0.16
+        const t = i / (FLOORS - 1)
+        // slab edge and glazing band
+        tower.box([ W + 0.12, 0.16, W + 0.12 ], C.snow, [ 0, y + h, 0 ])
+        tower.box([ W - 0.06, h, W - 0.06 ], C.snow, [ 0, y, 0 ])
+        for(let f = 0; f < 4; f++)
+            for(let p = 0; p < 5; p++)
+            {
+                const pt = along(f * W + 0.44 + p * 0.88)
+                if(f === 0 && Math.abs(pt.u) < 0.55)
+                    continue                                                  // the balcony notch
+                tower.cbox(pt.nx ? [ 0.03, h * 0.78, 0.72 ] : [ 0.72, h * 0.78, 0.03 ], glass(), [ pt.x + pt.nx * 0.01, y + h * 0.5, pt.z + pt.nz * 0.01 ])
+            }
+        // balcony notch on the bay side: a dark recess, glass rails, white slab lips
+        tower.cbox([ 0.05, h, 1.1 ], C.dark, [ W / 2 - 0.25, y + h / 2, 0 ])
+        tower.cbox([ 0.03, h * 0.45, 1.0 ], C.sky, [ W / 2 + 0.02, y + h * 0.25, 0 ])
+        tower.cbox([ 0.3, 0.05, 1.1 ], C.snow, [ W / 2 - 0.12, y + h * 0.5, 0 ])
+        // the bays
+        const depth = 0.32 + t * 0.22
+        for(let j = 0; j < BAYS; j++)
         {
-            const ux = - nz, uz = nx                    // along the face
-            // flat glazing between the bays
-            for(let p = 0; p < 4; p++)
+            const s = j * P / BAYS + i * 0.21 + Math.sin(i * 0.4 + j) * 0.08
+            const c = along(s)
+            const u = c.u
+            if(Math.abs(u) > W / 2 - BAY / 2 - 0.05)
+                continue                                                      // (no bay straddling a corner)
+            if(c.f === 0 && Math.abs(u) < 0.55 + BAY / 2)
+                continue                                                      // keep the balcony notch clear
+            const { nx, nz } = c
+            const tx = - nz, tz = nx                                          // along the face
+            const base = (k, o) => [ c.x + tx * k + nx * o, c.z + tz * k + nz * o ]
+            // trapezoid in plan: wide at the wall, narrower at the front
+            const front = BAY * 0.62
+            const pts = [ base(- BAY / 2, 0), base(BAY / 2, 0), base(front / 2, depth), base(- front / 2, depth) ]
+            plate(pts, y - 0.02, 0.08, C.snow)
+            plate(pts, y + h - 0.06, 0.1, C.snow)
+            // panes: front and the two folded sides
+            const [ fx, fz ] = base(0, depth - 0.02)
+            tower.cbox(nx ? [ 0.03, h - 0.1, front - 0.04 ] : [ front - 0.04, h - 0.1, 0.03 ], glass(), [ fx, y + h / 2, fz ])
+            for(const side of [ - 1, 1 ])
             {
-                const u = - 1.5 + p
-                tower.cbox(nx ? [ 0.04, FLOOR - 0.3, 0.8 ] : [ 0.8, FLOOR - 0.3, 0.04 ], glass(),
-                    [ nx * (W / 2 - 0.1) + ux * u, y + (FLOOR - 0.12) / 2, nz * (W / 2 - 0.1) + uz * u ])
+                const [ ax, az ] = base(side * BAY / 2, 0), [ bx, bz ] = base(side * front / 2, depth)
+                const len = Math.hypot(bx - ax, bz - az)
+                tower.cbox([ len, h - 0.1, 0.03 ], glass(), [ (ax + bx) / 2, y + h / 2, (az + bz) / 2 ], [ 0, - Math.atan2(bz - az, bx - ax), 0 ])
+                tower.cbox([ 0.05, h - 0.06, 0.05 ], C.snow, [ bx, y + h / 2, bz ])                           // white mullion on the fold
             }
-            // three bays per face: a glass prism (a square turned 45 degrees, half of it sticking out) with a white
-            // plate over it, which is what gives the facade its zigzag of white edges
-            for(let j = 0; j < 3; j++)
-            {
-                const u = (j - 1) * 1.3 + twist(i, f, j)
-                const px = nx * (W / 2 - 0.12) + ux * u, pz = nz * (W / 2 - 0.12) + uz * u
-                tower.cbox([ 0.62, FLOOR - 0.14, 0.62 ], glass(), [ px, y + (FLOOR - 0.14) / 2, pz ], [ 0, Math.PI / 4, 0 ])
-                tower.cbox([ 0.8, 0.12, 0.8 ], C.snow, [ px, y + FLOOR - 0.08, pz ], [ 0, Math.PI / 4, 0 ])
-                tower.cbox([ 0.07, FLOOR - 0.14, 0.07 ], C.snow, [ px + nx * 0.42, y + (FLOOR - 0.14) / 2, pz + nz * 0.42 ])   // white mullion on the fold
-            }
-        })
+        }
     }
-    const TOP = LOBBY + 0.12 + FLOORS * FLOOR
-    // the crown: a rounded white cap set back on the roof
-    tower.box([ W - 0.4, 0.15, W - 0.4 ], C.snow, [ 0, TOP, 0 ])
-    tower.box([ 2.6, 1.5, 1.2 ], C.snow, [ 0.2, TOP + 0.15, 0 ])                                  // a stadium shape in plan
-    for(const z of [ - 0.6, 0.6 ])
-        tower.cylinder(1.3, 1.3, 1.5, C.snow, [ 0.2, TOP + 0.15, z ], 20)
+    const TOP = LOBBY + 0.16 + FLOORS * FLOOR
+    // the crown: a rounded white screen set back on the roof, with panel joints
+    tower.box([ W + 0.12, 0.25, W + 0.12 ], C.snow, [ 0, TOP, 0 ])
+    const CROWN = 1.6
+    tower.box([ 3.0, CROWN, 1.6 ], C.snow, [ 0.1, TOP + 0.25, 0 ])
+    for(const z of [ - 0.8, 0.8 ])
+        tower.cylinder(1.5, 1.5, CROWN, C.snow, [ 0.1, TOP + 0.25, z ], 24)
+    for(let k = 0; k < 16; k++)
+    {
+        const a = k / 16 * Math.PI * 2
+        const z = Math.sin(a) > 0 ? 0.8 : - 0.8
+        tower.cbox([ 0.03, CROWN - 0.1, 0.03 ], C.stone, [ 0.1 + Math.cos(a) * 1.51, TOP + 0.25 + CROWN / 2, z + Math.sin(a) * 1.51 ])
+    }
+    tower.box([ 2.9, 0.06, 4.4 ], C.stone, [ 0.1, TOP + 0.25 + CROWN, 0 ])
     nodes.push(fixedNode('miraTower', tower, ctx.at(cx, cz), [
-        { position: [ 0, (TOP + 1.7) / 2, 0 ], size: [ W, TOP + 1.7, W ] },
-        { position: [ - W / 2 - 0.55, LOBBY - 0.2, 0 ], size: [ 1.2, 0.1, 2.4 ] },
+        { position: [ 0, (TOP + CROWN + 0.25) / 2, 0 ], size: [ W, TOP + CROWN + 0.25, W ] },
+        { position: [ - W / 2 - 0.6, LOBBY - 0.3, 0 ], size: [ 1.3, 0.1, 2.6 ] },
     ]))
 
-    // the brick block next door (south): five storeys of red brick with rows of windows and a cornice
-    const brick = new Model()
-    const BW = 4.2, BD = 3, BH = 4.4
-    brick.box([ BW, BH, BD ], C.brick)
-    brick.box([ BW + 0.15, 0.2, BD + 0.15 ], C.stone, [ 0, BH, 0 ])
-    for(let row = 0; row < 5; row++)
-        for(let col = 0; col < 5; col++)
-        {
-            const y = 0.5 + row * 0.8, u = - 1.6 + col * 0.8
-            brick.cbox([ 0.04, 0.45, 0.4 ], row === 0 || (row + col) % 3 ? C.window : C.dark, [ - BW / 2 - 0.01, y, (u / 1.6) * 1.15 ])
-            brick.cbox([ 0.4, 0.45, 0.04 ], (row + col) % 2 ? C.window : C.dark, [ u * 0.95, y, BD / 2 + 0.01 ])
-        }
-    nodes.push(fixedNode('miraBrick', brick, ctx.at(cx, cz + W / 2 + BD / 2 + 0.3), [ { position: [ 0, BH / 2, 0 ], size: [ BW, BH, BD ] } ]))
-
-    // Christmas: a garland of lights spiralling up the tower with the twist
+    // Christmas: a garland of lights spiralling up the tower with the twist, lights round the crown
     const deco = new Model()
     {
-        const turns = 2.2, n = 260
+        const turns = 3, n = 420
         for(let k = 0; k < n; k++)
         {
             const t = k / n
-            const a = t * turns * Math.PI * 2
-            // walk round the square: point on the square perimeter at angle a
-            const c = Math.cos(a), s = Math.sin(a)
-            const m = Math.max(Math.abs(c), Math.abs(s))
-            const r = W / 2 + 0.45
-            bulb(deco, [ c / m * r, LOBBY + 0.4 + t * (TOP - LOBBY - 0.6), s / m * r ], 0.09)
+            const p = along(t * turns * P)
+            const out = 0.7
+            bulb(deco, [ p.x + p.nx * out, LOBBY + 0.5 + t * (TOP - LOBBY - 0.8), p.z + p.nz * out ], 0.09)
+        }
+        for(let k = 0; k < 48; k++)
+        {
+            const a = k / 48 * Math.PI * 2
+            const z = Math.sin(a) > 0 ? 0.8 : - 0.8
+            bulb(deco, [ 0.1 + Math.cos(a) * 1.56, TOP + 0.25 + CROWN - 0.05, z + Math.sin(a) * 1.56 ], 0.08)
         }
     }
     // lights along the canopy edge and down its posts, a wreath over the door, a tree, presents and candy canes
-    lightString(deco, [ - W / 2 - 1.15, LOBBY - 0.2, - 1.2 ], [ - W / 2 - 1.15, LOBBY - 0.2, 1.2 ], 0.25, 0.06, 0.07)
-    for(const z of [ - 1.05, 1.05 ])
-        lightString(deco, [ - W / 2 - 1.05, 0.1, z ], [ - W / 2 - 1.05, LOBBY - 0.25, z ], 0.2, 0, 0.06)
-    wreath(deco, [ - W / 2 - 0.02, 1.0, 0 ], Math.PI / 2, 0.9)
-    litPine(deco, [ - W / 2 - 1.4, 0, - 1.9 ], 1.2)
-    gifts(deco, [ - W / 2 - 1.0, 0, - 2.6 ], 0.4, 0.9, 3)
-    for(const z of [ - 1.35, 1.35 ])
-        candyCane(deco, [ - W / 2 - 1.55, 0, z ], 0, 0.9)
+    lightString(deco, [ - W / 2 - 1.25, LOBBY - 0.3, - 1.3 ], [ - W / 2 - 1.25, LOBBY - 0.3, 1.3 ], 0.25, 0.06, 0.07)
+    for(const z of [ - 1.15, 1.15 ])
+        lightString(deco, [ - W / 2 - 1.15, 0.1, z ], [ - W / 2 - 1.15, LOBBY - 0.35, z ], 0.2, 0, 0.06)
+    wreath(deco, [ - W / 2 - 0.02, 1.25, 0 ], Math.PI / 2, 1.0)
+    litPine(deco, [ - W / 2 - 1.5, 0, - 2.1 ], 1.3)
+    gifts(deco, [ - W / 2 - 1.0, 0, - 2.8 ], 0.4, 0.9, 3)
+    for(const z of [ - 1.45, 1.45 ])
+        candyCane(deco, [ - W / 2 - 1.65, 0, z ], 0, 0.9)
     // a big wreath on the crown, facing the city, and one facing the bay
-    wreath(deco, [ 0.2 - 1.33, TOP + 0.85, 0 ], Math.PI / 2, 2.2)
-    wreath(deco, [ 0.2 + 1.33, TOP + 0.85, 0 ], Math.PI / 2, 2.2)
-    // lights on the brick block's roofline come from the site lights (build.mjs); a line across its front too
+    wreath(deco, [ 0.1 - 1.52, TOP + 1.05, 0 ], Math.PI / 2, 2.4)
+    wreath(deco, [ 0.1 + 1.52, TOP + 1.05, 0 ], Math.PI / 2, 2.4)
     nodes.push(meshNode('miraDeco', deco, ctx.at(cx, cz)))
     // the star on top, glowing
     const star = christmasStar()
     const starGeometry = star.geometry()
-    starGeometry.scale(0.45, 0.45, 0.45)
-    nodes.push({ ...meshNode('miraStar', star, ctx.at(cx + 0.2, cz, TOP + 2.6)), mesh: { geometry: starGeometry, material: 'emissiveOrangeRadialGradient' } })
+    starGeometry.scale(0.5, 0.5, 0.5)
+    nodes.push({ ...meshNode('miraStar', star, ctx.at(cx + 0.1, cz, TOP + CROWN + 1.4)), mesh: { geometry: starGeometry, material: 'emissiveOrangeRadialGradient' } })
     return nodes
 }
 

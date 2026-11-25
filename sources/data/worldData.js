@@ -3,27 +3,14 @@
  * (scripts/sf/* keep using the design-unit files directly.)
  */
 import { WORLD_SCALE as S } from './world.js'
+import { spreadXZ, siteXZ } from './worldWarp.js'
 import { scaleOf, aboutSite } from './sites.js'
 import { stops as designStops } from './stops.js'
 import { secrets as designSecrets } from './secrets.js'
 import { dogs as designDogs, dogSpots as designSpots, turkey as designTurkey } from './dogs.js'
 
-const xz = (p) => p ? { ...p, x: p.x * S, z: p.z * S } : p
-const points = (list) => list?.map(([ x, z ]) => [ x * S, z * S ])
-
-const scaleTask = (task) =>
-{
-    if(!task)
-        return task
-    const t = { ...task }
-    if(t.points) t.points = points(t.points)
-    if(t.rink) t.rink = { x: t.rink.x * S, z: t.rink.z * S, halfX: t.rink.halfX * S, halfZ: t.rink.halfZ * S }
-    if(t.netX !== undefined) t.netX *= S
-    if(t.z !== undefined) t.z *= S
-    if(t.halfZ !== undefined) t.halfZ *= S
-    return t
-}
-
+// design -> world: the map spread moves every place out (sites rigidly), see spread.js
+const xz = (p) => { if(!p) return p; const [ x, z ] = spreadXZ(p.x, p.z); return { ...p, x, z } }
 /** Bigger sites: task spots, respawn and radius move out with the landmark (see sites.js) */
 const scaleSite = (place) =>
 {
@@ -43,26 +30,35 @@ const scaleSite = (place) =>
         task.z = z
         task.halfZ *= k
     }
-    const respawn = place.respawn ? (() => { const [ x, z ] = about([ place.respawn.x, place.respawn.z ]); return { ...place.respawn, x, z } })() : undefined
-    return { ...place, radius: place.radius * k, respawn, task }
+    // (the respawn is where the car really appears: scripts/sf/build.mjs places it as authored, no site scale)
+    return { ...place, radius: place.radius * k, task }
 }
 
 const scalePlace = (designPlace) =>
 {
     const place = scaleSite(designPlace)
+    // everything belonging to the site moves exactly with it in the map spread
+    const own = (p) => { if(!p) return p; const [ x, z ] = siteXZ(place.id, p.x, p.z); return { ...p, x, z } }
+    const task = place.task ? { ...place.task } : undefined
+    if(task?.points) task.points = task.points.map(([ x, z ]) => siteXZ(place.id, x, z))
+    if(task?.rink) task.rink = { ...task.rink, ...own(task.rink) }
+    if(task?.netX !== undefined) { const [ x, z ] = siteXZ(place.id, task.netX, task.z); task.netX = x; task.z = z }
     return {
         ...place,
-        position: xz(place.position),
-        respawn: place.respawn ? xz(place.respawn) : undefined,
+        position: own(place.position),
+        respawn: own(place.respawn),
         radius: place.radius * S,
-        task: scaleTask(place.task),
+        task,
     }
 }
 
 export const stops = designStops.map(scalePlace)
 export const stopsById = Object.fromEntries(stops.map(stop => [ stop.id, stop ]))
 export const secrets = designSecrets.map(scalePlace)
-export const dogs = designDogs.map(dog => ({ ...dog, home: xz(dog.home) }))
-export const dogSpots = Object.fromEntries(Object.entries(designSpots).map(([ k, v ]) => [ k, xz(v) ]))
-export const turkey = { ...xz(designTurkey), radius: designTurkey.radius * S }
+const ofSite = (id, p) => { const [ x, z ] = siteXZ(id, p.x, p.z); return { ...p, x, z } }
+export const dogs = designDogs.map(dog => ({ ...dog, home: ofSite(`home-${dog.id}`, dog.home) }))
+// the dogs' favorite spots belong to the sites they're at
+const spotSites = { fish: 'pier39', iceCream: 'doloresPark', chinatown: 'chinatown', turkey: 'turkey', tennis: 'tennis', pier39: 'pier39', goldenGate: 'goldenGate' }
+export const dogSpots = Object.fromEntries(Object.entries(designSpots).map(([ k, v ]) => [ k, spotSites[k] ? ofSite(spotSites[k], v) : xz(v) ]))
+export const turkey = { ...ofSite('turkey', designTurkey), radius: designTurkey.radius * S }
 export const WORLD_SCALE = S

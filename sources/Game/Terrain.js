@@ -1,6 +1,7 @@
 import * as THREE from 'three/webgpu'
 import { Game } from './Game.js'
 import { WORLD_SCALE } from '../data/world.js'
+import { MAP_SPREAD } from '../data/worldWarp.js'
 import MeshGridMaterial, { MeshGridMaterialLine } from './Materials/MeshGridMaterial.js'
 import { abs, color, float, Fn, max, mix, round, smoothstep, texture, uniform, uv, vec2, vec3 } from 'three/tsl'
 
@@ -11,7 +12,7 @@ export class Terrain
         this.game = Game.getInstance()
 
         this.subdivision = 128
-        this.size = 192 * WORLD_SCALE // must match scripts/sf/layout.mjs WORLD_SIZE
+        this.size = 192 * WORLD_SCALE * MAP_SPREAD // the design map (192) spread out, see sources/data/spread.js
         this.maxHeight = 10 * WORLD_SCALE // must match scripts/sf/layout.mjs MAX_HEIGHT
 
         if(this.game.debug.active)

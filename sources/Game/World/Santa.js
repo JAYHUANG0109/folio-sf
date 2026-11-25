@@ -2,6 +2,7 @@ import * as THREE from 'three/webgpu'
 import { color, float, time, sin } from 'three/tsl'
 import { Game } from '../Game.js'
 import { MeshDefaultMaterial } from '../Materials/MeshDefaultMaterial.js'
+import { spreadXZ } from '../../data/worldWarp.js'
 
 /**
  * Winter at SFO:
@@ -12,7 +13,7 @@ import { MeshDefaultMaterial } from '../Materials/MeshDefaultMaterial.js'
  *    Rudolph's nose glows at night.
  * Built from smooth shapes (lathes, capsules, tubes) for a soft, lifelike look.
  */
-const DECK = { x: 75.5, y: 22.35, z: 84.5 }        // printed by `npm run sf:build` ("SFO tower deck")
+const DECK = (() => { const [ x, z ] = spreadXZ(75.5, 84.5); return { x, y: 22.35, z } })()   // design spot printed by `npm run sf:build` ("SFO tower deck"), moved with the map spread
 const PLANE_SCALE = 1.5                              // the SFO site scale
 const SEAT = new THREE.Vector3(0, 2.68, - 3.9).multiplyScalar(PLANE_SCALE)        // the saddle, plane local (design y0 + R, behind the harness)
 const ANTLERS = [ - 1, 1 ].map(side => new THREE.Vector3(side * 0.35, 2.75, - 5.9).multiplyScalar(PLANE_SCALE))

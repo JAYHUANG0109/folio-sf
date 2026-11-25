@@ -4,7 +4,8 @@
  *  - scripts/sf/build.mjs (terrain, landmark models, respawns, map)
  *  - sources/Game/World/Areas/StopArea.js (zones, stamps, cards)
  *
- * World coordinates: x = east, z = south, the map spans -96..96 on both axes.
+ * Design coordinates: x = east, z = south, the map spans -96..96 on both axes (the game world is this spread out
+ * 1.35x, every site moving out rigidly: see sources/data/spread.js).
  * Change a stop's position here, then run `npm run sf:build` to regenerate the world.
  */
 export const stops = [
@@ -26,7 +27,7 @@ export const stops = [
         date: '11/24（二）',
         note: '我們在舊金山的家。Studio Gang 設計的白色大樓，一層層凸窗像在轉圈往上長，走路十分鐘就到渡輪大廈。',
         position: { x: 50, z: 3 },
-        radius: 6,
+        radius: 7.5,
         respawn: { x: 43.8, z: 1, rotation: - Math.PI * 0.5 },   // on Market St, facing the front door
         task: { type: 'collect', text: '把 3 個行李箱搬回 MIRA', icon: 'suitcase', points: [ [ 45.5, - 3 ], [ 51.5, - 3.5 ], [ 46.3, 9 ] ] },
     },

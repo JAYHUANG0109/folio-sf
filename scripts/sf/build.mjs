@@ -24,7 +24,8 @@ import { builders, nameBlocks, christmasTree, christmasStar } from './landmarks.
 import { bulb, lightString, litPine, candyCane, gifts, snowman, pumpkin, harvest, wreath } from './holiday.mjs'
 import { dogNodes } from './dogs.mjs'
 import { secrets } from '../../sources/data/secrets.js'
-import { scaleOf } from '../../sources/data/sites.js'
+import { scaleOf, aboutSite } from '../../sources/data/sites.js'
+import { makeWarp, solveField, convexHull, hullDistance, SPREAD } from '../../sources/data/spread.js'
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../..')
 const out = (p) => path.join(ROOT, p)
@@ -129,22 +130,54 @@ const nearRoad = (x, z, margin = 0) => streetSegments.some(([ ax, az, bx, bz, ha
     return Math.hypot(x - (ax + dx * t), z - (az + dz * t)) < half + margin
 })
 
-/* ---------------- Terrain ---------------- */
-await writeTerrainTextures(rastersRaw, out('static/terrain/terrain.png'), out('static/terrain/terrainHeight.png'))
+/* ---------------- Terrain (written after the map spread is known, see writeTerrain) ---------------- */
+const writeTerrain = async () =>
 {
-    const rows = 193 // 1.5 world units between samples
+    // textures: the design rasters resampled over the spread world (each world texel looks up its design point)
+    const res = Math.round(RES * SPREAD / 16) * 16
+    const warped = {}
+    for(const key of [ 'depth', 'pavingBase', 'parks', 'height' ])
+        warped[key] = new Float32Array(res * res)
+    for(let row = 0; row < res; row++)
+        for(let col = 0; col < res; col++)
+        {
+            const [ x, z ] = designAt((col + 0.5) / res * WORLD_SIZE - WORLD_HALF, (row + 0.5) / res * WORLD_SIZE - WORLD_HALF)
+            const i = row * res + col
+            for(const key of [ 'depth', 'pavingBase', 'parks', 'height' ])
+                warped[key][i] = sample(rastersRaw[key], x, z)
+        }
+    // streets painted in the world at their real width, then grass as in terrain.mjs
+    {
+        const k = res / WORLD_SIZE
+        const body = Layout.streets.map(street => `<path d="M${worldLine(street.points).map(([ x, z ]) => `${((x + WORLD_HALF) * k).toFixed(2)},${((z + WORLD_HALF) * k).toFixed(2)}`).join('L')}" fill="none" stroke="#fff" stroke-width="${street.width * k}" stroke-linecap="round" stroke-linejoin="round"/>`).join('')
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${res}" height="${res}"><rect width="100%" height="100%" fill="#000"/>${body}</svg>`
+        const { data, info } = await sharp(Buffer.from(svg)).greyscale().blur(1.6).raw().toBuffer({ resolveWithObject: true })
+        warped.paving = new Float32Array(res * res)
+        warped.grass = new Float32Array(res * res)
+        for(let i = 0; i < res * res; i++)
+        {
+            warped.paving[i] = Math.max(warped.pavingBase[i], data[i * info.channels] / 255)
+            warped.grass[i] = Math.max(0, Math.max(warped.parks[i] * 0.78, 0.5) - warped.paving[i] * 1.2 - warped.depth[i] * 3)
+        }
+    }
+    await writeTerrainTextures(warped, out('static/terrain/terrain.png'), out('static/terrain/terrainHeight.png'), res)
+    terrainWarped = warped
+    terrainWarpedRes = res
+
+    const rows = Math.round(Layout.SIZE * SPREAD) + 1 // ~1 world unit between samples
     const positions = new Float32Array(rows * rows * 3)
     const indices = []
     for(let ix = 0; ix < rows; ix++)
     {
         for(let iz = 0; iz < rows; iz++)
         {
-            const x = - Layout.HALF + ix * Layout.SIZE / (rows - 1)
-            const z = - Layout.HALF + iz * Layout.SIZE / (rows - 1)
+            const x = - WORLD_HALF + ix * WORLD_SIZE / (rows - 1)
+            const z = - WORLD_HALF + iz * WORLD_SIZE / (rows - 1)
             const i = ix * rows + iz
-            positions[i * 3 + 0] = x * W
-            positions[i * 3 + 1] = groundWorld(x, z)
-            positions[i * 3 + 2] = z * W
+            const [ dx, dz ] = WARP.inverse(x, z, designAt(x, z))
+            positions[i * 3 + 0] = x
+            positions[i * 3 + 1] = groundWorld(dx, dz)
+            positions[i * 3 + 2] = z
         }
     }
     for(let ix = 0; ix < rows - 1; ix++)
@@ -157,8 +190,10 @@ await writeTerrainTextures(rastersRaw, out('static/terrain/terrain.png'), out('s
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
     geometry.setIndex(indices)
     await writeGlb(out('static/terrain/terrain.glb'), [ { name: 'terrain', mesh: { geometry, material: 'terrain' } } ])
+    console.log('terrain ok', res, 'px,', rows, 'rows')
 }
-console.log('terrain ok')
+let terrainWarped = null, terrainWarpedRes = 0
+const WORLD_SIZE = Layout.SIZE * SPREAD, WORLD_HALF = WORLD_SIZE / 2
 
 /* ---------------- Areas (stops) ---------------- */
 const frustumOverrides = {
@@ -365,7 +400,232 @@ const inSite = (x, z, margin = 0) => siteFootprints.some(([ fx, fz, hx, hz, angl
     const lz = dx * Math.sin(angle) + dz * Math.cos(angle)
     return Math.abs(lx) < hx + margin && Math.abs(lz) < hz + margin
 })
-await writeGlb(out('static/areas/areas.glb'), areaNodes, { worldScale: W })
+/* ---------------- Map spread ----------------
+ * Every site moves out as one rigid piece; the land, roads and houses between them stretch by SPREAD
+ * (see sources/data/spread.js). Anchors: each site's solid parts, every child it has, its task spots and respawn,
+ * plus a few groups outside the stops that must keep their shape.
+ */
+const anchors = []
+for(const stop of [ ...Layout.stops, ...secrets ])
+{
+    const area = areaNodes.find(a => a.name === stop.id)
+    const k = scaleOf(stop.id)
+    const cx = stop.position.x, cz = stop.position.z
+    const boxes = siteFootprints.filter(f => f[5] === stop.id).map(([ x, z, hx, hz, a ]) => [ round(x), round(z), round(hx + 0.3), round(hz + 0.3), round(a) ])
+    const discs = [ [ cx, cz, round(stop.radius * k * 0.4) ] ]
+    for(const child of area?.children || [])
+        if(child.position && !/^ref/i.test(child.name || ''))
+        {
+            // (skip meshes modelled in absolute coordinates, placed back at the origin: bridge cables, cable car rails)
+            if(Math.abs(cx + child.position[0]) < 0.01 && Math.abs(cz + child.position[2]) < 0.01)
+                continue
+            discs.push([ round(cx + child.position[0]), round(cz + child.position[2]), 1.2 ])
+        }
+    anchors.push({ id: stop.id, c: [ cx, cz ], boxes, discs })
+}
+const anchorOf = (id) => anchors.find(a => a.id === id)
+// terrain that belongs to a site but isn't solid
+anchorOf('lombard').boxes.push([ 5, - 36, 23, 8, 0 ])                 // the crooked street, Hyde St to Grant Ave
+anchorOf('palaceOfFineArts').boxes.push([ - 40, - 19, 14, 6, 0 ])     // the lagoon in front of the rotunda
+anchorOf('alcatraz').boxes.push([ 4, - 82, 17, 10, 0 ])               // the island itself
+anchorOf('napa').boxes.push([ - 80, - 84, 17, 16, 0 ])                // castle grounds and vineyards
+// groups that aren't stops
+{
+    const { x, z } = turkeyData
+    anchors.push({ id: 'turkey', c: [ x, z ], boxes: [], discs: [ [ x, z, 10 ], [ x - 10.8, z - 1, 2.5 ], [ x + 19, z + 2, 4 ], [ x, 55.8, 1.5 ] ] })
+    anchors.push({ id: 'letters', c: [ x + 1, z - 20 ], boxes: [ [ x + 1, z - 20, 17, 3.5, 0 ] ], discs: [] })
+    for(const dog of dogsData)
+        anchors.push({ id: `home-${dog.id}`, c: [ dog.home.x, dog.home.z ], boxes: [], discs: [ [ dog.home.x, dog.home.z, 5 ] ] })
+}
+// each anchor's rigid core: the convex hull of all its parts (boxes and discs)
+const shapeHull = (a) =>
+{
+    const pts = []
+    for(const [ x, z, hx, hz, angle ] of a.boxes)
+    {
+        const c = Math.cos(angle), s = Math.sin(angle)
+        for(const [ ux, uz ] of [ [ - hx, - hz ], [ hx, - hz ], [ hx, hz ], [ - hx, hz ] ])
+            pts.push([ x + ux * c + uz * s, z - ux * s + uz * c ])        // inverse of the footprint test's rotation
+    }
+    for(const [ x, z, r ] of a.discs)
+        for(let i = 0; i < 12; i++)
+            pts.push([ x + Math.cos(i / 12 * Math.PI * 2) * r, z + Math.sin(i / 12 * Math.PI * 2) * r ])
+    pts.push(a.c)
+    return convexHull(pts).map(([ x, z ]) => [ round(x), round(z) ])
+}
+for(const a of anchors)
+    a.hull = shapeHull(a)
+
+
+const MERGE_GAP = 0.3
+// two cores may not overlap or nearly touch (they move by different amounts): merge any that do into one rigid group
+const edgePoints = (hull) => hull.flatMap(([ ax, az ], i) => { const [ bx, bz ] = hull[(i + 1) % hull.length]; const n = Math.max(1, Math.ceil(Math.hypot(bx - ax, bz - az) / 0.5)); return Array.from({ length: n }, (_, k) => [ ax + (bx - ax) * k / n, az + (bz - az) * k / n ]) })
+const hullGap = (A, B) => Math.min(...edgePoints(A).map(([ x, z ]) => hullDistance(B, x, z)), ...edgePoints(B).map(([ x, z ]) => hullDistance(A, x, z)))
+for(let merged = true; merged;)
+{
+    merged = false
+    outer: for(let i = 0; i < anchors.length; i++)
+        for(let j = i + 1; j < anchors.length; j++)
+        {
+            const A = anchors[i], B = anchors[j]
+            if(hullGap(A.hull, B.hull) < MERGE_GAP)
+            {
+                console.log('map spread: merging', A.id, '+', B.id)
+                const C = { id: `${A.id}+${B.id}`, c: [ (A.c[0] + B.c[0]) / 2, (A.c[1] + B.c[1]) / 2 ], boxes: [ ...A.boxes, ...B.boxes ], discs: [ ...A.discs, ...B.discs ] }
+                C.hull = shapeHull(C)
+                anchors.splice(j, 1)
+                anchors.splice(i, 1, C)
+                merged = true
+                break outer
+            }
+        }
+}
+const field = solveField(anchors)
+const WARP = makeWarp(anchors, SPREAD, field)
+fs.writeFileSync(out('sources/data/spreadAnchors.json'), JSON.stringify({ S: SPREAD, anchors: anchors.map(({ id, c, hull }) => ({ id, c, hull })), field }))
+// sanity: the warp never folds (positive Jacobian everywhere) and every site keeps its shape
+{
+    let minDet = Infinity, at = null, maxDet = 0
+    for(let x = - 96; x <= 96; x += 1)
+        for(let z = - 96; z <= 96; z += 1)
+        {
+            const h = 0.05
+            const [ fx, fz ] = WARP.forward(x, z), [ ax, az ] = WARP.forward(x + h, z), [ bx, bz ] = WARP.forward(x, z + h)
+            const det = ((ax - fx) * (bz - fz) - (bx - fx) * (az - fz)) / (h * h)
+            if(det < minDet) { minDet = det; at = [ x, z ] }
+            maxDet = Math.max(maxDet, det)
+        }
+    console.log('map spread', SPREAD, 'anchors', anchors.length, 'jacobian min', minDet.toFixed(3), 'at', at, 'max', maxDet.toFixed(2))
+    if(minDet <= 0.05)
+        throw new Error('map spread folds the map at ' + at)
+}
+// world -> design lookup grid (bilinear), for resampling rasters and the map
+// (built forward: a fine design grid is mapped to the world and each little triangle is filled in, so every world
+// point finds its own design point, wherever the stretch is strong)
+const INV_N = 1024
+const invGrid = new Float32Array(INV_N * INV_N * 2).fill(NaN)
+{
+    const step = 0.25, lo = - 106, n = Math.round(212 / step) + 1
+    const fw = new Float32Array(n * n * 2)
+    for(let j = 0; j < n; j++)
+        for(let i = 0; i < n; i++)
+        {
+            const [ x, z ] = WARP.forward(lo + i * step, lo + j * step)
+            fw[(j * n + i) * 2] = (x / WORLD_SIZE + 0.5) * (INV_N - 1)
+            fw[(j * n + i) * 2 + 1] = (z / WORLD_SIZE + 0.5) * (INV_N - 1)
+        }
+    const fill = (a, b, c) =>
+    {
+        // a, b, c: [gridX, gridZ, designX, designZ]
+        const minX = Math.max(0, Math.ceil(Math.min(a[0], b[0], c[0]))), maxX = Math.min(INV_N - 1, Math.floor(Math.max(a[0], b[0], c[0])))
+        const minZ = Math.max(0, Math.ceil(Math.min(a[1], b[1], c[1]))), maxZ = Math.min(INV_N - 1, Math.floor(Math.max(a[1], b[1], c[1])))
+        const det = (b[1] - c[1]) * (a[0] - c[0]) + (c[0] - b[0]) * (a[1] - c[1])
+        if(Math.abs(det) < 1e-9) return
+        for(let gz = minZ; gz <= maxZ; gz++)
+            for(let gx = minX; gx <= maxX; gx++)
+            {
+                const l1 = ((b[1] - c[1]) * (gx - c[0]) + (c[0] - b[0]) * (gz - c[1])) / det
+                const l2 = ((c[1] - a[1]) * (gx - c[0]) + (a[0] - c[0]) * (gz - c[1])) / det
+                const l3 = 1 - l1 - l2
+                if(l1 < - 1e-6 || l2 < - 1e-6 || l3 < - 1e-6) continue
+                invGrid[(gz * INV_N + gx) * 2] = l1 * a[2] + l2 * b[2] + l3 * c[2]
+                invGrid[(gz * INV_N + gx) * 2 + 1] = l1 * a[3] + l2 * b[3] + l3 * c[3]
+            }
+    }
+    const node = (i, j) => [ fw[(j * n + i) * 2], fw[(j * n + i) * 2 + 1], lo + i * step, lo + j * step ]
+    for(let j = 0; j < n - 1; j++)
+        for(let i = 0; i < n - 1; i++)
+        {
+            const A = node(i, j), B = node(i + 1, j), C = node(i, j + 1), D = node(i + 1, j + 1)
+            fill(A, B, C)
+            fill(B, D, C)
+        }
+    let holes = 0
+    for(let row = 0; row < INV_N; row++)
+        for(let col = 0; col < INV_N; col++)
+            if(Number.isNaN(invGrid[(row * INV_N + col) * 2]))
+            {
+                holes++
+                invGrid[(row * INV_N + col) * 2] = (col / (INV_N - 1) - 0.5) * WORLD_SIZE / SPREAD
+                invGrid[(row * INV_N + col) * 2 + 1] = (row / (INV_N - 1) - 0.5) * WORLD_SIZE / SPREAD
+            }
+    console.log('map spread inverse grid holes', holes)
+}
+function designAt(qx, qz)
+{
+    const fx = Math.min(INV_N - 1, Math.max(0, (qx / WORLD_SIZE + 0.5) * (INV_N - 1)))
+    const fz = Math.min(INV_N - 1, Math.max(0, (qz / WORLD_SIZE + 0.5) * (INV_N - 1)))
+    const x0 = Math.min(INV_N - 2, Math.floor(fx)), z0 = Math.min(INV_N - 2, Math.floor(fz))
+    const tx = fx - x0, tz = fz - z0
+    const g = (c, r, k) => invGrid[(r * INV_N + c) * 2 + k]
+    const lerp = (k) => (g(x0, z0, k) * (1 - tx) + g(x0 + 1, z0, k) * tx) * (1 - tz) + (g(x0, z0 + 1, k) * (1 - tx) + g(x0 + 1, z0 + 1, k) * tx) * tz
+    // outside the design square: keep stretching (deep water out there)
+    let x = lerp(0), z = lerp(1)
+    if(Math.abs(qx) > WORLD_HALF) x = qx / SPREAD
+    if(Math.abs(qz) > WORLD_HALF) z = qz / SPREAD
+    return [ x, z ]
+}
+const spreadXZ = (x, z) => WARP.forward(x, z)
+/** How much wider a road running along (tx, tz) at a design point comes out in the world (area stretch / length stretch) */
+const widthScale = (x, z, tx, tz) =>
+{
+    const h = 0.05
+    const [ fx, fz ] = spreadXZ(x, z), [ ax, az ] = spreadXZ(x + h, z), [ bx, bz ] = spreadXZ(x, z + h)
+    const j11 = (ax - fx) / h, j21 = (az - fz) / h, j12 = (bx - fx) / h, j22 = (bz - fz) / h
+    const along = Math.hypot(j11 * tx + j12 * tz, j21 * tx + j22 * tz) || 1
+    return Math.max(0.3, (j11 * j22 - j12 * j21) / along)
+}
+/** A street's centerline in the world (densely sampled, then spread) */
+const worldLine = (points) =>
+{
+    const curve = new THREE.CatmullRomCurve3(points.map(([ x, z ]) => new THREE.Vector3(x, 0, z)), false, 'centripetal')
+    return curve.getSpacedPoints(Math.max(2, Math.ceil(curve.getLength() / 0.5))).map(p => spreadXZ(p.x, p.z))
+}
+/** Move top-level nodes to the spread world: by their position (they keep their size), or vertex by vertex for
+ *  the long things that must stretch with the land (road ribbons and markings) */
+const warpedGeometries = new Set()
+const warpGeometry = (g) =>
+{
+    if(!g || warpedGeometries.has(g)) return
+    warpedGeometries.add(g)
+    const a = g.attributes.position
+    for(let i = 0; i < a.count; i++)
+    {
+        const [ x, z ] = spreadXZ(a.getX(i), a.getZ(i))
+        a.setX(i, x)
+        a.setZ(i, z)
+    }
+    a.needsUpdate = true
+    g.computeBoundingBox()
+    g.computeBoundingSphere()
+}
+const warpNodes = (nodes) =>
+{
+    for(const node of nodes)
+    {
+        if(node.warped)
+            continue
+        node.warped = true
+        if(node.warp === 'vertices')
+        {
+            warpGeometry(node.mesh?.geometry)
+            for(const child of node.children || [])
+                warpGeometry(child.mesh?.geometry)
+            continue
+        }
+        if(!node.position)
+        {
+            console.warn('warp: node without a position', node.name)
+            continue
+        }
+        const [ x, z ] = spreadXZ(node.position[0], node.position[2])
+        node.position = [ round(x), node.position[1], round(z) ]
+    }
+    return nodes
+}
+await writeTerrain()
+
+await writeGlb(out('static/areas/areas.glb'), warpNodes(areaNodes), { worldScale: W })
 console.log('areas ok')
 
 const TREE_SPOT = [ 2, 20 ] // the Christmas tree's lawn
@@ -416,17 +676,32 @@ const footprints = [] // [x, z, w, d, isDowntown] for the map
         }
     }
 
+    // a marking at a design point (offset across the road), laid out straight in the spread world: real length and
+    // width, lined up with the road there
+    const mark = (p, t, n, offset, y, length, width, colorIndex, continuous = false) =>
+    {
+        const cx = p.x + n.x * offset, cz = p.z + n.z * offset
+        const [ wx, wz ] = spreadXZ(cx, cz)
+        const [ ax, az ] = spreadXZ(cx - t.x * 0.3, cz - t.z * 0.3), [ bx, bz ] = spreadXZ(cx + t.x * 0.3, cz + t.z * 0.3)
+        const l = Math.hypot(bx - ax, bz - az) || 1
+        // (dash length in world units: stretched roads keep the same length per dash, just more of them)
+        // continuous lines stretch with the road so they stay unbroken
+        quad(wx, y, wz, (bx - ax) / l, (bz - az) / l, length * (continuous ? l / 0.6 : Math.min(1, l / 0.6)), width, colorIndex)
+    }
     // Every cross section is 4 vertices: outer shoulder, edge, edge, outer shoulder.
     // The shoulders slope down into the ground, and each run of road starts/ends with a ramp,
     // so the car can always climb onto the asphalt (no ledge at road ends or edges)
     const SHOULDER = 0.9
     const groundAt = (x, z) => Math.max(ground(x, z), - 0.2) - 0.03
+    // (widths are given in world units and narrowed here by the local map stretch, so after the spread every road
+    // comes out at its real width)
     const pushSection = (px, pz, nx, nz, cy, half, u, flat = false) =>
     {
         const first = positions.length / 3
+        const f = widthScale(px, pz, nz, - nx)
         for(const [ side, outer ] of [ [ - 1, true ], [ - 1, false ], [ 1, false ], [ 1, true ] ])
         {
-            const w = half + (outer ? SHOULDER : 0)
+            const w = (half + (outer ? SHOULDER : 0)) / f
             const x = px + nx * w * side, z = pz + nz * w * side
             const y = flat ? groundAt(x, z) : outer ? Math.min(cy, groundAt(x, z)) : cy
             positions.push(x, y, z)
@@ -496,22 +771,23 @@ const footprints = [] // [x, z, w, d, isDowntown] for the map
             const t = curve.getTangentAt(i / count)
             const n = { x: - t.z, z: t.x }
             const y = centerYs[i] + 0.015
+            const f = widthScale(p.x, p.z, t.x, t.z)             // offsets and widths across the road, narrowed like the road
             if(street.highway && taperAt(i) < 0.6)
             {
                 // double yellow center line, white dashed lanes (the lane lines draw in as the road widens)
                 const h = halfAt(i)
                 for(const o of [ - 0.16, 0.16 ])
-                    quad(p.x + n.x * o, y, p.z + n.z * o, t.x, t.z, spacing + 0.05, 0.12, C.gold)
+                    mark(p, t, n, o / f, y, spacing + 0.05, 0.12, C.gold, true)
                 if(i % 3 === 0 && taperAt(i) < 0.25)
                     for(const o of [ - h * 0.5, h * 0.5 ])
-                        quad(p.x + n.x * o, y, p.z + n.z * o, t.x, t.z, 1.2, 0.14, C.snow)
+                        mark(p, t, n, o / f, y, 1.2, 0.14, C.snow)
                 // solid white edge lines, like a real highway
                 for(const o of [ - h + 0.22, h - 0.22 ])
-                    quad(p.x + n.x * o, y, p.z + n.z * o, t.x, t.z, spacing + 0.05, 0.1, C.snow)
+                    mark(p, t, n, o / f, y, spacing + 0.05, 0.1, C.snow, true)
             }
             else if(i % 3 === 0)
             {
-                quad(p.x, y, p.z, t.x, t.z, 1.1, 0.14, C.snow)
+                mark(p, t, n, 0, y, 1.1, 0.14, C.snow)
             }
         })
     }
@@ -604,6 +880,7 @@ const footprints = [] // [x, z, w, d, isDowntown] for the map
     // solid road: the car drives on the asphalt itself, not on the coarser terrain heightfield
     sceneryNodes.push({
         name: 'refRoadPhysicalFixed',
+        warp: 'vertices',
         mesh: { geometry: g, material: 'road' },
         extras: { friction: 0.3 },
         children: [ { name: 'trimesh', mesh: { geometry: g, material: 'road' } } ],
@@ -613,17 +890,18 @@ const footprints = [] // [x, z, w, d, isDowntown] for the map
     m.setAttribute('position', new THREE.Float32BufferAttribute(marks.positions, 3))
     m.setAttribute('uv', new THREE.Float32BufferAttribute(marks.uvs, 2))
     m.computeVertexNormals()
-    sceneryNodes.push({ name: 'roadMarkings', mesh: { geometry: m, material: 'palette' } })
+    sceneryNodes.push({ name: 'roadMarkings', warped: true, mesh: { geometry: m, material: 'palette' } })
 }
 
 // Alcatraz boardwalk: a wooden causeway on pilings, low white rails, lamp posts and swooping string lights
 {
     const curve = new THREE.CatmullRomCurve3(Layout.boardwalk.points.map(([ x, z ]) => new THREE.Vector3(x, 0, z)), false, 'centripetal')
     const count = Math.ceil(curve.getLength() / 1.2)
-    const pts = curve.getSpacedPoints(count)
+    const designPts = curve.getSpacedPoints(count)
     const half = Layout.boardwalk.width / 2
     // just above the water, following the ground where it lands on the shore
-    let ys = pts.map(p => Math.max(0.3, ground(p.x, p.z) + 0.06))
+    let ys = designPts.map(p => Math.max(0.3, ground(p.x, p.z) + 0.06))
+    const pts = designPts.map(p => { const [ x, z ] = spreadXZ(p.x, p.z); return new THREE.Vector3(x, 0, z) })
     for(let it = 0; it < 6; it++)
         ys = ys.map((y, i) => i === 0 || i === ys.length - 1 ? y : Math.max(y, (ys[i - 1] + ys[i + 1]) / 2))
     const o = pts[0], oy = ys[0]
@@ -667,8 +945,8 @@ const footprints = [] // [x, z, w, d, isDowntown] for the map
             }
         }
     }
-    sceneryNodes.push(fixedNode('alcatrazBoardwalk', deck, [ o.x, oy, o.z ], colliders))
-    sceneryNodes.push({ ...meshNode('boardwalkLights', bulbs, [ o.x, oy, o.z ]), mesh: { geometry: bulbs.geometry(), material: 'emissiveOrangeRadialGradient' } })
+    sceneryNodes.push({ ...fixedNode('alcatrazBoardwalk', deck, [ o.x, oy, o.z ], colliders), warped: true })
+    sceneryNodes.push({ ...meshNode('boardwalkLights', bulbs, [ o.x, oy, o.z ]), mesh: { geometry: bulbs.geometry(), material: 'emissiveOrangeRadialGradient' }, warped: true })
 }
 
 // Cable car network: every mainland street as a graph (junctions = nodes, street pieces between them = edges),
@@ -760,7 +1038,11 @@ const footprints = [] // [x, z, w, d, isDowntown] for the map
     const queue = [ hyde ]
     while(queue.length) { const n = queue.shift(); for(const ei of adjacency[n]) for(const m of [ edges[ei].a, edges[ei].b ]) if(!reached.has(m)) { reached.add(m); queue.push(m) } }
     const kept = edges.filter(e => reached.has(e.a))
-    fs.writeFileSync(out('sources/data/cableCarNetwork.json'), JSON.stringify({ nodes: nodes.map(([ x, z ]) => [ round(x * W), round(z * W) ]), edges: kept }))
+    const spreadPoint = ([ x, y, z ]) => { const [ wx, wz ] = spreadXZ(x, z); return [ round(wx), y, round(wz) ] }
+    fs.writeFileSync(out('sources/data/cableCarNetwork.json'), JSON.stringify({
+        nodes: nodes.map(([ x, z ]) => spreadXZ(x, z).map(round)),
+        edges: kept.map(e => ({ ...e, points: e.points.map(spreadPoint) })),
+    }))
     console.log('cable car network:', nodes.length, 'nodes,', kept.length, 'edges', `(${edges.length - kept.length} unreachable dropped),`, Math.round(kept.reduce((t, e) => t + e.points.length * 1.2, 0)), 'units of track')
 }
 
@@ -778,7 +1060,7 @@ const streetLampSpots = []
             const t = i / count
             const p = curve.getPointAt(t), d = curve.getTangentAt(t)
             const side = i % 2 ? 1 : - 1
-            const off = street.width * (street.highway ? 0.45 : 0.4) + 1.1
+            const off = (street.width * (street.highway ? 0.45 : 0.4) + 1.1) / widthScale(p.x, p.z, d.x, d.z)   // (the roadside in the spread world)
             const x = p.x - d.z * off * side, z = p.z + d.x * off * side
             if(nearRoad(x, z, 0.5) || inSite(x, z, 1) || !onLand(x, z) || Math.abs(x) > 92 || Math.abs(z) > 92 || (x > - 70 && x < - 32 && z > 41.5 && z < 51))
                 continue
@@ -797,7 +1079,7 @@ const streetLampSpots = []
     lamp.add(new THREE.TorusGeometry(0.28, 0.07, 5, 12), C.moss, [ 0, 2.25, 0 ])   // wreath
     lamp.cbox([ 0.2, 0.14, 0.06 ], C.red, [ 0, 2.05, 0 ])
     fs.mkdirSync(out('static/streetLamps'), { recursive: true })
-    await writeGlb(out('static/streetLamps/streetLamps.glb'), [ dynamicNode('streetLamp', lamp, [ 0, 0, 0 ], [ { shape: 'tube', position: [ 0, 1.5, 0 ], radius: 0.14, height: 3 } ], 0.2) ], { worldScale: W })
+    await writeGlb(out('static/streetLamps/streetLamps.glb'), [ dynamicNode('streetLamp', lamp, [ 0, 0, 0 ], [ { shape: 'tube', position: [ 0, 1.5, 0 ], radius: 0.14, height: 3 } ], 0.2) ], { worldScale: W })  // (a model at the origin; the spots are spread with the placements)
     const merged = mergeGeometries(pools.map(([ x, y, z ]) => new THREE.CircleGeometry(3.4, 20).rotateX(- Math.PI / 2).translate(x, y, z)))
     sceneryNodes.push({ name: 'lampPools', position: [ 0, 0, 0 ], mesh: { geometry: merged, material: 'lampPool' } })
     console.log('street lamps', streetLampSpots.length, '(knockable)')
@@ -1512,19 +1794,29 @@ const holidaySpots = []
         console.log('park canopies', canopies, 'park trees', trees)
 }
 
-await writeGlb(out('static/scenery/scenery.glb'), sceneryNodes, { worldScale: W })
+await writeGlb(out('static/scenery/scenery.glb'), warpNodes(sceneryNodes), { worldScale: W })
 console.log('scenery ok')
 
 /* ---------------- Respawns ---------------- */
 {
-    const nodes = Layout.stops.map(s => ({
-        name: `respawn${s.id.charAt(0).toUpperCase()}${s.id.slice(1)}`,
-        position: [ s.respawn.x, round(Math.max(ground(s.respawn.x, s.respawn.z), 0)), s.respawn.z ],
-        rotation: [ 0, s.respawn.rotation, 0 ],
-    }))
+    // (each moves exactly with its site in the map spread)
+    const shifted = (id, x, z) => { const s = WARP.shiftOf(id); return s ? [ round(x + s[0]), round(z + s[1]) ] : spreadXZ(x, z).map(round) }
+    const nodes = Layout.stops.map(s =>
+    {
+        const [ x, z ] = shifted(s.id, s.respawn.x, s.respawn.z)
+        return {
+            name: `respawn${s.id.charAt(0).toUpperCase()}${s.id.slice(1)}`,
+            position: [ x, round(Math.max(ground(s.respawn.x, s.respawn.z), 0)), z ],
+            rotation: [ 0, s.respawn.rotation, 0 ],
+            warped: true,
+        }
+    })
     // extra teleport point: the giant Thanksgiving turkey (just north of the dish, facing it)
-    nodes.push({ name: 'respawnTurkey', position: [ - 52, round(Math.max(ground(- 52, 55.8), 0)), 55.8 ], rotation: [ 0, Math.PI, 0 ] }) // on the hilltop, by the dish
-    await writeGlb(out('static/respawns/respawnsReferences.glb'), nodes, { worldScale: W })
+    {
+        const [ x, z ] = shifted('turkey', - 52, 55.8)
+        nodes.push({ name: 'respawnTurkey', position: [ x, round(Math.max(ground(- 52, 55.8), 0)), z ], rotation: [ 0, Math.PI, 0 ], warped: true }) // on the hilltop, by the dish
+    }
+    await writeGlb(out('static/respawns/respawnsReferences.glb'), warpNodes(nodes), { worldScale: W })
 }
 console.log('respawns ok')
 
@@ -1533,7 +1825,8 @@ console.log('respawns ok')
     const r = rng(2026)
     const placements = { streetLamps: streetLampSpots, redwoods: [], oakTrees: [], birchTrees: [], cherryTrees: [], bushes: [], flowers: [], benches: [], lanterns: [], poleLights: [], explosiveCrates: [], bricks: [], fences: [], tornado: [] }
     // props keep their real size: world positions, offsets in world units
-    const push = (list, x, z, dy = 0, rotation = 0, scale = 1) => list.push([ round(x * W), round(groundWorld(x, z) + dy), round(z * W), round(rotation), round(scale) ])
+    // ref: a group (a crate stack, the brick wall) moves as one, by its reference point
+    const push = (list, x, z, dy = 0, rotation = 0, scale = 1, ref = null) => { const e = [ round(x * W), round(groundWorld(x, z) + dy), round(z * W), round(rotation), round(scale) ]; if(ref) e.ref = ref; list.push(e) }
     const trees = []
     trees.push(...holidaySpots)
     const free = (x, z, d) => trees.every(([ tx, tz ]) => Math.hypot(tx - x, tz - z) > d)
@@ -1601,15 +1894,15 @@ console.log('respawns ok')
     // explosive crates: SFO cargo, Pier 39 dock, stadium lot
     const stack = (x, z) =>
     {
-        push(placements.explosiveCrates, x, z, 0.53)
-        push(placements.explosiveCrates, x + 1.15, z, 0.53)
-        push(placements.explosiveCrates, x + 0.57, z, 1.6)
+        push(placements.explosiveCrates, x, z, 0.53, 0, 1, [ x, z ])
+        push(placements.explosiveCrates, x + 1.15, z, 0.53, 0, 1, [ x, z ])
+        push(placements.explosiveCrates, x + 0.57, z, 1.6, 0, 1, [ x, z ])
     }
 
     // a brick wall at the stadium lot, made to be driven through
     for(let row = 0; row < 3; row++)
         for(let i = 0; i < 6; i++)
-            push(placements.bricks, 30 + i * 1.6 + (row % 2) * 0.8, 84, 0.38 + row * 0.75)
+            push(placements.bricks, 30 + i * 1.6 + (row % 2) * 0.8, 84, 0.38 + row * 0.75, 0, 1, [ 34.4, 84 ])
 
     // fences along the Ferry Building waterfront
     for(let z = - 30; z <= - 6; z += 2.2)
@@ -1632,13 +1925,31 @@ console.log('respawns ok')
         if(placements[key].length !== before)
             console.log('removed from roads:', key, before - placements[key].length)
     }
+    // to the spread world
+    for(const list of Object.values(placements))
+        for(const e of list)
+        {
+            if(e.ref)
+            {
+                const [ rx, rz ] = spreadXZ(e.ref[0], e.ref[1])
+                e[0] = round(e[0] + rx - e.ref[0])
+                e[2] = round(e[2] + rz - e.ref[1])
+                delete e.ref
+            }
+            else
+            {
+                const [ x, z ] = spreadXZ(e[0], e[2])
+                e[0] = round(x)
+                e[2] = round(z)
+            }
+        }
     fs.writeFileSync(out('sources/data/placements.json'), JSON.stringify(placements))
     console.log('placements', Object.fromEntries(Object.entries(placements).map(([ k, v ]) => [ k, v.length ])))
 }
 
 /* ---------------- Dogs (rigs) ---------------- */
 fs.mkdirSync(out('static/dogs'), { recursive: true })
-await writeGlb(out('static/dogs/dogs.glb'), dogNodes())
+await writeGlb(out('static/dogs/dogs.glb'), warpNodes(dogNodes()))
 console.log('dogs ok')
 
 /* ---------------- Map images (4096, vector) ---------------- */
@@ -1686,63 +1997,90 @@ console.log('dogs ok')
         svg += `<rect width="100%" height="100%" fill="${t.deep}"/>`
         svg += `<g filter="url(#blur)">${lands.map(l => shape(l, 'none', `stroke="${t.shore}" stroke-width="${7 * k}" stroke-linejoin="round"`)).join('')}</g>`
         svg += lands.map(l => shape(l, t.sand, `stroke="${t.sand}" stroke-width="${1.5 * k}" stroke-linejoin="round"`)).join('')
-        svg += `<path d="${line(Layout.boardwalk.points)}" fill="none" stroke="#b8875a" stroke-width="${Layout.boardwalk.width * k}" stroke-linecap="butt"/>`
         svg += Layout.sandbars.map(b => `<path d="${line(b.points)}" fill="none" stroke="${t.shore}" stroke-width="${b.width * k}" stroke-linecap="round"/>`).join('')
         svg += `<g filter="url(#soft)">${Layout.parks.map(p => shape(p, t.grass)).join('')}</g>`
         svg += Layout.ponds.map(p => shape(p, t.deep, `stroke="${t.shore}" stroke-width="${1 * k}"`)).join('')
         svg += Layout.plazas.map(p => shape(p, t.paving)).join('')
+        svg += `</svg>`
+        // the land, water, roads and parks above are drawn in design units, then stretched to the spread world;
+        // everything solid below is drawn straight in the world (moved out, real size)
+        const background = await sharp(Buffer.from(svg), { limitInputPixels: false }).png().toBuffer()
+        const shaded = await sharp(background).composite([ { input: shadePng, blend: 'overlay' } ]).raw().toBuffer({ resolveWithObject: true })
+        const src = shaded.data, channels = shaded.info.channels
+        const warpedBase = Buffer.alloc(size * size * channels)
+        for(let py = 0; py < size; py++)
+            for(let px = 0; px < size; px++)
+            {
+                const [ x, z ] = designAt((px + 0.5) / size * WORLD_SIZE - WORLD_HALF, (py + 0.5) / size * WORLD_SIZE - WORLD_HALF)
+                const fx = Math.min(size - 1.001, Math.max(0, (x + Layout.HALF) * k - 0.5)), fz = Math.min(size - 1.001, Math.max(0, (z + Layout.HALF) * k - 0.5))
+                const x0 = Math.floor(fx), z0 = Math.floor(fz), tx = fx - x0, tz = fz - z0
+                const o = (py * size + px) * channels
+                for(let c = 0; c < channels; c++)
+                {
+                    const at = (xx, zz) => src[(zz * size + xx) * channels + c]
+                    warpedBase[o + c] = Math.round((at(x0, z0) * (1 - tx) + at(x0 + 1, z0) * tx) * (1 - tz) + (at(x0, z0 + 1) * (1 - tx) + at(x0 + 1, z0 + 1) * tx) * tz)
+                }
+            }
+        const kw = size / WORLD_SIZE
+        const Pw = ([ x, z ]) => { const [ wx, wz ] = spreadXZ(x, z); return [ +((wx + WORLD_HALF) * kw).toFixed(1), +((wz + WORLD_HALF) * kw).toFixed(1) ] }
+        const Lw = (points) => `M${worldLine(points).map(([ x, z ]) => `${((x + WORLD_HALF) * kw).toFixed(1)},${((z + WORLD_HALF) * kw).toFixed(1)}`).join('L')}`
+        svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}">`
+        svg += `<path d="${Lw(Layout.boardwalk.points)}" fill="none" stroke="#b8875a" stroke-width="${Layout.boardwalk.width * kw}" stroke-linecap="butt"/>`
         // streets: paving, asphalt, markings
         for(const street of Layout.streets)
-            svg += `<path d="${line(street.points)}" fill="none" stroke="${t.paving}" stroke-width="${street.width * k}" stroke-linecap="round" stroke-linejoin="round"/>`
+            svg += `<path d="${Lw(street.points)}" fill="none" stroke="${t.paving}" stroke-width="${street.width * kw}" stroke-linecap="round" stroke-linejoin="round"/>`
         for(const fillet of streetFillets)
-            svg += `<path d="M${fillet.points.map(p => P([ p.x, p.z ])).join('L')}" fill="none" stroke="${t.paving}" stroke-width="${fillet.width * k}" stroke-linecap="round" stroke-linejoin="round"/>`
+            svg += `<path d="M${fillet.points.map(p => Pw([ p.x, p.z ]).join(',')).join('L')}" fill="none" stroke="${t.paving}" stroke-width="${fillet.width * kw}" stroke-linecap="round" stroke-linejoin="round"/>`
         for(const fillet of streetFillets)
-            svg += `<path d="M${fillet.points.map(p => P([ p.x, p.z ])).join('L')}" fill="none" stroke="${t.road}" stroke-width="${fillet.width * 0.8 * k}" stroke-linecap="round" stroke-linejoin="round"/>`
+            svg += `<path d="M${fillet.points.map(p => Pw([ p.x, p.z ]).join(',')).join('L')}" fill="none" stroke="${t.road}" stroke-width="${fillet.width * 0.8 * kw}" stroke-linecap="round" stroke-linejoin="round"/>`
         for(const street of Layout.streets)
-            svg += `<path d="${line(street.points)}" fill="none" stroke="${t.road}" stroke-width="${street.width * (street.highway ? 0.9 : 0.8) * k}" stroke-linecap="round" stroke-linejoin="round"/>`
+            svg += `<path d="${Lw(street.points)}" fill="none" stroke="${t.road}" stroke-width="${street.width * (street.highway ? 0.9 : 0.8) * kw}" stroke-linecap="round" stroke-linejoin="round"/>`
         for(const street of Layout.streets)
             svg += street.highway
-                ? `<path d="${line(street.points)}" fill="none" stroke="#e4a90c" stroke-width="${0.3 * k}"/>`
-                : `<path d="${line(street.points)}" fill="none" stroke="${t.mark}" stroke-width="${0.16 * k}" stroke-dasharray="${1.1 * k},${1.3 * k}" opacity="0.8"/>`
+                ? `<path d="${Lw(street.points)}" fill="none" stroke="#e4a90c" stroke-width="${0.3 * kw}"/>`
+                : `<path d="${Lw(street.points)}" fill="none" stroke="${t.mark}" stroke-width="${0.16 * kw}" stroke-dasharray="${1.1 * kw},${1.3 * kw}" opacity="0.8"/>`
         // Lombard zigzag
-        svg += `<path d="M${lombardPoints().map(P).join('L')}" fill="none" stroke="${t.paving}" stroke-width="${(Layout.lombard.lane + 0.5) * k}" stroke-linejoin="round" stroke-linecap="round"/>`
-        svg += `<path d="M${lombardPoints().map(P).join('L')}" fill="none" stroke="${name === 'day' ? '#b4533a' : '#6e3428'}" stroke-width="${Layout.lombard.lane * k}" stroke-linejoin="round" stroke-linecap="round"/>`
-        // buildings
-        svg += footprints.map(([ x, z, w, d, dt ]) => { const [ px, py ] = P([ x - w / 2, z - d / 2 ]).split(','); return `<rect x="${px}" y="${py}" width="${w * k}" height="${d * k}" fill="${dt ? t.downtown : t.building}" stroke="rgba(0,0,0,0.25)" stroke-width="${0.15 * k}"/>` }).join('')
+        svg += `<path d="M${lombardPoints().map(p => Pw(p).join(',')).join('L')}" fill="none" stroke="${t.paving}" stroke-width="${(Layout.lombard.lane + 0.5) * kw}" stroke-linejoin="round" stroke-linecap="round"/>`
+        svg += `<path d="M${lombardPoints().map(p => Pw(p).join(',')).join('L')}" fill="none" stroke="${name === 'day' ? '#b4533a' : '#6e3428'}" stroke-width="${Layout.lombard.lane * kw}" stroke-linejoin="round" stroke-linecap="round"/>`
         // Golden Gate Bridge + Bay Bridge
-        svg += `<path d="M${P([ - 62, - 46 ])}L${P([ - 62, - 78 ])}" stroke="${t.bridge}" stroke-width="${6.8 * k}"/>`
-        svg += `<path d="M${P([ - 62, - 46 ])}L${P([ - 62, - 78 ])}" stroke="${t.road}" stroke-width="${5 * k}"/>`
+        svg += `<path d="M${Pw([ - 62, - 46 ]).join(',')}L${Pw([ - 62, - 78 ]).join(',')}" stroke="${t.bridge}" stroke-width="${6.8 * kw}"/>`
+        svg += `<path d="M${Pw([ - 62, - 46 ]).join(',')}L${Pw([ - 62, - 78 ]).join(',')}" stroke="${t.road}" stroke-width="${5 * kw}"/>`
         for(const z of [ - 57.5, - 69.5 ])
-            svg += `<rect x="${(- 66 + Layout.HALF) * k}" y="${(z - 0.9 + Layout.HALF) * k}" width="${8 * k}" height="${1.8 * k}" fill="${t.bridge}"/>`
-        svg += `<path d="M${P([ 64, - 6 ])}L${P([ 96, - 6 ])}" stroke="#b8b2b8" stroke-width="${3.6 * k}" opacity="0.8"/>`
+        {
+            const [ bx, bz ] = Pw([ - 62, z ])
+            svg += `<rect x="${bx - 4 * kw}" y="${bz - 0.9 * kw}" width="${8 * kw}" height="${1.8 * kw}" fill="${t.bridge}"/>`
+        }
+        svg += `<path d="M${Pw([ 64, - 6 ]).join(',')}L${Pw([ 96, - 6 ]).join(',')}" stroke="#b8b2b8" stroke-width="${3.6 * kw}" opacity="0.8"/>`
+        // buildings
+        svg += footprints.map(([ x, z, w, d, dt ]) => { const [ px, py ] = Pw([ x, z ]); return `<rect x="${px - w / 2 * kw}" y="${py - d / 2 * kw}" width="${w * kw}" height="${d * kw}" fill="${dt ? t.downtown : t.building}" stroke="rgba(0,0,0,0.25)" stroke-width="${0.15 * kw}"/>` }).join('')
         // landmarks (solid parts of every site)
         svg += siteFootprints.map(([ fx, fz, hx, hz, angle ]) =>
         {
-            const [ px, py ] = P([ fx, fz ]).split(',').map(Number)
-            return `<rect x="${px - hx * k}" y="${py - hz * k}" width="${hx * 2 * k}" height="${hz * 2 * k}" fill="${t.landmark}" stroke="rgba(0,0,0,0.3)" stroke-width="${0.15 * k}" transform="rotate(${(- angle * 180 / Math.PI).toFixed(2)} ${px} ${py})"/>`
+            const [ px, py ] = Pw([ fx, fz ])
+            return `<rect x="${px - hx * kw}" y="${py - hz * kw}" width="${hx * 2 * kw}" height="${hz * 2 * kw}" fill="${t.landmark}" stroke="rgba(0,0,0,0.3)" stroke-width="${0.15 * kw}" transform="rotate(${(- angle * 180 / Math.PI).toFixed(2)} ${px} ${py})"/>`
         }).join('')
         // turkey dish and dog houses
         {
-            const [ tx, ty ] = P([ turkeyData.x, turkeyData.z ]).split(',').map(Number)
-            svg += `<circle cx="${tx}" cy="${ty}" r="${9.6 * k}" fill="#fff2e8" stroke="#e4a90c" stroke-width="${0.5 * k}"/>`
-            svg += `<ellipse cx="${tx}" cy="${ty}" rx="${5.7 * k}" ry="${4 * k}" fill="#b36d45"/>`
+            const [ tx, ty ] = Pw([ turkeyData.x, turkeyData.z ])
+            svg += `<circle cx="${tx}" cy="${ty}" r="${9.6 * kw}" fill="#fff2e8" stroke="#e4a90c" stroke-width="${0.5 * kw}"/>`
+            svg += `<ellipse cx="${tx}" cy="${ty}" rx="${5.7 * kw}" ry="${4 * kw}" fill="#b36d45"/>`
             for(const dog of dogsData)
             {
-                const [ hx, hy ] = P([ dog.home.x, dog.home.z ]).split(',').map(Number)
-                const s2 = (dog.id === 'xiaoke' ? 1.3 : 2.6) * k
-                svg += `<rect x="${hx - s2}" y="${hy - s2}" width="${s2 * 2}" height="${s2 * 2}" rx="${0.4 * k}" fill="${dog.id === 'xiaoke' ? '#2f7fe0' : '#ff6fae'}" stroke="#fff2e8" stroke-width="${0.3 * k}"/>`
+                const [ hx, hy ] = Pw([ dog.home.x, dog.home.z ])
+                const s2 = (dog.id === 'xiaoke' ? 1.3 : 2.6) * kw
+                svg += `<rect x="${hx - s2}" y="${hy - s2}" width="${s2 * 2}" height="${s2 * 2}" rx="${0.4 * kw}" fill="${dog.id === 'xiaoke' ? '#2f7fe0' : '#ff6fae'}" stroke="#fff2e8" stroke-width="${0.3 * kw}"/>`
             }
         }
         // stop markers with numbers
         for(const stop of Layout.stops)
         {
-            const [ cx, cy ] = P([ stop.position.x, stop.position.z ]).split(',').map(Number)
-            svg += `<circle cx="${cx}" cy="${cy}" r="${stop.radius * k}" fill="${t.pin}" opacity="0.12" stroke="${t.pin}" stroke-width="${0.3 * k}" stroke-dasharray="${1 * k},${0.8 * k}"/>`
+            const [ cx, cy ] = Pw([ stop.position.x, stop.position.z ])
+            svg += `<circle cx="${cx}" cy="${cy}" r="${stop.radius * kw}" fill="${t.pin}" opacity="0.12" stroke="${t.pin}" stroke-width="${0.3 * kw}" stroke-dasharray="${1 * kw},${0.8 * kw}"/>`
         }
         svg += `</svg>`
 
-        const base = await sharp(Buffer.from(svg), { limitInputPixels: false }).png().toBuffer()
-        const image = sharp(base).composite([ { input: shadePng, blend: 'overlay' } ])
+        const overlay = await sharp(Buffer.from(svg), { limitInputPixels: false }).png().toBuffer()
+        const image = sharp(warpedBase, { raw: { width: size, height: size, channels } }).composite([ { input: overlay } ])
         const png = await image.png({ compressionLevel: 9 }).toBuffer()
         await sharp(png).webp({ quality: 88 }).toFile(out(`static/ui/map/map-${name}.webp`))
     }

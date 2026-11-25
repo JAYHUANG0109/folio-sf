@@ -7,6 +7,7 @@ import { StopCard } from './StopCard.js'
 import { StopTask } from './StopTask.js'
 import { stops } from '../../../data/worldData.js'
 import cableCarNetwork from '../../../data/cableCarNetwork.json'
+import { spreadXZ } from '../../../data/worldWarp.js'
 
 /**
  * One trip stop: a landmark area with a passport stamp, a card and a sign.
@@ -121,7 +122,8 @@ export class StopArea extends Area
         network.edges.forEach((edge, i) => { adjacency[edge.a].push(i); adjacency[edge.b].push(i) })
         // start on Hyde St (the edge closest to the top of Lombard)
         let start = 0, best = Infinity
-        network.edges.forEach((edge, i) => edge.points.forEach(([ x, , z ]) => { const d = Math.hypot(x + 17, z + 30); if(d < best) { best = d; start = i } }))
+        const [ hx, hz ] = spreadXZ(- 17, - 30)
+        network.edges.forEach((edge, i) => edge.points.forEach(([ x, , z ]) => { const d = Math.hypot(x - hx, z - hz); if(d < best) { best = d; start = i } }))
         this.cableCar = {
             body: object.physical.body,
             visual: object.visual?.object3D,
@@ -469,9 +471,11 @@ export class StopArea extends Area
         // up the bay past the Ferry Building, along the north waterfront past Pier 39 and Alcatraz, round the
         // Presidio, down Ocean Beach, over the turkey hill, past Levi's and home to SFO)
         const route = [
-            [ t.x, t.z ], [ 66, 80 ], [ 76, 66 ], [ 80, 48 ], [ 76, 28 ], [ 70, 10 ], [ 66, - 6 ], [ 76, - 20 ], [ 70, - 42 ],
+            [ t.x, t.z ], ...[
+            [ 66, 80 ], [ 76, 66 ], [ 80, 48 ], [ 76, 28 ], [ 70, 10 ], [ 66, - 6 ], [ 76, - 20 ], [ 70, - 42 ],
             [ 54, - 60 ], [ 34, - 68 ], [ 14, - 64 ], [ - 10, - 62 ], [ - 36, - 60 ], [ - 50, - 52 ], [ - 58, - 32 ], [ - 76, - 20 ],
             [ - 78, 10 ], [ - 74, 40 ], [ - 62, 58 ], [ - 40, 72 ], [ - 16, 58 ], [ 10, 54 ], [ 34, 58 ], [ 46, 70 ],
+            ].map(([ x, z ]) => spreadXZ(x, z)),       // design spots, moved out with the map spread
         ]
         const curve = new THREE.CatmullRomCurve3(route.map(([ x, z ]) => new THREE.Vector3(x, 0, z)), true, 'centripetal')
         const plane = {

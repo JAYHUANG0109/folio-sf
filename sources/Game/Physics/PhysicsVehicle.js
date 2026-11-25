@@ -3,9 +3,10 @@ import { Game } from '../Game.js'
 import { Events } from '../Events.js'
 import { lerp, remap, remapClamp, smallestAngle } from '../utilities/maths.js'
 import { WORLD_SCALE } from '../../data/world.js'
+import { spreadXZ } from '../../data/worldWarp.js'
 
 // Lombard St crooked block, world units (see scripts/sf/layout.mjs `lombard`)
-const lombardAssist = { x0: - 15 * WORLD_SCALE, x1: 28 * WORLD_SCALE, z0: - 43.5 * WORLD_SCALE, z1: - 28.5 * WORLD_SCALE, amplitude: 0.85 }
+const lombardAssist = (() => { const [ x0, z0 ] = spreadXZ(- 15, - 43.5), [ x1, z1 ] = spreadXZ(28, - 28.5); return { x0: x0 * WORLD_SCALE, x1: x1 * WORLD_SCALE, z0: z0 * WORLD_SCALE, z1: z1 * WORLD_SCALE, amplitude: 0.85 } })()   // the crooked street, moved with the map spread
 
 export class PhysicsVehicle
 {

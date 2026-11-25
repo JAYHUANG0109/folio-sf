@@ -176,6 +176,8 @@ export async function buildRasters()
         lineSvg(lombardPoints(), L.lombard.lane + 0.6) +
         L.plazas.map(p => shapeSvg(p)).join('')
     const paving = await rasterize(pavingBody, 1.6)
+    // without the streets: the build paints those again straight in the spread world (so they keep their width)
+    const pavingBase = await rasterize(lineSvg(lombardPoints(), L.lombard.lane + 0.6) + L.plazas.map(p => shapeSvg(p)).join(''), 1.6)
 
     // Grass (G)
     const grassBody = L.parks.map(p => shapeSvg(p)).join('')
@@ -198,7 +200,7 @@ export async function buildRasters()
         }
     }
 
-    return { depth, paving, grass, height, parks: grassRaw }
+    return { depth, paving, grass, height, parks: grassRaw, pavingBase }
 }
 
 /** Bilinear sample of a raster at world position */
@@ -234,11 +236,11 @@ export function groundY(rasters, x, z)
     return sample(rasters.height, x, z) - sample(rasters.depth, x, z) * 1.5
 }
 
-export async function writeTerrainTextures(rasters, maskPath, heightPath)
+export async function writeTerrainTextures(rasters, maskPath, heightPath, res = RES)
 {
-    const rgba = Buffer.alloc(RES * RES * 4)
-    const h = Buffer.alloc(RES * RES)
-    for(let i = 0; i < RES * RES; i++)
+    const rgba = Buffer.alloc(res * res * 4)
+    const h = Buffer.alloc(res * res)
+    for(let i = 0; i < res * res; i++)
     {
         rgba[i * 4 + 0] = Math.round(rasters.paving[i] * 255)
         rgba[i * 4 + 1] = Math.round(rasters.grass[i] * 255)
@@ -246,6 +248,6 @@ export async function writeTerrainTextures(rasters, maskPath, heightPath)
         rgba[i * 4 + 3] = 255
         h[i] = Math.round(Math.min(1, rasters.height[i] / L.MAX_HEIGHT) * 255)
     }
-    await sharp(rgba, { raw: { width: RES, height: RES, channels: 4 } }).png().toFile(maskPath)
-    await sharp(h, { raw: { width: RES, height: RES, channels: 1 } }).png().toFile(heightPath)
+    await sharp(rgba, { raw: { width: res, height: res, channels: 4 } }).png().toFile(maskPath)
+    await sharp(h, { raw: { width: res, height: res, channels: 1 } }).png().toFile(heightPath)
 }

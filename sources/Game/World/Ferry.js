@@ -1,5 +1,6 @@
 import * as THREE from 'three/webgpu'
 import { Game } from '../Game.js'
+import { spreadXZ } from '../../data/worldWarp.js'
 
 /** The Alcatraz Cruises ferry: loops around Alcatraz and across the open bay in the top right of the map, with a foamy wake */
 export class Ferry
@@ -8,7 +9,7 @@ export class Ferry
     {
         this.game = Game.getInstance()
         const route = [ [ 20, - 74 ], [ 28, - 90 ], [ 50, - 90 ], [ 74, - 82 ], [ 86, - 62 ], [ 80, - 42 ], [ 64, - 42 ], [ 54, - 60 ], [ 44, - 72 ], [ 30, - 72 ] ]
-        this.curve = new THREE.CatmullRomCurve3(route.map(([ x, z ]) => new THREE.Vector3(x, 0, z)), true, 'centripetal')
+        this.curve = new THREE.CatmullRomCurve3(route.map(([ x, z ]) => spreadXZ(x, z)).map(([ x, z ]) => new THREE.Vector3(x, 0, z)), true, 'centripetal')
         this.length = this.curve.getLength()
         this.speed = 4.5
         this.distance = 0
