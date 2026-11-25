@@ -82,7 +82,7 @@ export const pads = [
     [-52, 66, 9.5, 15, 4.2],  // Thanksgiving turkey (1.5x) on top of its own hill (the old Twin Peaks hill moved here)
     [-79, -84, 15, 22, 3.2],  // secret: Napa castle (west of the bridge), at bridge deck level: flat, smooth drive
     [-34, -92, 5, 8, 0.8],    // secret: Muir Woods
-    [-75, 52, 3, 6, 0],       // 小可's house (off the hill)
+    [-31, 61, 3, 6, 0],       // 小可's house, next door to Dookie's
     [-29, 52, 4, 7, 0],       // Dookie's house (off the hill)
     // JAY ♥ JESSICA blocks: a long flat strip north of the turkey hill
     [-66, 46, 4.5, 7, 0],

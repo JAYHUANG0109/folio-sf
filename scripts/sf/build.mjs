@@ -206,7 +206,7 @@ const frustumOverrides = {
     levis: { x: 12, z: 79, radius: 24 },
 }
 const areaNodes = []
-const SITE_LIGHTS_SKIP = new Set([])
+const SITE_LIGHTS_SKIP = new Set([ 'mira' ])   // MIRA dresses itself (rings on its ledges), the auto outline would float off its bays
 const siteFootprints = [] // [cx, cz, halfX, halfZ, angle] in design units, from the fixed colliders of every site
 
 /** Scale a landmark node around its own position (the position itself was already moved by ctx.at) */

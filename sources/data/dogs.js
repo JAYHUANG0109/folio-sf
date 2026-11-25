@@ -12,7 +12,7 @@ export const dogs = [
         size: 0.55,
         speed: { walk: 3.2, run: 9.5 },
         mass: 0.25,
-        home: { x: -75, z: 52, rotation: Math.PI * 0.25 },
+        home: { x: -31, z: 61, rotation: 1.8045 },   // next door to Dookie, the door facing the turkey
         favorites: [ 'iceCream', 'chinatown', 'turkey', 'tennis' ],
         lines: {
             chase: '小可在追你！',
@@ -33,7 +33,7 @@ export const dogs = [
         size: 1.6,
         speed: { walk: 2.6, run: 7.5 },
         mass: 2.2,
-        home: { x: -29, z: 52, rotation: - Math.PI * 0.25 },
+        home: { x: -29, z: 52, rotation: 2.1176 },   // the door facing the turkey
         favorites: [ 'fish', 'turkey', 'pier39', 'goldenGate' ],
         lines: {
             chase: 'Dookie 跑過來了！',

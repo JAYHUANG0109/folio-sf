@@ -663,13 +663,15 @@ builders.mira = (ctx) =>
         tower.merge(sign, [ - W / 2 - 1.27, LOBBY - 0.2, 0 ], [ 0, - Math.PI / 2, 0 ])
     }
 
-    // The tower, floor by floor (as in the photos): every floor is the same square plate, turned a little further
-    // than the one below (about 30 degrees bottom to top) and growing slightly toward the top, so the whole block
-    // twists. Each floor: a deep white aluminium band, then a row of big windows split by thin white mullions, and
-    // the bay "cubes": chamfered boxes of glass (a front pane, two angled side panes) framed by white plates above
-    // and below and white fins on their edges. The bays slide sideways a little from floor to floor, so they stack
-    // into diagonal lines. Angled bays on the chamfered corners, and on one side a notch of balconies with glass rails.
-    const TWIST = 0.55
+    // The tower, floor by floor, after the photos. The floor plate is a square with chamfered corners in white
+    // aluminium. Every floor is a ring of 20 modules (four on each face, one on each chamfered corner) and each module
+    // is one of: a wide window in a deep white frame, a bay "cube" stepping out one or two steps (a wide front window,
+    // angled glass cheeks, thick white plates above and below, white fins on the folds), or an open balcony (a slab,
+    // a glass rail, a dark recess). The steps follow diagonal patterns that shift one module per floor, so the
+    // facade is a sawtooth of white zigzags climbing round the tower; two diagonal spines of balconies spiral up; the
+    // bays get deeper toward the top, where the crown turns jagged. The stack also turns gently as it rises and
+    // flares a little.
+    const TWIST = 0.32
     const flat = (m, pts, y, thickness, color) =>
     {
         const shape = new THREE.Shape(pts.map(([ x, z ]) => new THREE.Vector2(x, - z)))
@@ -677,92 +679,124 @@ builders.mira = (ctx) =>
         g.rotateX(- Math.PI / 2)
         m.add(g, color, [ 0, y, 0 ])
     }
-    const BAND = 0.28, WIN = FLOOR - BAND
-    const H2 = W / 2, CORNER = 1.75                       // the corners are chamfered from u = +-1.75
+    /** a thin box standing along the plan segment A-B, from y0, h tall, `thick` deep */
+    const segBox = (m, A, B, y0, h, thick, color, isGlass = false, trim = 0) =>
+    {
+        const dx = B[0] - A[0], dz = B[1] - A[1], len = Math.hypot(dx, dz) - trim * 2
+        if(len <= 0.02) return
+        const position = [ (A[0] + B[0]) / 2, y0 + h / 2, (A[1] + B[1]) / 2 ], rotation = [ 0, - Math.atan2(dz, dx), 0 ]
+        if(isGlass) glassBox(m, [ len, h, thick ], position, rotation)
+        else m.cbox([ len, h, thick ], color, position, rotation)
+    }
+    const H2 = W / 2, CH = 0.62, CORNER = H2 - CH
+    const octagon = (o) => { const a = CORNER + o * 0.41, b = H2 + o; return [ [ b, - a ], [ b, a ], [ a, b ], [ - a, b ], [ - b, a ], [ - b, - a ], [ - a, - b ], [ a, - b ] ] }
+    // a floor's facade, face by face: six narrow modules on each flat face (white piers between them) and one on
+    // each chamfered corner
+    const NMOD = 6, MW = (CORNER * 2) / NMOD
+    const WIN_Y = 0.2, WIN_H = 0.42
+    const faceFrame = (f) => { const a = f * Math.PI / 2, c = Math.cos(a), sn = Math.sin(a); return { c, sn, P: (u, o) => [ (H2 + o) * c - u * sn, (H2 + o) * sn + u * c ], tx: - sn, tz: c, nx: c, nz: sn } }
     for(let i = 0; i < FLOORS; i++)
     {
         const white = new Model(), glass = new Model()
         const t = i / (FLOORS - 1)
-        // white band (proud) and the white wall behind the glass, chamfered at the corners
-        const ring = (o) => { const a = CORNER + o * 0.4, b = H2 + o; return [ [ b, - a ], [ b, a ], [ a, b ], [ - a, b ], [ - b, a ], [ - b, - a ], [ - a, - b ], [ a, - b ] ] }
-        flat(white, ring(0.05), 0, BAND, C.snow)
-        flat(white, ring(- 0.06), BAND, WIN, C.snow)
+        {
+            // the floor plate, with the two balcony slots cut into it (face +x and face -x, z 0..2 modules)
+            const o = octagon(0), b = H2, dd = b - 0.5, z0 = 0, z1 = MW * 2
+            flat(white, [ o[0], [ b, z0 ], [ dd, z0 ], [ dd, z1 ], [ b, z1 ], o[1], o[2], o[3], o[4], [ - b, z1 ], [ - dd, z1 ], [ - dd, z0 ], [ - b, z0 ], o[5], o[6], o[7] ], 0, FLOOR, C.snow)
+        }
+        flat(white, octagon(0.03), 0, 0.045, C.snow)                         // slim ledge on the floor line
+        const deep = 1 + t * 1.6 + (i >= FLOORS - 4 ? 0.5 : 0)              // bays reach further out toward the top
         for(let f = 0; f < 4; f++)
         {
-            const a = f * Math.PI / 2
-            const c = Math.cos(a), sn = Math.sin(a)
-            const P = (u, o) => [ (H2 + o) * c - u * sn, (H2 + o) * sn + u * c ]      // face local -> floor local
-            const along = (u, o, size, y) => glassBox(glass, [ 0.03, ...size ], [ ...P(u, o).slice(0, 1), y, P(u, o)[1] ], [ 0, - a, 0 ])
-            const fin = (u, o, h, y) => { const [ x, z ] = P(u, o); white.cbox([ 0.06, h, 0.06 ], C.snow, [ x, y, z ]) }
-            const notch = f === 0
-            // the bays on this face: two, sliding sideways floor by floor
-            const drift = Math.sin(i * 0.23 + f * 1.7) * 0.32
-            const bays = notch ? [ - 1.12, 1.12 ] : [ - 0.85 + drift, 0.85 + drift ]
-            const BW = 0.95, BF = 0.62, depth = 0.3 + t * 0.14
-            // flat windows between the bays, split by mullions every ~0.5
-            const spans = []
-            let from = - CORNER + 0.05
-            for(const u of bays)
+            const F = faceFrame(f)
+            const seg = (u0, u1, o0, o1, y0, h, thick, color, isGlass, trim = 0) => segBox(isGlass ? glass : white, F.P(u0, o0), F.P(u1, o1), y0, h, thick, color, isGlass, trim)
+            const uOf = (k) => - CORNER + MW * (k + 0.5)
+            const slotFace = f === 0 || f === 2
+            const slotMods = f === 0 ? [ 3, 4 ] : [ 1, 2 ]                    // (u 0..2 modules on +x; mirrored on -x)
+            // the bays on this face: two diagonal columns, each two modules wide, sliding one module per floor
+            const bays = []
+            for(const start of [ (i + f * 2) % 8, (i + f * 2 + 4) % 8 ])
             {
-                spans.push([ from, u - BW / 2 - 0.04 ])
-                from = u + BW / 2 + 0.04
+                if(start > NMOD - 2) continue                                     // (stepping round the corner)
+                if(slotFace && (slotMods.includes(start) || slotMods.includes(start + 1))) continue
+                if(bays.some(b => Math.abs(b - start) < 2)) continue
+                bays.push(start)
             }
-            spans.push([ from, CORNER - 0.05 ])
-            if(notch)
-                spans.splice(1, 1, [ - 1.12 + BW / 2 + 0.04, - 0.55 ], [ 0.55, 1.12 - BW / 2 - 0.04 ])
-            for(const [ u0, u1 ] of spans)
+            const used = new Set(bays.flatMap(b => [ b, b + 1 ]))
+            for(let k = 0; k < NMOD; k++)
             {
-                if(u1 - u0 < 0.15) continue
-                const n = Math.max(1, Math.round((u1 - u0) / 0.5))
-                for(let k = 0; k < n; k++)
+                if(used.has(k)) continue
+                const u = uOf(k)
+                if(slotFace && slotMods.includes(k))
                 {
-                    const ua = u0 + (u1 - u0) * k / n, ub = u0 + (u1 - u0) * (k + 1) / n
-                    along((ua + ub) / 2, 0.0, [ WIN - 0.1, ub - ua - 0.05 ], BAND + WIN / 2)
-                    fin(ub, 0.01, WIN, BAND + WIN / 2)
+                    // the balcony slot: recess wall with a sliding door, slab lip, glass rail, white side walls
+                    const r = - 0.5, d = 0.18
+                    seg(u - MW / 2, u + MW / 2, r + 0.01, r + 0.01, 0.05, FLOOR - 0.08, 0.03, C.slate, false)
+                    seg(u - MW * 0.36, u + MW * 0.36, r + 0.03, r + 0.03, 0.06, FLOOR - 0.16, 0.025, null, true)
+                    flat(white, [ F.P(u - MW / 2, r), F.P(u + MW / 2, r), F.P(u + MW / 2, d), F.P(u - MW / 2, d) ], 0, 0.06, C.snow)
+                    seg(u - MW / 2, u + MW / 2, d - 0.01, d - 0.01, 0.06, 0.22, 0.018, null, true, 0.01)
+                    seg(u - MW / 2, u + MW / 2, d - 0.01, d - 0.01, 0.28, 0.02, 0.035, C.snow, false)
+                    continue
                 }
+                // flush window: glass, deep white jambs (the piers), sill and head
+                const ww = MW * 0.74
+                seg(u - ww / 2, u + ww / 2, 0.012, 0.012, WIN_Y, WIN_H, 0.03, null, true)
+                for(const e of [ - 1, 1 ])
+                    seg(u + e * ww / 2, u + e * (ww / 2 + 0.05), 0.045, 0.045, WIN_Y - 0.03, WIN_H + 0.06, 0.09, C.snow, false)
+                seg(u - ww / 2 - 0.05, u + ww / 2 + 0.05, 0.045, 0.045, WIN_Y - 0.035, 0.035, 0.09, C.snow, false)
+                seg(u - ww / 2 - 0.05, u + ww / 2 + 0.05, 0.045, 0.045, WIN_Y + WIN_H, 0.035, 0.09, C.snow, false)
             }
-            // the bay cubes
-            for(const u0 of bays)
+            // the bays: trapezoid boxes, a wide front window with a mullion, glass wrapping onto both angled cheeks,
+            // thick white plates top and bottom, white fins on the folds
+            for(const start of bays)
             {
-                const L = P(u0 - BW / 2, 0), R = P(u0 + BW / 2, 0), FL = P(u0 - BF / 2, depth), FR = P(u0 + BF / 2, depth)
-                flat(white, [ L, R, FR, FL ], BAND - 0.03, 0.08, C.snow)                 // plate under
-                flat(white, [ L, R, FR, FL ], FLOOR - 0.06, 0.08, C.snow)                // plate over
-                along(u0, depth, [ WIN - 0.12, BF - 0.06 ], BAND + WIN / 2)              // front pane
-                for(const [ A, B ] of [ [ L, FL ], [ FR, R ] ])
-                {
-                    const len = Math.hypot(B[0] - A[0], B[1] - A[1])
-                    glassBox(glass, [ len - 0.04, WIN - 0.12, 0.03 ], [ (A[0] + B[0]) / 2, BAND + WIN / 2, (A[1] + B[1]) / 2 ], [ 0, - Math.atan2(B[1] - A[1], B[0] - A[0]), 0 ])
-                }
+                const uc = - CORNER + MW * (start + 1), hw = MW - 0.02
+                const depth = (0.16 + ((i + start) % 3) * 0.05) * deep
+                const hf = hw - Math.min(0.16, depth * 0.55)
+                const L = F.P(uc - hw, 0), R = F.P(uc + hw, 0), FL = F.P(uc - hf, depth), FR = F.P(uc + hf, depth)
+                flat(white, [ L, R, FR, FL ], 0, WIN_Y, C.snow)
+                flat(white, [ L, R, FR, FL ], WIN_Y + WIN_H, FLOOR - WIN_Y - WIN_H, C.snow)
+                segBox(glass, FL, FR, WIN_Y, WIN_H, 0.035, null, true)
+                segBox(glass, L, FL, WIN_Y, WIN_H, 0.035, null, true)
+                segBox(glass, FR, R, WIN_Y, WIN_H, 0.035, null, true)
+                const mid = F.P(uc, depth + 0.01)
+                white.cbox([ 0.03, WIN_H, 0.03 ], C.snow, [ mid[0], WIN_Y + WIN_H / 2, mid[1] ])
                 for(const p of [ FL, FR ])
-                    white.cbox([ 0.06, WIN, 0.06 ], C.snow, [ p[0], BAND + WIN / 2, p[1] ])     // white fins on the edges
+                    white.cbox([ 0.04, WIN_H, 0.04 ], C.snow, [ p[0], WIN_Y + WIN_H / 2, p[1] ])
             }
-            // corner bay on the chamfer to the next face
+            // the chamfered corner: a corner bay pointing out diagonally, deeper as the tower rises, every other
+            // floor stepping out a little more (the sawtooth up the edges)
             {
-                const A = P(CORNER, 0)
-                const a2 = a + Math.PI / 2, c2 = Math.cos(a2), s2 = Math.sin(a2)
-                const Cn = [ H2 * c2 + CORNER * s2, H2 * s2 - CORNER * c2 ]
-                const k = 0.22 + t * 0.12
-                const mid = [ (A[0] + Cn[0]) / 2, (A[1] + Cn[1]) / 2 ]
-                const out = [ (c - sn) / Math.SQRT2, (sn + c) / Math.SQRT2 ]
-                const Tip = [ mid[0] + out[0] * k, mid[1] + out[1] * k ]
-                flat(white, [ A, Tip, Cn ], BAND - 0.03, 0.08, C.snow)
-                flat(white, [ A, Tip, Cn ], FLOOR - 0.06, 0.08, C.snow)
-                for(const [ P0, P1 ] of [ [ A, Tip ], [ Tip, Cn ] ])
-                {
-                    const len = Math.hypot(P1[0] - P0[0], P1[1] - P0[1])
-                    glassBox(glass, [ len - 0.04, WIN - 0.12, 0.03 ], [ (P0[0] + P1[0]) / 2, BAND + WIN / 2, (P0[1] + P1[1]) / 2 ], [ 0, - Math.atan2(P1[1] - P0[1], P1[0] - P0[0]), 0 ])
-                }
-                white.cbox([ 0.06, WIN, 0.06 ], C.snow, [ Tip[0], BAND + WIN / 2, Tip[1] ])
-            }
-            // the balcony notch: a recess, a white slab lip, a glass rail
-            if(notch)
-            {
-                white.cbox([ 0.05, WIN, 1.05 ], C.slate, [ H2 - 0.32, BAND + WIN / 2, 0 ])
-                white.cbox([ 0.36, 0.06, 1.1 ], C.snow, [ H2 - 0.14, BAND, 0 ])
-                glassBox(glass, [ 0.03, WIN * 0.42, 1.05 ], [ H2 + 0.02, BAND + WIN * 0.22, 0 ])
+                const A = F.P(CORNER, 0), a2 = (f + 1) * Math.PI / 2
+                const B = [ H2 * Math.cos(a2) + CORNER * Math.sin(a2), H2 * Math.sin(a2) - CORNER * Math.cos(a2) ]
+                const n = [ (F.c - F.sn) / Math.SQRT2, (F.sn + F.c) / Math.SQRT2 ]
+                const depth = (0.1 + (i % 2) * 0.08) * deep
+                const mid = [ (A[0] + B[0]) / 2 + n[0] * depth, (A[1] + B[1]) / 2 + n[1] * depth ]
+                const tdir = [ (B[0] - A[0]) / 2, (B[1] - A[1]) / 2 ]
+                const k = 0.62
+                const FA = [ mid[0] - tdir[0] * k, mid[1] - tdir[1] * k ], FB = [ mid[0] + tdir[0] * k, mid[1] + tdir[1] * k ]
+                flat(white, [ A, FA, FB, B ], 0, WIN_Y, C.snow)
+                flat(white, [ A, FA, FB, B ], WIN_Y + WIN_H, FLOOR - WIN_Y - WIN_H, C.snow)
+                segBox(glass, A, FA, WIN_Y, WIN_H, 0.035, null, true)
+                segBox(glass, FA, FB, WIN_Y, WIN_H, 0.035, null, true)
+                segBox(glass, FB, B, WIN_Y, WIN_H, 0.035, null, true)
+                for(const p of [ FA, FB ])
+                    white.cbox([ 0.04, WIN_H, 0.04 ], C.snow, [ p[0], WIN_Y + WIN_H / 2, p[1] ])
             }
         }
-        const sc = 0.97 + t * 0.07
+        // a ring of fairy lights along the ledge every few floors
+        if(i % 6 === 5)
+        {
+            const ring = octagon(0.07)
+            for(let e = 0; e < ring.length; e++)
+            {
+                const A = ring[e], B = ring[(e + 1) % ring.length]
+                const n = Math.max(1, Math.round(Math.hypot(B[0] - A[0], B[1] - A[1]) / 0.3))
+                for(let q = 0; q < n; q++)
+                    bulb(white, [ A[0] + (B[0] - A[0]) * q / n, 0.03, A[1] + (B[1] - A[1]) * q / n ], 0.06)
+            }
+        }
+        const sc = 0.97 + t * 0.06
         const at = [ 0, LOBBY + i * FLOOR, 0 ], rot = [ 0, t * TWIST, 0 ], scl = [ sc, 1, sc ]
         tower.merge(white, at, rot, scl)
         glazing.merge(glass, at, rot, scl)
@@ -792,19 +826,6 @@ builders.mira = (ctx) =>
     // Christmas: a garland of lights spiralling up the tower with the twist, lights round the crown
     const deco = new Model()
     {
-        // a garland wound round the tower (three turns), turning with the floors
-        const turns = 3, n = 440
-        for(let k = 0; k < n; k++)
-        {
-            const t = k / n
-            const ang = t * turns * Math.PI * 2
-            const c = Math.cos(ang), sn = Math.sin(ang)
-            const m = Math.max(Math.abs(c), Math.abs(sn))
-            const r = (W / 2 + 0.75) * (0.97 + t * 0.07)
-            const lx = c / m * r, lz = sn / m * r
-            const tw = t * TWIST
-            bulb(deco, [ lx * Math.cos(tw) + lz * Math.sin(tw), LOBBY + 0.4 + t * (TOP - LOBBY - 0.6), - lx * Math.sin(tw) + lz * Math.cos(tw) ], 0.09)
-        }
         for(let k = 0; k < 48; k++)
         {
             const a = k / 48 * Math.PI * 2
