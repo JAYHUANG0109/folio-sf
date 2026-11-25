@@ -88,8 +88,13 @@ export class Physics
 
         // Attributes
         physical.waterGravityMultiplier = typeof _physicalDescription.waterGravityMultiplier !== 'undefined' ? _physicalDescription.waterGravityMultiplier : - 1.5
-        physical.linearDamping = typeof _physicalDescription.linearDamping !== 'undefined' ? _physicalDescription.linearDamping : 0.1
-        physical.angularDamping = typeof _physicalDescription.angularDamping !== 'undefined' ? _physicalDescription.angularDamping : 0.1
+        // knocked-over props (trees, lamps, benches, scenery...) stay grounded: real air drag, spin dies out, no launches
+        // into the sky (see settle() below). The car and the dogs opt out with settle: false.
+        const isDynamic = _physicalDescription.type === 'dynamic' || typeof _physicalDescription.type === 'undefined'
+        physical.settle = isDynamic && _physicalDescription.settle !== false
+        physical.linearDamping = typeof _physicalDescription.linearDamping !== 'undefined' ? _physicalDescription.linearDamping : (physical.settle ? 0.35 : 0.1)
+        physical.angularDamping = typeof _physicalDescription.angularDamping !== 'undefined' ? _physicalDescription.angularDamping : (physical.settle ? 1.6 : 0.1)
+        physical.awake = 0
 
         // Body
         let rigidBodyDesc = this.game.RAPIER.RigidBodyDesc
@@ -238,6 +243,52 @@ export class Physics
         return physical
     }
 
+    /** A knocked prop: cap how fast it can fly up, slide and spin, and calm it down more and more the longer it moves */
+    settle(physical)
+    {
+        const body = physical.body
+        if(body.isSleeping() || !body.isEnabled())
+        {
+            physical.awake = 0
+            return
+        }
+        physical.awake += this.game.ticker.deltaScaled
+        // a fresh hit (sudden speed-up) starts the calm-down over, so it still reacts properly
+        const speed = Math.hypot(body.linvel().x, body.linvel().z)
+        if(speed - (physical.lastSpeed || 0) > 2.5)
+            physical.awake = 0
+        physical.lastSpeed = speed
+        // after ~2.5s of tumbling, damping ramps up so it comes to rest instead of rolling/spinning on and on
+        const calm = Math.max(0, physical.awake - 2.5)
+        // (only sideways sliding is braked: falling stays at full gravity)
+        body.setLinearDamping(physical.linearDamping)
+        body.setAngularDamping(physical.angularDamping + calm * 2)
+
+        const v = body.linvel(), w = body.angvel()
+        let changed = false
+        if(calm > 0)
+        {
+            const brake = Math.exp(- calm * 0.8 * this.game.ticker.deltaScaled)
+            v.x *= brake
+            v.z *= brake
+            changed = true
+        }
+        const MAX_UP = 4.5, MAX_FLAT = 11, MAX_SPIN = 5
+        if(v.y > MAX_UP) { v.y = MAX_UP; changed = true }
+        const flat = Math.hypot(v.x, v.z)
+        if(flat > MAX_FLAT) { v.x *= MAX_FLAT / flat; v.z *= MAX_FLAT / flat; changed = true }
+        if(changed) body.setLinvel(v, false)
+        const spin = Math.hypot(w.x, w.y, w.z)
+        if(spin > MAX_SPIN) body.setAngvel({ x: w.x * MAX_SPIN / spin, y: w.y * MAX_SPIN / spin, z: w.z * MAX_SPIN / spin }, false)
+
+        // nearly still for a moment: let it rest
+        if(physical.awake > 6 && flat < 0.25 && Math.abs(v.y) < 0.25 && spin < 0.3)
+        {
+            body.sleep()
+            physical.awake = 0
+        }
+    }
+
     update()
     {
         this.world.timestep = this.game.ticker.deltaScaled
@@ -252,6 +303,8 @@ export class Physics
                 physical.body.setLinearDamping(1)
                 physical.body.setAngularDamping(1)
             }
+            else if(physical.settle)
+                this.settle(physical)
             else
             {
                 physical.body.setLinearDamping(physical.linearDamping)

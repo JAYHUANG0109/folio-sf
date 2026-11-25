@@ -167,6 +167,7 @@ class Dog
             friction: 0.4,
             restitution: 0.4,
             canSleep: false,
+            settle: false,
             linearDamping: 0.6,
             angularDamping: 2,
             mass: this.data.mass,

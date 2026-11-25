@@ -2,7 +2,7 @@ import * as THREE from 'three/webgpu'
 import { texture } from 'three/tsl'
 import gsap from 'gsap'
 import { Game } from '../Game.js'
-import { secrets } from '../../data/secrets.js'
+import { secrets } from '../../data/worldData.js'
 
 /**
  * The great hall of the Napa castle: polaroid photos on the walls and a big looping video on the keep.

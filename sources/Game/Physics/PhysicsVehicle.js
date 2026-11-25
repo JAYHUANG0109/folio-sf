@@ -103,6 +103,7 @@ export class PhysicsVehicle
                 { shape: 'cuboid', mass: 0, parameters: [ 1.5, 0.5, 0.9 ], position: { x: 0.1, y: -0.2, z: 0 }, category: 'bumper' }, // Bumper
             ],
             canSleep: false,
+            settle: false,
             waterGravityMultiplier: 0,
             onCollision: (force, position) =>
             {
