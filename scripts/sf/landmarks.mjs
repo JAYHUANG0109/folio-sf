@@ -702,7 +702,7 @@ builders.mira = (ctx) =>
         {
             // the floor plate, with the two balcony slots cut into it (face +x and face -x, z 0..2 modules)
             const o = octagon(0), b = H2, dd = b - 0.5, z0 = 0, z1 = MW * 2
-            flat(white, [ o[0], [ b, z0 ], [ dd, z0 ], [ dd, z1 ], [ b, z1 ], o[1], o[2], o[3], o[4], [ - b, z1 ], [ - dd, z1 ], [ - dd, z0 ], [ - b, z0 ], o[5], o[6], o[7] ], 0, FLOOR, C.snow)
+            flat(white, [ o[0], [ b, z0 ], [ dd, z0 ], [ dd, z1 ], [ b, z1 ], o[1], o[2], o[3], o[4], [ - b, z0 ], [ - dd, z0 ], [ - dd, - z1 ], [ - b, - z1 ], o[5], o[6], o[7] ], 0, FLOOR, C.snow)
         }
         flat(white, octagon(0.03), 0, 0.045, C.snow)                         // slim ledge on the floor line
         const deep = 1 + t * 0.45 + (i >= FLOORS - 2 ? 0.2 : 0)            // bays reach a little further out toward the top (as in the photos: modest, only the crown gets jagged)
@@ -711,57 +711,51 @@ builders.mira = (ctx) =>
             const F = faceFrame(f)
             const seg = (u0, u1, o0, o1, y0, h, thick, color, isGlass, trim = 0) => segBox(isGlass ? glass : white, F.P(u0, o0), F.P(u1, o1), y0, h, thick, color, isGlass, trim)
             const uOf = (k) => - CORNER + MW * (k + 0.5)
+            // the facade is organised in columns (as on the real tower): each of the six modules of a face keeps the
+            // same kind of unit on every floor, so every window lines up vertically. Bay columns step a little further
+            // out floor after floor, then start again (each column a few floors out of phase with its neighbour), which
+            // draws the diagonal lines of white edges that spiral round the tower. Two faces carry a deep balcony slot.
             const slotFace = f === 0 || f === 2
-            const slotMods = f === 0 ? [ 3, 4 ] : [ 1, 2 ]                    // (u 0..2 modules on +x; mirrored on -x)
-            // the bays on this face: two diagonal columns, each two modules wide, sliding one module per floor
-            const bays = []
-            for(const start of [ (i + f * 2) % 8, (i + f * 2 + 4) % 8 ])
-            {
-                if(start > NMOD - 2) continue                                     // (stepping round the corner)
-                if(slotFace && (slotMods.includes(start) || slotMods.includes(start + 1))) continue
-                if(bays.some(b => Math.abs(b - start) < 2)) continue
-                bays.push(start)
-            }
-            const used = new Set(bays.flatMap(b => [ b, b + 1 ]))
+            const types = slotFace ? [ 'bay', 'win', 'bay', 'slot', 'slot', 'win' ] : [ 'bay', 'win', 'bay', 'win', 'bay', 'win' ]
+            const ramp = (col) => ((i + col * 3) % 7 + 7) % 7
             for(let k = 0; k < NMOD; k++)
             {
-                if(used.has(k)) continue
-                const u = uOf(k)
-                if(slotFace && slotMods.includes(k))
+                const u = uOf(k), type = types[k]
+                if(type === 'slot')
                 {
                     // the balcony slot: recess wall with a sliding door, slab lip, glass rail, white side walls
-                    const r = - 0.5, d = 0.18
+                    const r = - 0.5, d = 0.14
                     seg(u - MW / 2, u + MW / 2, r + 0.01, r + 0.01, 0.05, FLOOR - 0.08, 0.03, C.slate, false)
                     seg(u - MW * 0.36, u + MW * 0.36, r + 0.03, r + 0.03, 0.06, FLOOR - 0.16, 0.025, null, true)
                     flat(white, [ F.P(u - MW / 2, r), F.P(u + MW / 2, r), F.P(u + MW / 2, d), F.P(u - MW / 2, d) ], 0, 0.06, C.snow)
                     seg(u - MW / 2, u + MW / 2, d - 0.01, d - 0.01, 0.06, 0.22, 0.018, null, true, 0.01)
                     seg(u - MW / 2, u + MW / 2, d - 0.01, d - 0.01, 0.28, 0.02, 0.035, C.snow, false)
+                    if(k === 3) seg(u - MW / 2, u - MW / 2, r, d, 0, FLOOR, 0.05, C.snow, false)
                     continue
                 }
-                // flush window: glass, deep white jambs (the piers), sill and head
-                const ww = MW * 0.74
-                seg(u - ww / 2, u + ww / 2, 0.012, 0.012, WIN_Y, WIN_H, 0.03, null, true)
-                for(const e of [ - 1, 1 ])
-                    seg(u + e * ww / 2, u + e * (ww / 2 + 0.05), 0.045, 0.045, WIN_Y - 0.03, WIN_H + 0.06, 0.09, C.snow, false)
-                seg(u - ww / 2 - 0.05, u + ww / 2 + 0.05, 0.045, 0.045, WIN_Y - 0.035, 0.035, 0.09, C.snow, false)
-                seg(u - ww / 2 - 0.05, u + ww / 2 + 0.05, 0.045, 0.045, WIN_Y + WIN_H, 0.035, 0.09, C.snow, false)
-            }
-            // the bays (MIRA's "twisting bay windows"): two windows wide, the front pane angled, shallow at one end and
-            // deep at the other (always the same hand, so round the tower they read as a spiral), a solid white cheek
-            // at the deep end, a narrow glass cheek at the shallow end, thick white plates top and bottom
-            for(const start of bays)
-            {
-                const uc = - CORNER + MW * (start + 1), hw = MW - 0.02
-                const depth = Math.min(0.42, (0.22 + ((i + start) % 3) * 0.04) * deep)
-                const dLo = depth * 0.45
-                const L = F.P(uc - hw, 0), R = F.P(uc + hw, 0), FL = F.P(uc - hw + 0.06, dLo), FR = F.P(uc + hw - 0.03, depth)
+                if(type === 'win')
+                {
+                    // flush window in a deep white frame: glass, jambs, sill and head
+                    const ww = MW * 0.72
+                    seg(u - ww / 2, u + ww / 2, 0.012, 0.012, WIN_Y, WIN_H, 0.03, null, true)
+                    for(const e of [ - 1, 1 ])
+                        seg(u + e * ww / 2, u + e * (ww / 2 + 0.05), 0.045, 0.045, WIN_Y - 0.03, WIN_H + 0.06, 0.09, C.snow, false)
+                    seg(u - ww / 2 - 0.05, u + ww / 2 + 0.05, 0.045, 0.045, WIN_Y - 0.035, 0.035, 0.09, C.snow, false)
+                    seg(u - ww / 2 - 0.05, u + ww / 2 + 0.05, 0.045, 0.045, WIN_Y + WIN_H, 0.035, 0.09, C.snow, false)
+                    continue
+                }
+                // a bay: the twisting bay window, its front pane angled (shallow at one end, deep at the other, always
+                // the same hand), a solid white cheek at the deep end, a glass cheek at the shallow end, thick white
+                // plates top and bottom. Its depth follows the column's ramp.
+                const hw = MW / 2 - 0.01
+                const depth = (0.07 + ramp(f * NMOD + k) * 0.045) * (1 + t * 0.35)
+                const dLo = depth * 0.4
+                const L = F.P(u - hw, 0), R = F.P(u + hw, 0), FL = F.P(u - hw + 0.03, dLo), FR = F.P(u + hw - 0.02, depth)
                 flat(white, [ L, R, FR, FL ], 0, WIN_Y, C.snow)
                 flat(white, [ L, R, FR, FL ], WIN_Y + WIN_H, FLOOR - WIN_Y - WIN_H, C.snow)
-                segBox(glass, FL, FR, WIN_Y, WIN_H, 0.035, null, true, 0.02)                     // the angled front
-                segBox(glass, L, FL, WIN_Y, WIN_H, 0.03, null, true)                             // narrow glass cheek
-                segBox(white, FR, R, WIN_Y, WIN_H, 0.06, C.snow)                                 // solid white cheek
-                const mid = [ (FL[0] + FR[0]) / 2, (FL[1] + FR[1]) / 2 ]
-                white.cbox([ 0.03, WIN_H, 0.03 ], C.snow, [ mid[0], WIN_Y + WIN_H / 2, mid[1] ])     // mullion
+                segBox(glass, FL, FR, WIN_Y, WIN_H, 0.035, null, true, 0.02)
+                segBox(glass, L, FL, WIN_Y, WIN_H, 0.03, null, true)
+                segBox(white, FR, R, WIN_Y, WIN_H, 0.06, C.snow)
                 white.cbox([ 0.045, WIN_H, 0.045 ], C.snow, [ FL[0], WIN_Y + WIN_H / 2, FL[1] ])
                 white.cbox([ 0.06, WIN_H, 0.06 ], C.snow, [ FR[0], WIN_Y + WIN_H / 2, FR[1] ])
             }
@@ -771,7 +765,7 @@ builders.mira = (ctx) =>
                 const A = F.P(CORNER, 0), a2 = (f + 1) * Math.PI / 2
                 const B = [ H2 * Math.cos(a2) + CORNER * Math.sin(a2), H2 * Math.sin(a2) - CORNER * Math.cos(a2) ]
                 const n = [ (F.c - F.sn) / Math.SQRT2, (F.sn + F.c) / Math.SQRT2 ]
-                const depth = Math.min(0.36, (0.12 + (i % 2) * 0.06) * deep)
+                const depth = (0.08 + (((i + f * 2) % 7 + 7) % 7) * 0.04) * (1 + t * 0.35)
                 const mid = [ (A[0] + B[0]) / 2 + n[0] * depth, (A[1] + B[1]) / 2 + n[1] * depth ]
                 const tdir = [ (B[0] - A[0]) / 2, (B[1] - A[1]) / 2 ]
                 const k = 0.62
