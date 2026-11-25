@@ -705,7 +705,7 @@ builders.mira = (ctx) =>
             flat(white, [ o[0], [ b, z0 ], [ dd, z0 ], [ dd, z1 ], [ b, z1 ], o[1], o[2], o[3], o[4], [ - b, z1 ], [ - dd, z1 ], [ - dd, z0 ], [ - b, z0 ], o[5], o[6], o[7] ], 0, FLOOR, C.snow)
         }
         flat(white, octagon(0.03), 0, 0.045, C.snow)                         // slim ledge on the floor line
-        const deep = 1 + t * 1.6 + (i >= FLOORS - 4 ? 0.5 : 0)              // bays reach further out toward the top
+        const deep = 1 + t * 0.45 + (i >= FLOORS - 2 ? 0.2 : 0)            // bays reach a little further out toward the top (as in the photos: modest, only the crown gets jagged)
         for(let f = 0; f < 4; f++)
         {
             const F = faceFrame(f)
@@ -752,8 +752,8 @@ builders.mira = (ctx) =>
             for(const start of bays)
             {
                 const uc = - CORNER + MW * (start + 1), hw = MW - 0.02
-                const depth = (0.24 + ((i + start) % 3) * 0.06) * deep
-                const dLo = depth * 0.22
+                const depth = Math.min(0.42, (0.22 + ((i + start) % 3) * 0.04) * deep)
+                const dLo = depth * 0.45
                 const L = F.P(uc - hw, 0), R = F.P(uc + hw, 0), FL = F.P(uc - hw + 0.06, dLo), FR = F.P(uc + hw - 0.03, depth)
                 flat(white, [ L, R, FR, FL ], 0, WIN_Y, C.snow)
                 flat(white, [ L, R, FR, FL ], WIN_Y + WIN_H, FLOOR - WIN_Y - WIN_H, C.snow)
@@ -771,7 +771,7 @@ builders.mira = (ctx) =>
                 const A = F.P(CORNER, 0), a2 = (f + 1) * Math.PI / 2
                 const B = [ H2 * Math.cos(a2) + CORNER * Math.sin(a2), H2 * Math.sin(a2) - CORNER * Math.cos(a2) ]
                 const n = [ (F.c - F.sn) / Math.SQRT2, (F.sn + F.c) / Math.SQRT2 ]
-                const depth = (0.1 + (i % 2) * 0.08) * deep
+                const depth = Math.min(0.36, (0.12 + (i % 2) * 0.06) * deep)
                 const mid = [ (A[0] + B[0]) / 2 + n[0] * depth, (A[1] + B[1]) / 2 + n[1] * depth ]
                 const tdir = [ (B[0] - A[0]) / 2, (B[1] - A[1]) / 2 ]
                 const k = 0.62
