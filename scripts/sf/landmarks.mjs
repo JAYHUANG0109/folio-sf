@@ -639,7 +639,7 @@ builders.sfo = (ctx) =>
 builders.mira = (ctx) =>
 {
     const nodes = []
-    const cx = 50, cz = 3
+    const cx = 49.5, cz = 3
     const tower = new Model()          // the white structure
     const glazing = new Model()        // all the glass (its own material, see Materials.js miraGlass)
     const W = 4.4                      // floor plate (square, the bays stick out of it)
@@ -671,7 +671,7 @@ builders.mira = (ctx) =>
     // facade is a sawtooth of white zigzags climbing round the tower; two diagonal spines of balconies spiral up; the
     // bays get deeper toward the top, where the crown turns jagged. The stack also turns gently as it rises and
     // flares a little.
-    const TWIST = 0.32
+    const TWIST = 0.9
     const flat = (m, pts, y, thickness, color) =>
     {
         const shape = new THREE.Shape(pts.map(([ x, z ]) => new THREE.Vector2(x, - z)))
@@ -746,23 +746,24 @@ builders.mira = (ctx) =>
                 seg(u - ww / 2 - 0.05, u + ww / 2 + 0.05, 0.045, 0.045, WIN_Y - 0.035, 0.035, 0.09, C.snow, false)
                 seg(u - ww / 2 - 0.05, u + ww / 2 + 0.05, 0.045, 0.045, WIN_Y + WIN_H, 0.035, 0.09, C.snow, false)
             }
-            // the bays: trapezoid boxes, a wide front window with a mullion, glass wrapping onto both angled cheeks,
-            // thick white plates top and bottom, white fins on the folds
+            // the bays (MIRA's "twisting bay windows"): two windows wide, the front pane angled, shallow at one end and
+            // deep at the other (always the same hand, so round the tower they read as a spiral), a solid white cheek
+            // at the deep end, a narrow glass cheek at the shallow end, thick white plates top and bottom
             for(const start of bays)
             {
                 const uc = - CORNER + MW * (start + 1), hw = MW - 0.02
-                const depth = (0.16 + ((i + start) % 3) * 0.05) * deep
-                const hf = hw - Math.min(0.16, depth * 0.55)
-                const L = F.P(uc - hw, 0), R = F.P(uc + hw, 0), FL = F.P(uc - hf, depth), FR = F.P(uc + hf, depth)
+                const depth = (0.24 + ((i + start) % 3) * 0.06) * deep
+                const dLo = depth * 0.22
+                const L = F.P(uc - hw, 0), R = F.P(uc + hw, 0), FL = F.P(uc - hw + 0.06, dLo), FR = F.P(uc + hw - 0.03, depth)
                 flat(white, [ L, R, FR, FL ], 0, WIN_Y, C.snow)
                 flat(white, [ L, R, FR, FL ], WIN_Y + WIN_H, FLOOR - WIN_Y - WIN_H, C.snow)
-                segBox(glass, FL, FR, WIN_Y, WIN_H, 0.035, null, true)
-                segBox(glass, L, FL, WIN_Y, WIN_H, 0.035, null, true)
-                segBox(glass, FR, R, WIN_Y, WIN_H, 0.035, null, true)
-                const mid = F.P(uc, depth + 0.01)
-                white.cbox([ 0.03, WIN_H, 0.03 ], C.snow, [ mid[0], WIN_Y + WIN_H / 2, mid[1] ])
-                for(const p of [ FL, FR ])
-                    white.cbox([ 0.04, WIN_H, 0.04 ], C.snow, [ p[0], WIN_Y + WIN_H / 2, p[1] ])
+                segBox(glass, FL, FR, WIN_Y, WIN_H, 0.035, null, true, 0.02)                     // the angled front
+                segBox(glass, L, FL, WIN_Y, WIN_H, 0.03, null, true)                             // narrow glass cheek
+                segBox(white, FR, R, WIN_Y, WIN_H, 0.06, C.snow)                                 // solid white cheek
+                const mid = [ (FL[0] + FR[0]) / 2, (FL[1] + FR[1]) / 2 ]
+                white.cbox([ 0.03, WIN_H, 0.03 ], C.snow, [ mid[0], WIN_Y + WIN_H / 2, mid[1] ])     // mullion
+                white.cbox([ 0.045, WIN_H, 0.045 ], C.snow, [ FL[0], WIN_Y + WIN_H / 2, FL[1] ])
+                white.cbox([ 0.06, WIN_H, 0.06 ], C.snow, [ FR[0], WIN_Y + WIN_H / 2, FR[1] ])
             }
             // the chamfered corner: a corner bay pointing out diagonally, deeper as the tower rises, every other
             // floor stepping out a little more (the sawtooth up the edges)
@@ -817,11 +818,12 @@ builders.mira = (ctx) =>
     }
     crown.box([ 2.9, 0.06, 4.4 ], C.stone, [ 0.1, 0.25 + CROWN, 0 ])
     tower.merge(crown, [ 0, TOP, 0 ], [ 0, TWIST, 0 ], [ 1.04, 1, 1.04 ])
-    nodes.push({ ...meshNode('miraGlass', glazing, ctx.at(cx, cz)), mesh: { geometry: glazing.geometry(), material: 'miraGlass' } })
-    nodes.push(fixedNode('miraTower', tower, ctx.at(cx, cz), [
+    const FRONT = [ 0, Math.PI / 2, 0 ]            // the entrance (local -x) faces south, onto the front drive
+    nodes.push({ ...meshNode('miraGlass', glazing, ctx.at(cx, cz)), mesh: { geometry: glazing.geometry(), material: 'miraGlass' }, rotation: FRONT })
+    nodes.push({ ...fixedNode('miraTower', tower, ctx.at(cx, cz), [
         { position: [ 0, (TOP + CROWN + 0.25) / 2, 0 ], size: [ W, TOP + CROWN + 0.25, W ] },
         { position: [ - W / 2 - 0.6, LOBBY - 0.3, 0 ], size: [ 1.3, 0.1, 2.6 ] },
-    ]))
+    ]), rotation: FRONT })
 
     // Christmas: a garland of lights spiralling up the tower with the twist, lights round the crown
     const deco = new Model()
@@ -849,7 +851,7 @@ builders.mira = (ctx) =>
         const lx = (0.1 + side * 1.53) * 1.04
         wreath(deco, [ lx * Math.cos(TWIST), TOP + 1.05, - lx * Math.sin(TWIST) ], Math.PI / 2 + TWIST, 2.4)
     }
-    nodes.push(meshNode('miraDeco', deco, ctx.at(cx, cz)))
+    nodes.push({ ...meshNode('miraDeco', deco, ctx.at(cx, cz)), rotation: FRONT })
     // the star on top, glowing
     const star = christmasStar()
     const starGeometry = star.geometry()
@@ -868,7 +870,7 @@ builders.ferryBuilding = (ctx) =>
     // stacked belfry stages, lit gold at night
     const hall = new Model()
     const stone = C.snow, trim = C.stone
-    const L = 26
+    const L = 23
     hall.box([ 6, 3.8, L ], stone)
     hall.box([ 6.2, 0.25, L + 0.2 ], trim, [ 0, 1.7, 0 ])                          // string course between floors
     hall.box([ 6.3, 0.3, L + 0.3 ], trim, [ 0, 3.8, 0 ])                           // cornice
@@ -983,7 +985,7 @@ builders.ferryBuilding = (ctx) =>
     stand.box([ 2.6, 0.12, 3.6 ], C.sky, [ 0, 2.6, 0 ])
     stand.cylinder(0.05, 0.05, 1.5, C.dark, [ - 1.1, 1.1, - 1.6 ], 4)
     stand.cylinder(0.05, 0.05, 1.5, C.dark, [ - 1.1, 1.1, 1.6 ], 4)
-    nodes.push(fixedNode('oysters', stand, ctx.at(54, - 20.5), [ { position: [ 0, 0.7, 0 ], size: [ 2.4, 1.4, 3.4 ] } ]))
+    nodes.push(fixedNode('oysters', stand, ctx.at(51.5, - 21.5), [ { position: [ 0, 0.7, 0 ], size: [ 2.4, 1.4, 3.4 ] } ]))
 
     // Bay Bridge going off to the east (visual only, beyond the playable area)
     const bay = new Model()

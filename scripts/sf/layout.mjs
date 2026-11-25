@@ -73,7 +73,7 @@ export const pads = [
     [65, 69, 15, 21, 0],      // SFO (bigger airport)
     [12, 79, 12, 18, 0],      // Levi's
     [59, -18, 6, 10, 0],      // Ferry Building
-    [50, 3.5, 3.5, 6, 0],     // MIRA (280 Spear St)
+    [49.5, 3.5, 3.5, 6, 0],   // MIRA (280 Spear St)
     [34, 13, 6, 10, 0],       // Union Square
     [24, -13, 9, 14, 0.3],    // Chinatown: flat street level under the shops and the gate
     [36, -54, 4, 7, 0],       // Pier 39 shore
@@ -117,11 +117,11 @@ export const parks = [
  */
 export const streets = [
     // Embarcadero, along the waterfront
-    { points: [[-6, -50], [10, -50], [24, -50], [38, -49], [48, -43], [54, -34], [57, -24], [55, -12]], width: 5.4, asphalt: true },
+    { points: [[-6, -50], [10, -50], [24, -50], [38, -49], [48, -43], [52.5, -34], [53, -24], [53, -12]], width: 5.4, asphalt: true },   // passes in front of the Ferry Building (clear of its hall)
     // ...and from the Ferry Building down to SFO it's a highway (it narrows smoothly back into the Embarcadero at the Ferry Building)
-    { points: [[55, -12], [56, 4], [60, 20], [60, 40], [57, 54], [58, 62]], width: 7, asphalt: true, highway: true, taper: { at: 'start', width: 5.4, length: 10 } },
+    { points: [[53, -12], [54.6, -1], [57.6, 8], [60, 20], [60, 40], [57, 54], [58, 62]], width: 7, asphalt: true, highway: true, taper: { at: 'start', width: 5.4, length: 12 } },   // between the Ferry Building and MIRA
     // Market St, in two parts around the (bigger) Union Square
-    { points: [[55, -16], [46, -8], [43, -2], [44, 5]], width: 5.4, asphalt: true },
+    { points: [[53, -16], [46, -8], [43, -2], [44, 5]], width: 5.4, asphalt: true },
     { points: [[21, 26], [19, 30], [14, 32.5], [2, 38], [-6, 41]], width: 5.4, asphalt: true },
     // to Levi's: branches off the Embarcadero just before SFO (the Embarcadero itself runs all the way down the waterfront to SFO)
     { points: [[57.5, 50], [50, 58], [42, 64], [35, 70]], width: 7, asphalt: true, highway: true, name: '101' }, // ends at the stadium lot
@@ -160,7 +160,7 @@ export const streets = [
 export const plazas = [
     { rect: [20, 3, 47, 28] },       // Union Square
     { ellipse: [59, -18, 7, 6] },    // Ferry Building
-    { rect: [45.5, -0.5, 47.6, 6.5] }, // MIRA's front drive
+    { rect: [46.8, 5.3, 52.2, 9.4] }, // MIRA's front drive (south side)
     { rect: [48, 56, 82, 86] },      // SFO forecourt and apron
     { ellipse: [-62, -86.5, 4, 5] }, // Vista Point, straight ahead off the bridge
     { rect: [18, -29, 30, 1] },      // Chinatown: Grant Ave as a wide pedestrian street

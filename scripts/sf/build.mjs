@@ -199,7 +199,7 @@ const WORLD_SIZE = Layout.SIZE * SPREAD, WORLD_HALF = WORLD_SIZE / 2
 const frustumOverrides = {
     goldenGate: { x: - 62, z: - 63, radius: 30 },
     ferryBuilding: { x: 66, z: - 14, radius: 26 },
-    mira: { x: 50, z: 4, radius: 16 },
+    mira: { x: 49.5, z: 4, radius: 16 },
     lombard: { x: 6, z: - 36, radius: 28 },
     napa: { x: - 79, z: - 84, radius: 14 },
     pier39: { x: 32, z: - 60, radius: 16 },
@@ -364,6 +364,7 @@ for(const stop of [ ...Layout.stops, ...secrets ])
     }
 }
 console.log('site footprints', siteFootprints.length)
+if(process.env.ROADLOG) console.log('MIRA FP', JSON.stringify(siteFootprints.filter(f => f[5] === 'mira').map(f => f.slice(0, 5).map(v => +(+v).toFixed(2)))))
 // no two sites may touch: report every overlap between parts of different stops (with a 1.5 unit gap)
 {
     const box = ([ x, z, hx, hz, a ]) => { const c = Math.abs(Math.cos(a)), s = Math.abs(Math.sin(a)); return [ x - (hx * c + hz * s), z - (hx * s + hz * c), x + (hx * c + hz * s), z + (hx * s + hz * c) ] }
@@ -569,11 +570,12 @@ const spreadXZ = (x, z) => WARP.forward(x, z)
 /** How much wider a road running along (tx, tz) at a design point comes out in the world (area stretch / length stretch) */
 const widthScale = (x, z, tx, tz) =>
 {
-    const h = 0.05
-    const [ fx, fz ] = spreadXZ(x, z), [ ax, az ] = spreadXZ(x + h, z), [ bx, bz ] = spreadXZ(x, z + h)
-    const j11 = (ax - fx) / h, j21 = (az - fz) / h, j12 = (bx - fx) / h, j22 = (bz - fz) / h
+    // central differences over a wide step (smooth: no sawtooth where the stretch changes quickly near a site)
+    const h = 1.2
+    const [ ax, az ] = spreadXZ(x + h, z), [ cx, cz ] = spreadXZ(x - h, z), [ bx, bz ] = spreadXZ(x, z + h), [ dx, dz ] = spreadXZ(x, z - h)
+    const j11 = (ax - cx) / (2 * h), j21 = (az - cz) / (2 * h), j12 = (bx - dx) / (2 * h), j22 = (bz - dz) / (2 * h)
     const along = Math.hypot(j11 * tx + j12 * tz, j21 * tx + j22 * tz) || 1
-    return Math.max(0.3, (j11 * j22 - j12 * j21) / along)
+    return Math.min(1.6, Math.max(0.8, (j11 * j22 - j12 * j21) / along))
 }
 /** A street's centerline in the world (densely sampled, then spread) */
 const worldLine = (points) =>
@@ -703,7 +705,7 @@ const footprints = [] // [x, z, w, d, isDowntown] for the map
         {
             const w = (half + (outer ? SHOULDER : 0)) / f
             const x = px + nx * w * side, z = pz + nz * w * side
-            const y = flat ? groundAt(x, z) : outer ? Math.min(cy, groundAt(x, z)) : cy
+            const y = flat ? groundAt(x, z) - 0.12 : outer ? Math.min(cy, groundAt(x, z)) - 0.14 : cy      // the shoulders dive into the ground (no flicker)
             positions.push(x, y, z)
             uvs.push(u, side < 0 ? 0 : 1)
         }
@@ -737,6 +739,7 @@ const footprints = [] // [x, z, w, d, isDowntown] for the map
         const half = fullHalf
         const centerYs = []
         const blocked = pts.map(p => inSite(p.x, p.z, half * 0.6))
+        if(process.env.ROADLOG && 0) { let run = null; pts.forEach((p, i) => { if(blocked[i] && !run) run = [ p.x, p.z ]; if(!blocked[i] && run) { console.log('ROAD BLOCKED', street.name || street.points[0].join(','), run.map(v => v.toFixed(1)).join(','), '->', p.x.toFixed(1), p.z.toFixed(1)); run = null } }); if(run) console.log('ROAD BLOCKED to end', street.points[0].join(','), run.map(v => v.toFixed(1)).join(',')) }
         let previous = - 1
         pts.forEach((p, i) =>
         {
@@ -770,7 +773,7 @@ const footprints = [] // [x, z, w, d, isDowntown] for the map
                 return
             const t = curve.getTangentAt(i / count)
             const n = { x: - t.z, z: t.x }
-            const y = centerYs[i] + 0.015
+            const y = centerYs[i] + 0.03
             const f = widthScale(p.x, p.z, t.x, t.z)             // offsets and widths across the road, narrowed like the road
             if(street.highway && taperAt(i) < 0.6)
             {
