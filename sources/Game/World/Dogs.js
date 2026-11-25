@@ -631,8 +631,8 @@ class Dog
 
     goToBed()
     {
-        // curl up inside the dog house, nose peeking out of the door
-        const inset = this.houseDepth / 2 - this.half.z + (this.isBig ? 0.55 : 0.35)
+        // curl up on the doorstep, right in front of the door (in plain view, so you can find them asleep)
+        const inset = this.houseDepth / 2 + this.half.z + 0.25
         const { x, z } = this.data.home
         this.sleepPosition = new THREE.Vector3(
             x + this.doorDirection.x * inset,

@@ -136,6 +136,19 @@ export class Materials
         crowd.positionNode = positionLocal.add(vec3(0, hop.add(sway), 0))
         this.save('crowd', crowd)
 
+        // MIRA's glass: pale blue grey, reflecting more sky higher up; every pane a little different (uv.y holds a
+        // random value per pane, see landmarks.mjs mira); after dark about a fifth of the rooms glow warm
+        const pane = uv().y
+        const skyward = smoothstep(2, 34, positionWorld.y)
+        const glassBase = mix(color('#7f97ab'), color('#c9dbe8'), skyward)
+        const glassTint = pane.lessThan(0.3).select(mix(glassBase, color('#5f7487'), 0.45), pane.greaterThan(0.82).select(mix(glassBase, color('#e6f0f6'), 0.5), glassBase))
+        const lit = pane.lessThan(0.21).select(float(1), float(0))
+        const miraGlass = new MeshDefaultMaterial({
+            colorNode: glassTint,
+            emissiveNode: color('#ffd393').mul(lit.mul(1.25).mul(this.nightUniform)),
+        })
+        this.save('miraGlass', miraGlass)
+
     }
 
     setGradient()

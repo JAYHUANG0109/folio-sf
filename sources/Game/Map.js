@@ -189,7 +189,7 @@ export class Map
             house.style.top = `${housePosition.y * 100}%`
             this.element.append(house)
 
-            return { id: data.id, element, arrow: element.querySelector('.map-dog-arrow') }
+            return { id: data.id, element, arrow: element.querySelector('.map-dog-arrow'), name: element.querySelector('.map-dog-name') }
         })
 
         // the cable car's live position (it roams every mainland street)
@@ -270,7 +270,13 @@ export class Map
             marker.element.style.left = `${(position.x * 100).toFixed(2)}%`
             marker.element.style.top = `${(position.y * 100).toFixed(2)}%`
             marker.arrow.style.transform = `rotate(${(Math.PI - dog.facing).toFixed(3)}rad)`
-            marker.element.classList.toggle('is-home', dog.state === 'sleep')
+            const asleep = dog.state === 'sleep'
+            if(marker.asleep !== asleep)
+            {
+                marker.asleep = asleep
+                marker.element.classList.toggle('is-home', asleep)
+                marker.name.textContent = asleep ? `${dog.data.name} 💤` : dog.data.name
+            }
         }
     }
     
