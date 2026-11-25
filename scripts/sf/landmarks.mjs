@@ -644,7 +644,7 @@ builders.mira = (ctx) =>
     const W = 4.4                     // floor plate (square, the bays stick out of it)
     const LOBBY = 1.7, FLOOR = 0.74, FLOORS = 37
     const rr = rng(280)
-    const glass = () => { const v = rr(); return v < 0.2 ? C.window : v < 0.62 ? C.slate : C.sky }     // lit rooms, grey-blue glass, sky reflections
+    const glass = () => { const v = rr(); return v < 0.2 ? C.window : v < 0.5 ? C.lavender : v < 0.85 ? C.slate : C.sky }     // lit rooms (glow at night), soft grey-blue glass, a few sky reflections
 
     // lobby: a double height glass storey between slim white columns, a white canopy over the door (facing the city, -x)
     tower.box([ W - 0.4, LOBBY, W - 0.4 ], C.window)
@@ -661,92 +661,100 @@ builders.mira = (ctx) =>
         tower.merge(sign, [ - W / 2 - 1.27, LOBBY - 0.2, 0 ], [ 0, - Math.PI / 2, 0 ])
     }
 
-    // the facade, floor by floor. Each floor: a white slab edge, a band of glass with white mullions, and the
-    // folded bay windows (a flat front pane, two angled side panes, white plates above and below). The bays sit at
-    // positions along the perimeter that drift a little every floor, so they travel round the corners as the tower
-    // rises: the twist. They stick out further toward the top, so the silhouette flares. One face (the bay side, +x)
-    // has a vertical notch of glass balconies up its middle.
-    const P = W * 4                                      // perimeter
-    const along = (s) =>                                  // perimeter coordinate -> point on the face, outward normal
-    {
-        s = ((s % P) + P) % P
-        const f = Math.floor(s / W), u = s - f * W - W / 2
-        const [ nx, nz ] = [ [ 1, 0 ], [ 0, 1 ], [ - 1, 0 ], [ 0, - 1 ] ][f]
-        return { x: nx * W / 2 - nz * u, z: nz * W / 2 + nx * u, nx, nz, u, f }
-    }
-    const plate = (pts, y, thickness, color) =>
+    // The tower, floor by floor: every floor is the same square plate, turned a little further than the one below
+    // (about 30 degrees from bottom to top) and growing slightly toward the top, so the whole block twists like a
+    // long square being wrung. Each floor: a deep white band, a row of blue grey windows in white frames, folded bay
+    // windows (two panes meeting in a vertical ridge, white plates above and below: the zigzag of white edges),
+    // angled bays on the corners, and on one side a notch of balconies with glass rails (spiralling up the tower).
+    const TWIST = 0.55
+    const flat = (m, pts, y, thickness, color) =>
     {
         const shape = new THREE.Shape(pts.map(([ x, z ]) => new THREE.Vector2(x, - z)))
         const g = new THREE.ExtrudeGeometry(shape, { depth: thickness, bevelEnabled: false })
         g.rotateX(- Math.PI / 2)
-        tower.add(g, color, [ 0, y, 0 ])
+        m.add(g, color, [ 0, y, 0 ])
     }
-    const BAYS = 9, BAY = 0.95
+    const pane = (m, ax, az, bx, bz, y0, h, color) =>
+    {
+        const len = Math.hypot(bx - ax, bz - az)
+        m.cbox([ len, h, 0.035 ], color, [ (ax + bx) / 2, y0 + h / 2, (az + bz) / 2 ], [ 0, - Math.atan2(bz - az, bx - ax), 0 ])
+    }
+    const BAND = 0.3, WIN = FLOOR - BAND
+    const H2 = W / 2
     for(let i = 0; i < FLOORS; i++)
     {
-        const y = LOBBY + 0.16 + i * FLOOR
-        const h = FLOOR - 0.16
+        const floor = new Model()
         const t = i / (FLOORS - 1)
-        // slab edge and glazing band
-        tower.box([ W + 0.12, 0.16, W + 0.12 ], C.snow, [ 0, y + h, 0 ])
-        tower.box([ W - 0.06, h, W - 0.06 ], C.snow, [ 0, y, 0 ])
+        // white band (slightly proud) and the white wall behind the windows
+        floor.box([ W + 0.08, BAND, W + 0.08 ], C.snow, [ 0, 0, 0 ])
+        floor.box([ W - 0.04, WIN, W - 0.04 ], C.snow, [ 0, BAND, 0 ])
         for(let f = 0; f < 4; f++)
-            for(let p = 0; p < 5; p++)
-            {
-                const pt = along(f * W + 0.44 + p * 0.88)
-                if(f === 0 && Math.abs(pt.u) < 0.55)
-                    continue                                                  // the balcony notch
-                tower.cbox(pt.nx ? [ 0.03, h * 0.78, 0.72 ] : [ 0.72, h * 0.78, 0.03 ], glass(), [ pt.x + pt.nx * 0.01, y + h * 0.5, pt.z + pt.nz * 0.01 ])
-            }
-        // balcony notch on the bay side: a dark recess, glass rails, white slab lips
-        tower.cbox([ 0.05, h, 1.1 ], C.dark, [ W / 2 - 0.25, y + h / 2, 0 ])
-        tower.cbox([ 0.03, h * 0.45, 1.0 ], C.sky, [ W / 2 + 0.02, y + h * 0.25, 0 ])
-        tower.cbox([ 0.3, 0.05, 1.1 ], C.snow, [ W / 2 - 0.12, y + h * 0.5, 0 ])
-        // the bays
-        const depth = 0.32 + t * 0.22
-        for(let j = 0; j < BAYS; j++)
         {
-            const s = j * P / BAYS + i * 0.21 + Math.sin(i * 0.4 + j) * 0.08
-            const c = along(s)
-            const u = c.u
-            if(Math.abs(u) > W / 2 - BAY / 2 - 0.05)
-                continue                                                      // (no bay straddling a corner)
-            if(c.f === 0 && Math.abs(u) < 0.55 + BAY / 2)
-                continue                                                      // keep the balcony notch clear
-            const { nx, nz } = c
-            const tx = - nz, tz = nx                                          // along the face
-            const base = (k, o) => [ c.x + tx * k + nx * o, c.z + tz * k + nz * o ]
-            // trapezoid in plan: wide at the wall, narrower at the front
-            const front = BAY * 0.62
-            const pts = [ base(- BAY / 2, 0), base(BAY / 2, 0), base(front / 2, depth), base(- front / 2, depth) ]
-            plate(pts, y - 0.02, 0.08, C.snow)
-            plate(pts, y + h - 0.06, 0.1, C.snow)
-            // panes: front and the two folded sides
-            const [ fx, fz ] = base(0, depth - 0.02)
-            tower.cbox(nx ? [ 0.03, h - 0.1, front - 0.04 ] : [ front - 0.04, h - 0.1, 0.03 ], glass(), [ fx, y + h / 2, fz ])
-            for(const side of [ - 1, 1 ])
+            const a = f * Math.PI / 2
+            const c = Math.cos(a), sn = Math.sin(a)
+            // face local (u along the face, o outward) -> floor local
+            const P = (u, o) => [ (H2 + o) * c - u * sn, (H2 + o) * sn + u * c ]
+            const notch = f === 0
+            // flat windows between the bays, in white frames
+            for(const u of [ - 1.45, 0, 1.45 ])
             {
-                const [ ax, az ] = base(side * BAY / 2, 0), [ bx, bz ] = base(side * front / 2, depth)
-                const len = Math.hypot(bx - ax, bz - az)
-                tower.cbox([ len, h - 0.1, 0.03 ], glass(), [ (ax + bx) / 2, y + h / 2, (az + bz) / 2 ], [ 0, - Math.atan2(bz - az, bx - ax), 0 ])
-                tower.cbox([ 0.05, h - 0.06, 0.05 ], C.snow, [ bx, y + h / 2, bz ])                           // white mullion on the fold
+                if(notch && u === 0) continue
+                const [ x, z ] = P(u, 0.01)
+                floor.cbox([ 0.03, WIN * 0.66, 0.56 ], glass(), [ x, BAND + WIN * 0.5, z ], [ 0, - a, 0 ])
+            }
+            // folded bays: two per face, staggered a little floor to floor
+            const shift = (i % 2) * 0.12
+            for(const u0 of [ - 0.75 + shift, 0.75 - shift ])
+            {
+                if(notch && Math.abs(u0) < 0.9) continue
+                const half = 0.36, out = 0.3 + t * 0.12
+                const L = P(u0 - half, 0), R = P(u0 + half, 0), T = P(u0, out)
+                flat(floor, [ L, R, T ], BAND - 0.02, 0.07, C.snow)                // plate under
+                flat(floor, [ L, R, T ], FLOOR - 0.05, 0.07, C.snow)               // plate over
+                pane(floor, L[0], L[1], T[0], T[1], BAND + 0.04, WIN - 0.14, glass())
+                pane(floor, T[0], T[1], R[0], R[1], BAND + 0.04, WIN - 0.14, glass())
+                floor.cbox([ 0.05, WIN - 0.06, 0.05 ], C.snow, [ T[0], BAND + WIN / 2, T[1] ])   // the ridge
+            }
+            // corner bay: a fold pointing out diagonally
+            {
+                const A = P(H2 - 0.55, 0), B = [ (H2 + 0.0) * c - (H2) * sn, (H2) * sn + (H2) * c ]
+                const a2 = a + Math.PI / 2, c2 = Math.cos(a2), s2 = Math.sin(a2)
+                const Cn = [ (H2) * c2 - (- (H2 - 0.55)) * s2, (H2) * s2 + (- (H2 - 0.55)) * c2 ]
+                const k = 0.26 + t * 0.1
+                const Tip = [ B[0] + (c - sn) * k, B[1] + (sn + c) * k ]
+                flat(floor, [ A, B, Cn, Tip ], BAND - 0.02, 0.07, C.snow)
+                flat(floor, [ A, B, Cn, Tip ], FLOOR - 0.05, 0.07, C.snow)
+                pane(floor, A[0], A[1], Tip[0], Tip[1], BAND + 0.04, WIN - 0.14, glass())
+                pane(floor, Tip[0], Tip[1], Cn[0], Cn[1], BAND + 0.04, WIN - 0.14, glass())
+                floor.cbox([ 0.05, WIN - 0.06, 0.05 ], C.snow, [ Tip[0], BAND + WIN / 2, Tip[1] ])
+            }
+            // the balcony notch: a dark recess, a white slab lip, a glass rail
+            if(notch)
+            {
+                floor.cbox([ 0.05, WIN, 1.3 ], C.dark, [ H2 - 0.3, BAND + WIN / 2, 0 ])
+                floor.cbox([ 0.35, 0.06, 1.3 ], C.snow, [ H2 - 0.13, BAND, 0 ])
+                floor.cbox([ 0.03, WIN * 0.42, 1.25 ], C.sky, [ H2 + 0.03, BAND + WIN * 0.21, 0 ])
             }
         }
+        const sc = 0.97 + t * 0.07
+        tower.merge(floor, [ 0, LOBBY + i * FLOOR, 0 ], [ 0, t * TWIST, 0 ], [ sc, 1, sc ])
     }
-    const TOP = LOBBY + 0.16 + FLOORS * FLOOR
+    const TOP = LOBBY + FLOORS * FLOOR
     // the crown: a rounded white screen set back on the roof, with panel joints
-    tower.box([ W + 0.12, 0.25, W + 0.12 ], C.snow, [ 0, TOP, 0 ])
+    const crown = new Model()
+    crown.box([ W + 0.2, 0.25, W + 0.2 ], C.snow, [ 0, 0, 0 ])
     const CROWN = 1.6
-    tower.box([ 3.0, CROWN, 1.6 ], C.snow, [ 0.1, TOP + 0.25, 0 ])
+    crown.box([ 3.0, CROWN, 1.6 ], C.snow, [ 0.1, 0.25, 0 ])
     for(const z of [ - 0.8, 0.8 ])
-        tower.cylinder(1.5, 1.5, CROWN, C.snow, [ 0.1, TOP + 0.25, z ], 24)
+        crown.cylinder(1.5, 1.5, CROWN, C.snow, [ 0.1, 0.25, z ], 24)
     for(let k = 0; k < 16; k++)
     {
         const a = k / 16 * Math.PI * 2
         const z = Math.sin(a) > 0 ? 0.8 : - 0.8
-        tower.cbox([ 0.03, CROWN - 0.1, 0.03 ], C.stone, [ 0.1 + Math.cos(a) * 1.51, TOP + 0.25 + CROWN / 2, z + Math.sin(a) * 1.51 ])
+        crown.cbox([ 0.03, CROWN - 0.1, 0.03 ], C.stone, [ 0.1 + Math.cos(a) * 1.51, 0.25 + CROWN / 2, z + Math.sin(a) * 1.51 ])
     }
-    tower.box([ 2.9, 0.06, 4.4 ], C.stone, [ 0.1, TOP + 0.25 + CROWN, 0 ])
+    crown.box([ 2.9, 0.06, 4.4 ], C.stone, [ 0.1, 0.25 + CROWN, 0 ])
+    tower.merge(crown, [ 0, TOP, 0 ], [ 0, TWIST, 0 ], [ 1.04, 1, 1.04 ])
     nodes.push(fixedNode('miraTower', tower, ctx.at(cx, cz), [
         { position: [ 0, (TOP + CROWN + 0.25) / 2, 0 ], size: [ W, TOP + CROWN + 0.25, W ] },
         { position: [ - W / 2 - 0.6, LOBBY - 0.3, 0 ], size: [ 1.3, 0.1, 2.6 ] },
@@ -755,19 +763,25 @@ builders.mira = (ctx) =>
     // Christmas: a garland of lights spiralling up the tower with the twist, lights round the crown
     const deco = new Model()
     {
-        const turns = 3, n = 420
+        // a garland wound round the tower (three turns), turning with the floors
+        const turns = 3, n = 440
         for(let k = 0; k < n; k++)
         {
             const t = k / n
-            const p = along(t * turns * P)
-            const out = 0.7
-            bulb(deco, [ p.x + p.nx * out, LOBBY + 0.5 + t * (TOP - LOBBY - 0.8), p.z + p.nz * out ], 0.09)
+            const ang = t * turns * Math.PI * 2
+            const c = Math.cos(ang), sn = Math.sin(ang)
+            const m = Math.max(Math.abs(c), Math.abs(sn))
+            const r = (W / 2 + 0.75) * (0.97 + t * 0.07)
+            const lx = c / m * r, lz = sn / m * r
+            const tw = t * TWIST
+            bulb(deco, [ lx * Math.cos(tw) + lz * Math.sin(tw), LOBBY + 0.4 + t * (TOP - LOBBY - 0.6), - lx * Math.sin(tw) + lz * Math.cos(tw) ], 0.09)
         }
         for(let k = 0; k < 48; k++)
         {
             const a = k / 48 * Math.PI * 2
             const z = Math.sin(a) > 0 ? 0.8 : - 0.8
-            bulb(deco, [ 0.1 + Math.cos(a) * 1.56, TOP + 0.25 + CROWN - 0.05, z + Math.sin(a) * 1.56 ], 0.08)
+            const lx = (0.1 + Math.cos(a) * 1.56) * 1.04, lz = (z + Math.sin(a) * 1.56) * 1.04
+            bulb(deco, [ lx * Math.cos(TWIST) + lz * Math.sin(TWIST), TOP + 0.25 + CROWN - 0.05, - lx * Math.sin(TWIST) + lz * Math.cos(TWIST) ], 0.08)
         }
     }
     // lights along the canopy edge and down its posts, a wreath over the door, a tree, presents and candy canes
@@ -780,8 +794,11 @@ builders.mira = (ctx) =>
     for(const z of [ - 1.45, 1.45 ])
         candyCane(deco, [ - W / 2 - 1.65, 0, z ], 0, 0.9)
     // a big wreath on the crown, facing the city, and one facing the bay
-    wreath(deco, [ 0.1 - 1.52, TOP + 1.05, 0 ], Math.PI / 2, 2.4)
-    wreath(deco, [ 0.1 + 1.52, TOP + 1.05, 0 ], Math.PI / 2, 2.4)
+    for(const side of [ - 1, 1 ])
+    {
+        const lx = (0.1 + side * 1.53) * 1.04
+        wreath(deco, [ lx * Math.cos(TWIST), TOP + 1.05, - lx * Math.sin(TWIST) ], Math.PI / 2 + TWIST, 2.4)
+    }
     nodes.push(meshNode('miraDeco', deco, ctx.at(cx, cz)))
     // the star on top, glowing
     const star = christmasStar()
