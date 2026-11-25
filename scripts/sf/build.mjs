@@ -1083,8 +1083,9 @@ const streetLampSpots = []
     lamp.cbox([ 0.2, 0.14, 0.06 ], C.red, [ 0, 2.05, 0 ])
     fs.mkdirSync(out('static/streetLamps'), { recursive: true })
     await writeGlb(out('static/streetLamps/streetLamps.glb'), [ dynamicNode('streetLamp', lamp, [ 0, 0, 0 ], [ { shape: 'tube', position: [ 0, 1.5, 0 ], radius: 0.14, height: 3 } ], 0.2) ], { worldScale: W })  // (a model at the origin; the spots are spread with the placements)
-    const merged = mergeGeometries(pools.map(([ x, y, z ]) => new THREE.CircleGeometry(3.4, 20).rotateX(- Math.PI / 2).translate(x, y, z)))
-    sceneryNodes.push({ name: 'lampPools', position: [ 0, 0, 0 ], mesh: { geometry: merged, material: 'lampPool' } })
+    // (laid straight in world space, under the spread lamps)
+    const merged = mergeGeometries(pools.map(([ x, y, z ]) => { const [ wx, wz ] = spreadXZ(x, z); return new THREE.CircleGeometry(3.4, 20).rotateX(- Math.PI / 2).translate(wx, y, wz) }))
+    sceneryNodes.push({ name: 'lampPools', position: [ 0, 0, 0 ], mesh: { geometry: merged, material: 'lampPool' }, warped: true })
     console.log('street lamps', streetLampSpots.length, '(knockable)')
 }
 
@@ -1167,13 +1168,15 @@ const streetLampSpots = []
             }
         }
         // Italian cypresses: lining the driveway and framing the vineyards
-        const trees = new Model()
+        // (one mesh placed at the Napa center, so the map spread moves it with the castle)
+        const trees = new Model(), NX = - 79, NZ = - 84
         const cypress = (x, z, h = 4.5) =>
         {
             const y = ground(x, z)
-            trees.cylinder(0.12, 0.16, 0.8, C.wood, [ x, y, z ], 5)
-            trees.cone(0.75, h, C.moss, [ x, y + 0.6, z ], 7)
-            trees.cone(0.55, h * 0.7, C.olive, [ x, y + 0.6 + h * 0.35, z ], 7)
+            const lx = x - NX, lz = z - NZ
+            trees.cylinder(0.12, 0.16, 0.8, C.wood, [ lx, y, lz ], 5)
+            trees.cone(0.75, h, C.moss, [ lx, y + 0.6, lz ], 7)
+            trees.cone(0.55, h * 0.7, C.olive, [ lx, y + 0.6 + h * 0.35, lz ], 7)
         }
         for(const x of [ - 76.5, - 74.5, - 72.5, - 70.5, - 68.5 ])
             for(const z of [ - 88.2, - 79.6 ])
@@ -1184,15 +1187,15 @@ const streetLampSpots = []
             if(Math.abs(z + 84) > 4.4)
                 cypress(- 94.6, z, 4 + r() * 1.2)
         // olive trees on the lawn by the gate: twisted trunks, silvery round crowns
-        for(const [ x, z ] of [ [ - 77.6, - 90.8 ], [ - 77.8, - 77.2 ] ])
+        for(const [ wx, wz ] of [ [ - 77.6, - 90.8 ], [ - 77.8, - 77.2 ] ])
         {
-            const y = ground(x, z)
+            const y = ground(wx, wz), x = wx - NX, z = wz - NZ
             trees.beam([ x, y, z ], [ x + 0.3, y + 1.2, z - 0.2 ], 0.22, C.wood)
             trees.beam([ x + 0.3, y + 1.2, z - 0.2 ], [ x - 0.2, y + 1.9, z + 0.1 ], 0.16, C.wood)
             trees.sphere(1.3, C.sage, [ x, y + 2.3, z ], 1, [ 1.3, 0.75, 1.2 ])
             trees.sphere(0.9, C.stone, [ x + 0.6, y + 2.6, z + 0.4 ], 1, [ 1.2, 0.7, 1.1 ])
         }
-        sceneryNodes.push(meshNode('napaTrees', trees, [ 0, 0, 0 ]))
+        sceneryNodes.push(meshNode('napaTrees', trees, [ NX, 0, NZ ]))
     }
 
     // Transamerica Pyramid
